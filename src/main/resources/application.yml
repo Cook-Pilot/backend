@@ -1,3 +1,16 @@
 spring:
   application:
     name: backend
+
+---
+# PostgreSQL 연결 준비용 프로파일. repository 계층 확정 전까지 기본 실행에서는 사용하지 않는다.
+# 실행: --spring.profiles.active=local-db
+spring:
+  config:
+    activate:
+      on-profile: local-db
+  datasource:
+    url: jdbc:postgresql://localhost:5432/cookpilot
+    username: cookpilot
+    password: cookpilot
+    driver-class-name: org.postgresql.Driver
