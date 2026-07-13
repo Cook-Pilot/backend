@@ -3,6 +3,40 @@ Cook-Pilot의 Backend 레포입니다.
 
 ---
 
+# Tech Stack
+
+| 항목 | 버전 |
+| --- | --- |
+| Spring Boot | 4.1.0 |
+| Java | 21 |
+| Build Tool | Gradle |
+
+---
+
+# 실행 방법
+
+## 요구 사항
+
+- JDK 21 (`java -version` 으로 확인)
+
+## 실행
+
+```bash
+# 애플리케이션 실행
+./gradlew bootRun
+
+# 빌드
+./gradlew build
+
+# 테스트
+./gradlew test
+```
+
+- 기본 포트: `8080`
+- Health 체크: `curl http://localhost:8080/actuator/health` → `{"status":"UP"}`
+
+---
+
 # Git Convention
 
 ## TAG
