@@ -1,4 +1,7 @@
 # backend
+
+[![CI](https://github.com/Cook-Pilot/backend/actions/workflows/ci.yml/badge.svg)](https://github.com/Cook-Pilot/backend/actions/workflows/ci.yml)
+
 Cook-Pilot의 Backend 레포입니다.
 
 ---
@@ -10,6 +13,7 @@ Cook-Pilot의 Backend 레포입니다.
 | Spring Boot | 4.1.0 |
 | Java | 21 |
 | Build Tool | Gradle |
+| DB | PostgreSQL (연결 준비만, repository 계층은 AI 파트 확정 후 도입) |
 
 ---
 
@@ -34,6 +38,38 @@ Cook-Pilot의 Backend 레포입니다.
 
 - 기본 포트: `8080`
 - Health 체크: `curl http://localhost:8080/actuator/health` → `{"status":"UP"}`
+- 기본 실행은 DB 없이 동작합니다. PostgreSQL 연결 시:
+
+```bash
+./gradlew bootRun --args='--spring.profiles.active=local-db'
+```
+
+---
+
+# 프로젝트 구조
+
+패키지는 계층이 아니라 **기능별 집합**으로 나눕니다.
+
+```
+com.cookpilot.backend
+├── recipe/          레시피 조회 (F-01)
+├── cooksession/     조리 세션 · 단계 이동 · 이벤트 기록 (F-02~04, F-09)
+├── review/          조리 후 피드백 (F-10)
+├── personalrecipe/  개인 레시피 버전 (F-11~12)
+├── ai/              LLM 예외 피드백 — AI 파트 미확정, mock 응답 (F-08)
+├── user/            고정 목유저 (인증 미도입)
+└── common/          공통 예외 처리 (ProblemDetail)
+```
+
+- API 명세와 확정 결정 사항: [`docs/08_mvp_api.md`](docs/08_mvp_api.md)
+- 기획/설계 문서: [`docs/`](docs/README.md)
+
+---
+
+# CI
+
+PR과 `main` push마다 GitHub Actions가 `./gradlew test`를 실행합니다.
+워크플로: [`.github/workflows/ci.yml`](.github/workflows/ci.yml)
 
 ---
 
