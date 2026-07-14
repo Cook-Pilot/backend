@@ -1,0 +1,60 @@
+# VPS 배포용. 소스를 빌드하지 않고 GHCR 이미지를 pull 한다.
+# (로컬 개발은 docker-compose.yml 을 쓴다 — 그쪽은 build: . 로 소스에서 빌드)
+#
+# 최초 기동:
+#   cp .env.example .env && vi .env      # 비밀번호 반드시 교체
+#   docker compose -f docker-compose.prod.yml up -d
+#
+# 이후 배포:
+#   main 푸시 -> CI가 ghcr.io/cook-pilot/backend:latest 갱신
+#            -> watchtower가 폴링으로 감지, app 컨테이너만 자동 교체
+#   (수동 개입 불필요. 기존 env/볼륨/포트 설정은 그대로 유지된다.)
+
+services:
+  app:
+    image: ghcr.io/cook-pilot/backend:latest
+    restart: unless-stopped
+    ports:
+      - "${APP_PORT:-8080}:8080"
+    environment:
+      SPRING_PROFILES_ACTIVE: db
+      DB_URL: jdbc:postgresql://db:5432/${POSTGRES_DB}
+      DB_USERNAME: ${POSTGRES_USER}
+      DB_PASSWORD: ${POSTGRES_PASSWORD}
+    depends_on:
+      db:
+        condition: service_healthy
+    labels:
+      # watchtower가 --label-enable 로 이 컨테이너만 감시한다.
+      com.centurylinklabs.watchtower.enable: "true"
+
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER}"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+    # ports 를 열지 않는다. app 컨테이너만 내부 네트워크로 접근한다.
+    # watchtower 라벨도 붙이지 않는다 — DB가 멋대로 메이저 업그레이드되면 안 된다.
+
+  watchtower:
+    image: containrrr/watchtower:latest
+    restart: unless-stopped
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      # GHCR 패키지가 private 이면 아래 주석을 풀고, VPS에서 먼저:
+      #   echo <PAT> | docker login ghcr.io -u <github-id> --password-stdin
+      # (PAT 스코프: read:packages)
+      # - ~/.docker/config.json:/config.json:ro
+    command: --label-enable --cleanup --interval ${WATCHTOWER_INTERVAL:-300}
+
+volumes:
+  pgdata:

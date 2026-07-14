@@ -1,0 +1,39 @@
+# 로컬 / 개발 배포 공통. DB를 바꾸려면 이미지 재빌드 없이 환경변수만 교체한다.
+#
+#   docker compose up --build                        # 로컬 postgres 함께 기동
+#   DB_URL=jdbc:postgresql://rds.example:5432/cookpilot \
+#   DB_USERNAME=... DB_PASSWORD=... docker compose up app   # 외부 DB로 전환
+
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-cookpilot}
+      POSTGRES_USER: ${POSTGRES_USER:-cookpilot}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-cookpilot}
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-cookpilot}"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  app:
+    build: .
+    image: cookpilot-backend
+    ports:
+      - "${APP_PORT:-8080}:8080"
+    environment:
+      SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE:-db}
+      DB_URL: ${DB_URL:-jdbc:postgresql://db:5432/cookpilot}
+      DB_USERNAME: ${DB_USERNAME:-cookpilot}
+      DB_PASSWORD: ${DB_PASSWORD:-cookpilot}
+    depends_on:
+      db:
+        condition: service_healthy
+
+volumes:
+  pgdata:

@@ -7,7 +7,7 @@
 | 항목 | 결정 |
 |---|---|
 | 데이터 저장 | repository 계층 미확정 → 서비스 내 인메모리 저장 (재시작 시 초기화) |
-| PostgreSQL | 드라이버 의존성 + `local-db` 프로파일 datasource 설정만 준비. 기본 실행은 DB 없이 동작 |
+| PostgreSQL | 드라이버 의존성 + `db` 프로파일 datasource 설정만 준비 (전부 환경변수 주입). `data-jpa` starter 추가 전까지 실제 연결은 맺지 않음 |
 | 인증 | 없음. 고정 목유저 1명 (`00000000-...-0001`, demo@cookpilot.app) |
 | API 컨벤션 | `/api/v1` prefix, 순수 DTO JSON, 에러는 RFC7807 ProblemDetail |
 | 타이머 | 클라이언트 로컬 진행. 서버는 세션 이벤트로만 기록 |
@@ -74,5 +74,6 @@ com.cookpilot.backend
 ```bash
 ./gradlew test        # 22개 테스트 (MockMvc 통합)
 ./gradlew bootRun     # DB 없이 실행
-./gradlew bootRun --args='--spring.profiles.active=local-db'  # PostgreSQL 연결 시
+./gradlew bootRun --args='--spring.profiles.active=db'  # PostgreSQL 연결 시
+docker compose up --build  # 앱 + PostgreSQL 컨테이너 기동
 ```
