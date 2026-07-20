@@ -20,15 +20,35 @@ repositories {
 dependencies {
 	implementation 'org.springframework.boot:spring-boot-starter-actuator'
 	implementation 'org.springframework.boot:spring-boot-starter-webmvc'
-	// PostgreSQL: 드라이버만 준비. repository 계층 확정 시 spring-boot-starter-data-jpa 추가 예정.
+	// 영속 계층(그룹 A). 스키마 정본은 Flyway, JPA는 validate 로 검증만 한다.
+	implementation 'org.springframework.boot:spring-boot-starter-data-jpa'
+	// 엔티티 제약(@Min/@Max 등)을 flush 전에 검증 — DB CHECK 위반을 앞단에서 명확한 예외로 잡는다.
+	implementation 'org.springframework.boot:spring-boot-starter-validation'
+	implementation 'org.flywaydb:flyway-core'
+	implementation 'org.flywaydb:flyway-database-postgresql'
 	runtimeOnly 'org.postgresql:postgresql'
 	testImplementation 'org.springframework.boot:spring-boot-starter-actuator-test'
 	testImplementation 'org.springframework.boot:spring-boot-starter-webmvc-test'
+	// 실제 postgres 컨테이너로 리포지토리를 검증한다(운영과 동일 DB).
+	testImplementation 'org.springframework.boot:spring-boot-testcontainers'
+	// Testcontainers 2.0 에서 모듈 좌표가 testcontainers-* 로 개명됨. Boot 4 는 코어(2.0.5)만
+	// 관리하고 개별 모듈 버전은 관리하지 않아 명시 고정한다.
+	testImplementation 'org.testcontainers:testcontainers-junit-jupiter:2.0.5'
+	testImplementation 'org.testcontainers:testcontainers-postgresql:2.0.5'
+	// 기본(무프로파일) 컨텍스트가 DB 없이 뜨도록 임베디드 DB만 제공한다(목 웹 테스트용).
+	// 실제 스키마 검증은 db 프로파일 + Testcontainers postgres 로 한다.
+	testRuntimeOnly 'com.h2database:h2'
+	// MainApplicationTests 를 전체 테스트 실행용 @Suite 로 쓰기 위한 의존성.
+	testImplementation 'org.junit.platform:junit-platform-suite'
 	testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
 }
 
 tasks.named('test') {
 	useJUnitPlatform()
+	// MainApplicationTests 는 전체 테스트를 묶는 @Suite 다. Gradle 은 이미 개별 테스트를 모두
+	// 실행하므로, 스위트까지 돌리면 중복 실행된다. Gradle 실행에서는 스위트를 빼고(개별 1회),
+	// 스위트는 IDE 원클릭 전체 실행용으로만 쓴다.
+	exclude '**/MainApplicationTests.class'
 }
 
 // Dockerfile이 고정된 경로를 COPY 한다. -plain.jar 와 함께 glob 되면 빌드가 깨진다.

@@ -1,18 +1,21 @@
+# 기본 프로파일: DB를 쓰지 않는다. (목 웹 테스트는 테스트 런타임 h2로 컨텍스트만 띄움)
 spring:
   application:
     name: backend
+  flyway:
+    enabled: false      # 마이그레이션은 db 프로파일에서만 실행
+  jpa:
+    hibernate:
+      ddl-auto: none    # 스키마를 건드리지 않음
+    open-in-view: false
 
 ---
-# PostgreSQL 프로파일. 기본 실행(프로파일 없음)은 DB 없이 인메모리로 동작한다.
+# db 프로파일: 실제 postgres. 운영/서버 배포는 SPRING_PROFILES_ACTIVE=db 로 이 설정을 쓴다.
 #
-# 접속 정보는 전부 환경변수로 주입한다 -> 이미지 재빌드 없이 DB를 갈아끼울 수 있다.
-# 기본값은 로컬 docker-compose 기준이며, 배포 환경에서는 반드시 덮어쓴다.
+# 스키마 정본은 Flyway(db/migration)이고, JPA는 validate 로 일치 여부만 검사한다.
+# 접속 정보는 환경변수로 주입해 이미지 재빌드 없이 DB를 교체할 수 있다(기본값=로컬 compose).
 #
-# 로컬:   ./gradlew bootRun --args='--spring.profiles.active=db'
-# 컨테이너: SPRING_PROFILES_ACTIVE=db DB_URL=... DB_USERNAME=... DB_PASSWORD=...
-#
-# NOTE: spring-boot-starter-data-jpa 추가 전까지 이 설정은 실제로 연결을 맺지 않는다
-#       (DataSourceAutoConfiguration이 클래스패스에 없음). 인터페이스만 미리 고정해 둔 것.
+# 로컬 실행:  ./gradlew bootRun --args='--spring.profiles.active=db'
 spring:
   config:
     activate:
@@ -22,3 +25,12 @@ spring:
     username: ${DB_USERNAME:cookpilot}
     password: ${DB_PASSWORD:cookpilot}
     driver-class-name: org.postgresql.Driver
+  flyway:
+    enabled: true                 # 기동 시 V1, V2... 미적용 마이그레이션 실행
+    locations: classpath:db/migration
+  jpa:
+    hibernate:
+      ddl-auto: validate          # 엔티티 매핑 == 실제 스키마 검증만 (변경 금지)
+    open-in-view: false
+    properties:
+      hibernate.jdbc.time_zone: UTC
