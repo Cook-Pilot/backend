@@ -1,6 +1,10 @@
 HELP.md
 .gradle
 build/
+
+### 배포 시크릿 ###
+.env
+!.env.example
 !gradle/wrapper/gradle-wrapper.jar
 !**/src/main/**/build/
 !**/src/test/**/build/

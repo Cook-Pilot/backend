@@ -30,3 +30,8 @@ dependencies {
 tasks.named('test') {
 	useJUnitPlatform()
 }
+
+// Dockerfile이 고정된 경로를 COPY 한다. -plain.jar 와 함께 glob 되면 빌드가 깨진다.
+tasks.named('bootJar') {
+	archiveFileName = 'app.jar'
+}

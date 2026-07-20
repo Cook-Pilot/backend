@@ -3,14 +3,22 @@ spring:
     name: backend
 
 ---
-# PostgreSQL 연결 준비용 프로파일. repository 계층 확정 전까지 기본 실행에서는 사용하지 않는다.
-# 실행: --spring.profiles.active=local-db
+# PostgreSQL 프로파일. 기본 실행(프로파일 없음)은 DB 없이 인메모리로 동작한다.
+#
+# 접속 정보는 전부 환경변수로 주입한다 -> 이미지 재빌드 없이 DB를 갈아끼울 수 있다.
+# 기본값은 로컬 docker-compose 기준이며, 배포 환경에서는 반드시 덮어쓴다.
+#
+# 로컬:   ./gradlew bootRun --args='--spring.profiles.active=db'
+# 컨테이너: SPRING_PROFILES_ACTIVE=db DB_URL=... DB_USERNAME=... DB_PASSWORD=...
+#
+# NOTE: spring-boot-starter-data-jpa 추가 전까지 이 설정은 실제로 연결을 맺지 않는다
+#       (DataSourceAutoConfiguration이 클래스패스에 없음). 인터페이스만 미리 고정해 둔 것.
 spring:
   config:
     activate:
-      on-profile: local-db
+      on-profile: db
   datasource:
-    url: jdbc:postgresql://localhost:5432/cookpilot
-    username: cookpilot
-    password: cookpilot
+    url: ${DB_URL:jdbc:postgresql://localhost:5432/cookpilot}
+    username: ${DB_USERNAME:cookpilot}
+    password: ${DB_PASSWORD:cookpilot}
     driver-class-name: org.postgresql.Driver
