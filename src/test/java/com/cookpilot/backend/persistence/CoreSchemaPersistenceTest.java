@@ -19,11 +19,6 @@ import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 import org.testcontainers.postgresql.PostgreSQLContainer;
 
-import com.cookpilot.backend.cooksession.CookSessionEntity;
-import com.cookpilot.backend.cooksession.SessionStatus;
-import com.cookpilot.backend.cooksession.CookSessionEventEntity;
-import com.cookpilot.backend.cooksession.CookSessionEventRepository;
-import com.cookpilot.backend.cooksession.CookSessionRepository;
 import com.cookpilot.backend.personalrecipe.PersonalRecipeVersionEntity;
 import com.cookpilot.backend.personalrecipe.PersonalRecipeVersionRepository;
 import com.cookpilot.backend.recipe.RecipeEntity;
@@ -75,10 +70,6 @@ class CoreSchemaPersistenceTest {
 	@Autowired
 	private PersonalRecipeVersionRepository versionRepository;
 	@Autowired
-	private CookSessionRepository sessionRepository;
-	@Autowired
-	private CookSessionEventRepository eventRepository;
-	@Autowired
 	private PostCookReviewRepository reviewRepository;
 
 	@Test
@@ -107,28 +98,28 @@ class CoreSchemaPersistenceTest {
 	}
 
 	@Test
-	void 세션과_이벤트를_저장하고_JSONB를_왕복한다() {
-		UserEntity user = userRepository.save(new UserEntity("cook@test.com", "테스터"));
-		RecipeEntity recipe = recipeRepository.save(new RecipeEntity("김치찌개", null, null));
-
-		// "끝에 한 번에 저장" 모델: 세션 종료 시 세션 + 누적 이벤트를 함께 저장한다.
-		CookSessionEntity session = new CookSessionEntity(user.getId(), recipe.getId(), null);
-		session.setStatus(SessionStatus.COMPLETED);
-		session.setSetupSnapshot(Map.of("servings", 2, "voice", true));
-		session = sessionRepository.save(session);
-
-		eventRepository.save(new CookSessionEventEntity(
-				session.getId(), "STEP_ADVANCE", 1, "local", Map.of("from", 0, "to", 1)));
+	void 레시피와_단계의_이미지URL을_왕복한다() {
+		RecipeEntity recipe = recipeRepository.save(new RecipeEntity(
+				"부대찌개", null, null, "https://cdn.example.com/recipes/budae.jpg"));
+		stepRepository.save(new RecipeStepEntity(
+				recipe.getId(), 0, "재료를 냄비에 담는다.", null, null, "https://cdn.example.com/steps/budae-0.jpg"));
 		flushAndClear();
 
-		CookSessionEntity found = sessionRepository.findById(session.getId()).orElseThrow();
-		assertThat(found.getSetupSnapshot()).containsEntry("voice", true); // JSONB 라운드트립
-		assertThat(found.getStatus()).isEqualTo(SessionStatus.COMPLETED);
+		RecipeEntity found = recipeRepository.findById(recipe.getId()).orElseThrow();
+		List<RecipeStepEntity> steps = stepRepository.findByRecipeIdOrderByStepIndexAsc(recipe.getId());
 
-		List<CookSessionEventEntity> events = eventRepository.findByCookSessionIdOrderByCreatedAtAsc(session.getId());
-		assertThat(events).hasSize(1);
-		assertThat(events.get(0).getStepIndex()).isEqualTo(1); // step_index = 조리 단계 번호
-		assertThat(events.get(0).getPayload()).containsEntry("to", 1);
+		assertThat(found.getImageUrl()).isEqualTo("https://cdn.example.com/recipes/budae.jpg");
+		assertThat(steps.get(0).getImageUrl()).isEqualTo("https://cdn.example.com/steps/budae-0.jpg");
+	}
+
+	@Test
+	void 이미지URL이_없으면_null로_저장된다() {
+		RecipeEntity recipe = recipeRepository.save(new RecipeEntity("계란찜", null, null));
+		stepRepository.save(new RecipeStepEntity(recipe.getId(), 0, "계란을 푼다.", null, null));
+		flushAndClear();
+
+		assertThat(recipeRepository.findById(recipe.getId()).orElseThrow().getImageUrl()).isNull();
+		assertThat(stepRepository.findByRecipeIdOrderByStepIndexAsc(recipe.getId()).get(0).getImageUrl()).isNull();
 	}
 
 	@Test
@@ -136,8 +127,12 @@ class CoreSchemaPersistenceTest {
 		UserEntity user = userRepository.save(new UserEntity("v@test.com", "버전유저"));
 		RecipeEntity recipe = recipeRepository.save(new RecipeEntity("된장국", null, null));
 
+		PostCookReviewEntity review = reviewRepository.save(new PostCookReviewEntity(
+				user.getId(), recipe.getId(), 5, "맛있었다", "다음엔 파 추가"));
+
+		// 조리 1회의 기록은 리뷰다. 버전은 자기를 만든 리뷰를 source_review_id 로 가리킨다.
 		PersonalRecipeVersionEntity v1 = new PersonalRecipeVersionEntity(
-				user.getId(), recipe.getId(), 1, "덜 짜게", "소금 감소", null);
+				user.getId(), recipe.getId(), 1, "덜 짜게", "소금 감소", review.getId());
 		v1.setDefault(true);
 		v1.setAdjustmentPayload(Map.of("salt", "-20%"));
 		v1 = versionRepository.save(v1);
@@ -150,9 +145,6 @@ class CoreSchemaPersistenceTest {
 		v2.setAdjustmentPayload(Map.of("salt", "-40%"));
 		versionRepository.save(v2);
 
-		CookSessionEntity session = sessionRepository.save(new CookSessionEntity(user.getId(), recipe.getId(), null));
-		reviewRepository.save(new PostCookReviewEntity(
-				session.getId(), user.getId(), recipe.getId(), 5, "맛있었다", "다음엔 파 추가"));
 		flushAndClear();
 
 		assertThat(versionRepository.findByUserIdAndRecipeIdAndIsDefaultTrue(user.getId(), recipe.getId()))
@@ -168,6 +160,9 @@ class CoreSchemaPersistenceTest {
 		List<PostCookReviewEntity> reviews = reviewRepository.findByRecipeIdOrderByCreatedAtDesc(recipe.getId());
 		assertThat(reviews).hasSize(1);
 		assertThat(reviews.get(0).getRating()).isEqualTo(5);
+
+		assertThat(versionRepository.findById(v1Id).orElseThrow().getSourceReviewId())
+				.isEqualTo(review.getId());
 	}
 
 	@Test
@@ -184,22 +179,21 @@ class CoreSchemaPersistenceTest {
 	@Test
 	void 별점이_범위를_벗어나면_flush_전에_검증에서_막힌다() {
 		RecipeEntity recipe = recipeRepository.save(new RecipeEntity("검증", null, null));
-		CookSessionEntity session = sessionRepository.save(new CookSessionEntity(null, recipe.getId(), null));
 
 		// rating=6 은 @Max(5) 위반 → Hibernate 가 flush 시점 검증에서 ConstraintViolationException.
 		// (bean validation 예외라 Spring 예외 변환 대상이 아니라 그대로 전파된다.)
 		assertThatThrownBy(() -> reviewRepository.saveAndFlush(new PostCookReviewEntity(
-				session.getId(), null, recipe.getId(), 6, "범위 초과", null)))
+				null, recipe.getId(), 6, "범위 초과", null)))
 				.isInstanceOf(ConstraintViolationException.class);
 	}
 
 	@Test
 	void 조리이력이_있는_레시피는_삭제가_RESTRICT로_차단된다() {
 		RecipeEntity recipe = recipeRepository.save(new RecipeEntity("삭제금지", null, null));
-		sessionRepository.save(new CookSessionEntity(null, recipe.getId(), null));
+		reviewRepository.save(new PostCookReviewEntity(null, recipe.getId(), 5, "조리 이력", null));
 		flushAndClear();
 
-		// cook_sessions.recipe_id 는 ON DELETE RESTRICT → 세션이 남아 있으면 레시피 삭제 불가.
+		// post_cook_reviews.recipe_id 는 ON DELETE RESTRICT → 리뷰가 남아 있으면 레시피 삭제 불가.
 		// 리포지토리 프록시의 flush() 를 타야 Spring 이 DataIntegrityViolationException 으로 변환한다.
 		recipeRepository.deleteById(recipe.getId());
 		assertThatThrownBy(() -> recipeRepository.flush())
@@ -207,10 +201,13 @@ class CoreSchemaPersistenceTest {
 	}
 
 	@Test
-	void 존재하지_않는_세션을_참조하는_이벤트는_FK로_거부된다() {
-		// cook_session_id 가 실제 세션이 아니면 FK 제약 위반.
-		assertThatThrownBy(() -> eventRepository.saveAndFlush(new CookSessionEventEntity(
-				UUID.randomUUID(), "STEP_ADVANCE", 0, "local", Map.of())))
+	void 존재하지_않는_리뷰를_참조하는_버전은_FK로_거부된다() {
+		UserEntity user = userRepository.save(new UserEntity("fk@test.com", "FK"));
+		RecipeEntity recipe = recipeRepository.save(new RecipeEntity("FK검증", null, null));
+
+		// source_review_id 가 실제 리뷰가 아니면 FK 제약 위반.
+		assertThatThrownBy(() -> versionRepository.saveAndFlush(new PersonalRecipeVersionEntity(
+				user.getId(), recipe.getId(), 1, "버전", null, UUID.randomUUID())))
 				.isInstanceOf(DataIntegrityViolationException.class);
 	}
 

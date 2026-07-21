@@ -21,6 +21,8 @@ import jakarta.validation.constraints.Min;
 /**
  * post_cook_reviews 테이블 매핑(그룹 A 구조).
  *
+ * 조리 진행은 프론트가 관리하므로 서버에는 조리 1회의 "결과"인 이 리뷰만 남는다.
+ *
  * rating/comment/next_time_note 는 사용자 입력분(그룹 A).
  * structured_feedback(JSONB)는 리뷰를 AI가 구조화한 산출물이라 내부 구조는
  * AI 파트 확정 대상(그룹 B). 여기서는 opaque Map 으로만 매핑한다.
@@ -32,9 +34,6 @@ public class PostCookReviewEntity {
 	@Id
 	@GeneratedValue(strategy = GenerationType.UUID)
 	private UUID id;
-
-	@Column(name = "cook_session_id", nullable = false)
-	private UUID cookSessionId;
 
 	@Column(name = "user_id")
 	private UUID userId;
@@ -65,9 +64,8 @@ public class PostCookReviewEntity {
 	protected PostCookReviewEntity() {
 	}
 
-	public PostCookReviewEntity(UUID cookSessionId, UUID userId, UUID recipeId, Integer rating,
+	public PostCookReviewEntity(UUID userId, UUID recipeId, Integer rating,
 			String comment, String nextTimeNote) {
-		this.cookSessionId = cookSessionId;
 		this.userId = userId;
 		this.recipeId = recipeId;
 		this.rating = rating;
@@ -77,10 +75,6 @@ public class PostCookReviewEntity {
 
 	public UUID getId() {
 		return id;
-	}
-
-	public UUID getCookSessionId() {
-		return cookSessionId;
 	}
 
 	public UUID getUserId() {

@@ -6,6 +6,7 @@ public record RecipeSummaryResponse(
 		UUID id,
 		String title,
 		String description,
+		String imageUrl,
 		boolean hasPersonalVersion,
 		UUID latestPersonalVersionId
 ) {

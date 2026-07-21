@@ -26,6 +26,9 @@ dependencies {
 	implementation 'org.springframework.boot:spring-boot-starter-validation'
 	implementation 'org.flywaydb:flyway-core'
 	implementation 'org.flywaydb:flyway-database-postgresql'
+	// Boot 4 는 자동설정이 모듈별로 쪼개져 있다. 이 모듈이 없으면 flyway-core 가 있어도
+	// FlywayAutoConfiguration 이 없어 마이그레이션이 아예 실행되지 않는다(= validate 실패).
+	implementation 'org.springframework.boot:spring-boot-flyway'
 	runtimeOnly 'org.postgresql:postgresql'
 	testImplementation 'org.springframework.boot:spring-boot-starter-actuator-test'
 	testImplementation 'org.springframework.boot:spring-boot-starter-webmvc-test'
@@ -49,6 +52,14 @@ tasks.named('test') {
 	// 실행하므로, 스위트까지 돌리면 중복 실행된다. Gradle 실행에서는 스위트를 빼고(개별 1회),
 	// 스위트는 IDE 원클릭 전체 실행용으로만 쓴다.
 	exclude '**/MainApplicationTests.class'
+	// 실패 시 예외 전체 메시지/원인 사슬을 콘솔에 찍는다. 기본 로깅은 예외 클래스+위치만 보여줘서
+	// SchemaManagementException 의 실제 진단("어느 컬럼 타입이 어긋났는지")이 가려진다.
+	testLogging {
+		exceptionFormat = 'full'
+		showCauses = true
+		showStackTraces = true
+		events 'failed'
+	}
 }
 
 // Dockerfile이 고정된 경로를 COPY 한다. -plain.jar 와 함께 glob 되면 빌드가 깨진다.

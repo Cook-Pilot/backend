@@ -3,6 +3,13 @@
 작성일: 2026-07-06  
 대상 서비스: CookPilot - 요리할수록 내 입맛을 기억하는 실시간 AI 조리 코치
 
+> **2026-07-21 설계 변경 (이 문서보다 우선):** 조리 세션을 서버에 저장하지 않기로 했다.
+> 단계 이동·타이머·세션 이벤트는 프론트가 로컬에서 관리하고, 조리가 끝나면 결과(리뷰)만
+> 서버로 넘긴다. 따라서 아래 ERD/테이블 목록의 `cook_sessions`, `cook_session_steps`,
+> `cook_session_events`, `cook_timers`는 구현 대상이 아니다. 조리 1회의 서버 측 기록은
+> `post_cook_reviews`이며, 개인 버전은 `source_review_id`로 그 리뷰를 가리킨다.
+> 실제 구현 스키마는 `src/main/resources/db/migration/V1__init_core.sql`, API는 `docs/08_mvp_api.md`.
+
 ## 0. 입력 자료와 정리 기준
 
 ### 참조 자료

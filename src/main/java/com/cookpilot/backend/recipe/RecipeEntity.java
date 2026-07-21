@@ -38,6 +38,10 @@ public class RecipeEntity {
 	@Column(name = "status", nullable = false)
 	private String status = "active";
 
+	/** 대표 이미지 URL. 원본은 외부 스토리지에 두고 여기엔 URL만 둔다(NULL = 이미지 없음). */
+	@Column(name = "image_url")
+	private String imageUrl;
+
 	@CreationTimestamp
 	@Column(name = "created_at", nullable = false, updatable = false)
 	private Instant createdAt;
@@ -50,11 +54,16 @@ public class RecipeEntity {
 	}
 
 	public RecipeEntity(String title, String description, BigDecimal baseServings) {
+		this(title, description, baseServings, null);
+	}
+
+	public RecipeEntity(String title, String description, BigDecimal baseServings, String imageUrl) {
 		this.title = title;
 		this.description = description;
 		if (baseServings != null) {
 			this.baseServings = baseServings;
 		}
+		this.imageUrl = imageUrl;
 	}
 
 	public UUID getId() {
@@ -91,6 +100,14 @@ public class RecipeEntity {
 
 	public void setStatus(String status) {
 		this.status = status;
+	}
+
+	public String getImageUrl() {
+		return imageUrl;
+	}
+
+	public void setImageUrl(String imageUrl) {
+		this.imageUrl = imageUrl;
 	}
 
 	public Instant getCreatedAt() {

@@ -38,6 +38,10 @@ public class RecipeStepEntity {
 	@Column(name = "caution_note")
 	private String cautionNote;
 
+	/** 단계 참고 이미지 URL. 원본은 외부 스토리지에 두고 여기엔 URL만 둔다(NULL = 이미지 없음). */
+	@Column(name = "image_url")
+	private String imageUrl;
+
 	@CreationTimestamp
 	@Column(name = "created_at", nullable = false, updatable = false)
 	private Instant createdAt;
@@ -47,11 +51,17 @@ public class RecipeStepEntity {
 
 	public RecipeStepEntity(UUID recipeId, int stepIndex, String instruction, Integer timerSeconds,
 			String cautionNote) {
+		this(recipeId, stepIndex, instruction, timerSeconds, cautionNote, null);
+	}
+
+	public RecipeStepEntity(UUID recipeId, int stepIndex, String instruction, Integer timerSeconds,
+			String cautionNote, String imageUrl) {
 		this.recipeId = recipeId;
 		this.stepIndex = stepIndex;
 		this.instruction = instruction;
 		this.timerSeconds = timerSeconds;
 		this.cautionNote = cautionNote;
+		this.imageUrl = imageUrl;
 	}
 
 	public UUID getId() {
@@ -76,6 +86,14 @@ public class RecipeStepEntity {
 
 	public String getCautionNote() {
 		return cautionNote;
+	}
+
+	public String getImageUrl() {
+		return imageUrl;
+	}
+
+	public void setImageUrl(String imageUrl) {
+		this.imageUrl = imageUrl;
 	}
 
 	public Instant getCreatedAt() {

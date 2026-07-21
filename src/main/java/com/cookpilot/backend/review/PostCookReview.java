@@ -5,7 +5,6 @@ import java.util.UUID;
 
 public record PostCookReview(
 		UUID id,
-		UUID cookSessionId,
 		UUID userId,
 		UUID recipeId,
 		int rating,

@@ -50,8 +50,9 @@ public class PersonalRecipeVersionEntity {
 	@Column(name = "adjustment_payload", nullable = false, columnDefinition = "jsonb")
 	private Map<String, Object> adjustmentPayload = new HashMap<>();
 
-	@Column(name = "source_session_id")
-	private UUID sourceSessionId;
+	// 이 버전을 만든 리뷰(추적). 세션이 아니라 리뷰가 조리 1회의 기록이다.
+	@Column(name = "source_review_id")
+	private UUID sourceReviewId;
 
 	// 진화 계보: 이 버전이 파생된 상위 버전(원본에서 바로 나왔으면 null).
 	@Column(name = "parent_version_id")
@@ -72,13 +73,13 @@ public class PersonalRecipeVersionEntity {
 	}
 
 	public PersonalRecipeVersionEntity(UUID userId, UUID recipeId, int versionNumber, String title,
-			String summary, UUID sourceSessionId) {
+			String summary, UUID sourceReviewId) {
 		this.userId = userId;
 		this.recipeId = recipeId;
 		this.versionNumber = versionNumber;
 		this.title = title;
 		this.summary = summary;
-		this.sourceSessionId = sourceSessionId;
+		this.sourceReviewId = sourceReviewId;
 	}
 
 	public UUID getId() {
@@ -121,8 +122,8 @@ public class PersonalRecipeVersionEntity {
 		this.adjustmentPayload = adjustmentPayload;
 	}
 
-	public UUID getSourceSessionId() {
-		return sourceSessionId;
+	public UUID getSourceReviewId() {
+		return sourceReviewId;
 	}
 
 	public UUID getParentVersionId() {
