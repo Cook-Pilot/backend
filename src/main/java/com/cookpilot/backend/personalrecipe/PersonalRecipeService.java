@@ -31,7 +31,7 @@ public class PersonalRecipeService {
 		this.userService = userService;
 	}
 
-	public PersonalRecipeVersion createFromReview(UUID recipeId, UUID sourceSessionId, String comment,
+	public PersonalRecipeVersion createFromReview(UUID recipeId, UUID sourceReviewId, String comment,
 			String nextTimeNote) {
 		Recipe recipe = recipeService.findById(recipeId);
 		int nextVersionNumber = findByRecipe(recipeId).size() + 1;
@@ -52,7 +52,7 @@ public class PersonalRecipeService {
 				recipe.title() + " - 내 버전 v" + nextVersionNumber,
 				comment,
 				mockAdjustment,
-				sourceSessionId,
+				sourceReviewId,
 				Instant.now()
 		);
 		versions.put(version.id(), version);

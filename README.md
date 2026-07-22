@@ -112,8 +112,7 @@ docker compose -f docker-compose.prod.yml logs -f watchtower
 ```
 com.cookpilot.backend
 ├── recipe/          레시피 조회 (F-01)
-├── cooksession/     조리 세션 · 단계 이동 · 이벤트 기록 (F-02~04, F-09)
-├── review/          조리 후 피드백 (F-10)
+├── review/          조리 후 피드백 = 조리 1회의 기록 (F-10)
 ├── personalrecipe/  개인 레시피 버전 (F-11~12)
 ├── ai/              LLM 예외 피드백 — AI 파트 미확정, mock 응답 (F-08)
 ├── user/            고정 목유저 (인증 미도입)

@@ -12,7 +12,7 @@ public record PersonalRecipeVersion(
 		String title,
 		String summary,
 		Map<String, Object> adjustmentPayload,
-		UUID sourceSessionId,
+		UUID sourceReviewId,
 		Instant createdAt
 ) {
 }

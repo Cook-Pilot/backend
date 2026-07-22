@@ -25,6 +25,7 @@ public class RecipeService {
 				RAMEN_RECIPE_ID,
 				"라면",
 				"MVP 데모 시나리오용 기본 라면 레시피",
+				null,
 				List.of(
 						new RecipeIngredient("라면", 1.0, "봉", true),
 						new RecipeIngredient("물", 500.0, "ml", true),
@@ -32,15 +33,16 @@ public class RecipeService {
 						new RecipeIngredient("파", 0.5, "대", false)
 				),
 				List.of(
-						new RecipeStep(0, "물 500ml를 넣고 3분간 끓이세요.", 180, null),
-						new RecipeStep(1, "건더기, 분말스프, 면을 넣고 3분간 끓이세요.", 180, "끓어 넘침 주의"),
-						new RecipeStep(2, "불을 끄고 그릇에 옮겨 담으세요.", null, "뜨거우니 조심하세요")
+						new RecipeStep(0, "물 500ml를 넣고 3분간 끓이세요.", 180, null, null),
+						new RecipeStep(1, "건더기, 분말스프, 면을 넣고 3분간 끓이세요.", 180, "끓어 넘침 주의", null),
+						new RecipeStep(2, "불을 끄고 그릇에 옮겨 담으세요.", null, "뜨거우니 조심하세요", null)
 				)
 		));
 		recipes.put(FRIED_RICE_RECIPE_ID, new Recipe(
 				FRIED_RICE_RECIPE_ID,
 				"김치볶음밥",
 				"기본 김치볶음밥 레시피",
+				null,
 				List.of(
 						new RecipeIngredient("밥", 1.0, "공기", true),
 						new RecipeIngredient("김치", 100.0, "g", true),
@@ -48,10 +50,10 @@ public class RecipeService {
 						new RecipeIngredient("계란", 1.0, "개", false)
 				),
 				List.of(
-						new RecipeStep(0, "팬에 기름을 두르고 중불로 달구세요.", 60, "기름이 튈 수 있어요"),
-						new RecipeStep(1, "김치를 넣고 2분간 볶으세요.", 120, null),
-						new RecipeStep(2, "밥을 넣고 3분간 볶으세요.", 180, null),
-						new RecipeStep(3, "불을 끄고 그릇에 담으세요.", null, null)
+						new RecipeStep(0, "팬에 기름을 두르고 중불로 달구세요.", 60, "기름이 튈 수 있어요", null),
+						new RecipeStep(1, "김치를 넣고 2분간 볶으세요.", 120, null, null),
+						new RecipeStep(2, "밥을 넣고 3분간 볶으세요.", 180, null, null),
+						new RecipeStep(3, "불을 끄고 그릇에 담으세요.", null, null, null)
 				)
 		));
 	}

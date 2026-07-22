@@ -34,6 +34,7 @@ public class RecipeController {
 							recipe.id(),
 							recipe.title(),
 							recipe.description(),
+							recipe.imageUrl(),
 							latest != null,
 							latest == null ? null : latest.id()
 					);
