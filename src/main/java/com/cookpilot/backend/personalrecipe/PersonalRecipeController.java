@@ -23,8 +23,9 @@ public class PersonalRecipeController {
 		return personalRecipeService.findByRecipe(recipeId);
 	}
 
+	/** 상세: 메타 + 합성된 재료/단계(그대로 렌더링 가능) + 원시 diff(무엇이 바뀌었는지). */
 	@GetMapping("/personal-versions/{versionId}")
-	public PersonalRecipeVersion get(@PathVariable UUID versionId) {
-		return personalRecipeService.findById(versionId);
+	public PersonalRecipeVersionDetail get(@PathVariable UUID versionId) {
+		return personalRecipeService.findDetailById(versionId);
 	}
 }

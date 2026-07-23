@@ -1,14 +1,10 @@
 package com.cookpilot.backend.personalrecipe;
 
 import java.time.Instant;
-import java.util.HashMap;
-import java.util.Map;
 import java.util.UUID;
 
 import org.hibernate.annotations.CreationTimestamp;
-import org.hibernate.annotations.JdbcTypeCode;
 import org.hibernate.annotations.UpdateTimestamp;
-import org.hibernate.type.SqlTypes;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
@@ -20,8 +16,9 @@ import jakarta.persistence.Table;
 /**
  * personal_recipe_versions 테이블 매핑(그룹 A 구조).
  *
- * adjustment_payload(JSONB)의 "내부 구조"는 AI 파트가 확정할 산출물이므로
- * 여기서는 opaque Map 으로만 매핑하고 스키마 제약을 두지 않는다(그룹 B 경계).
+ * 조정값은 V2 부터 관계형 diff(personal_ingredient_adjustments / personal_step_adjustments)로
+ * 저장한다. diff 는 항상 원본 레시피 기준 누적이므로, 이 버전의 렌더링은
+ * "원본 + 이 버전의 diff 행"만으로 끝난다(부모 체인 재생 없음).
  */
 @Entity
 @Table(name = "personal_recipe_versions")
@@ -45,10 +42,6 @@ public class PersonalRecipeVersionEntity {
 
 	@Column(name = "summary")
 	private String summary;
-
-	@JdbcTypeCode(SqlTypes.JSON)
-	@Column(name = "adjustment_payload", nullable = false, columnDefinition = "jsonb")
-	private Map<String, Object> adjustmentPayload = new HashMap<>();
 
 	// 이 버전을 만든 리뷰(추적). 세션이 아니라 리뷰가 조리 1회의 기록이다.
 	@Column(name = "source_review_id")
@@ -112,14 +105,6 @@ public class PersonalRecipeVersionEntity {
 
 	public void setSummary(String summary) {
 		this.summary = summary;
-	}
-
-	public Map<String, Object> getAdjustmentPayload() {
-		return adjustmentPayload;
-	}
-
-	public void setAdjustmentPayload(Map<String, Object> adjustmentPayload) {
-		this.adjustmentPayload = adjustmentPayload;
 	}
 
 	public UUID getSourceReviewId() {

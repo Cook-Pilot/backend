@@ -7,7 +7,7 @@ public record PostCookReview(
 		UUID id,
 		UUID userId,
 		UUID recipeId,
-		int rating,
+		Integer rating,
 		String comment,
 		String nextTimeNote,
 		UUID createdPersonalVersionId,

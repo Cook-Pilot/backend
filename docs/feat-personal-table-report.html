@@ -1,0 +1,217 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>feat/personal-table — 개인 레시피 diff 영속화 구현 리포트</title>
+<style>
+  :root {
+    --ink: #1a1f27; --sub: #5b6472; --line: #e3e7ee; --bg: #f7f8fa;
+    --card: #ffffff; --accent: #2563eb; --ok: #16803c; --warn: #b45309;
+    --code-bg: #0f172a; --code-ink: #dbe4f3;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg); color: var(--ink);
+    font-family: "Pretendard", "Apple SD Gothic Neo", "Noto Sans KR", system-ui, sans-serif;
+    line-height: 1.65; font-size: 15px;
+  }
+  .wrap { max-width: 980px; margin: 0 auto; padding: 48px 24px 96px; }
+  header h1 { font-size: 26px; margin: 0 0 4px; letter-spacing: -0.02em; }
+  header .meta { color: var(--sub); font-size: 13px; }
+  .badge { display: inline-block; padding: 2px 10px; border-radius: 999px; font-size: 12px; font-weight: 600; margin-right: 6px; }
+  .badge.blue { background: #e4edff; color: #1d4ed8; }
+  .badge.green { background: #e3f5e9; color: var(--ok); }
+  .badge.amber { background: #fdf0dd; color: var(--warn); }
+  section { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 24px 28px; margin-top: 24px; }
+  h2 { font-size: 18px; margin: 0 0 14px; letter-spacing: -0.01em; }
+  h3 { font-size: 15px; margin: 22px 0 8px; }
+  p { margin: 8px 0; }
+  table { border-collapse: collapse; width: 100%; margin: 12px 0; font-size: 13.5px; }
+  th, td { border: 1px solid var(--line); padding: 7px 10px; text-align: left; vertical-align: top; }
+  th { background: #f2f4f8; font-weight: 600; }
+  code { background: #eef1f6; padding: 1px 5px; border-radius: 4px; font-size: 12.5px; font-family: "JetBrains Mono", ui-monospace, monospace; }
+  pre { background: var(--code-bg); color: var(--code-ink); padding: 14px 16px; border-radius: 8px; overflow-x: auto; font-size: 12.5px; line-height: 1.55; }
+  pre code { background: none; padding: 0; color: inherit; }
+  .callout { border-left: 4px solid var(--accent); background: #f0f5ff; padding: 10px 14px; border-radius: 0 8px 8px 0; margin: 12px 0; font-size: 14px; }
+  .callout.warn { border-color: var(--warn); background: #fff8ee; }
+  ul { margin: 8px 0; padding-left: 22px; }
+  li { margin: 4px 0; }
+  .flow { font-family: ui-monospace, monospace; font-size: 13px; background: #f2f4f8; padding: 12px 16px; border-radius: 8px; }
+  .origin { font-weight: 600; }
+  .origin.orig { color: var(--sub); }
+  .origin.mod { color: var(--accent); }
+  .origin.add { color: var(--ok); }
+  .del { color: #b91c1c; text-decoration: line-through; }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header>
+  <h1>개인 레시피 버전 — JSONB → 관계형 diff 영속화</h1>
+  <div class="meta">브랜치 <code>feat/personal-table</code> · 2026-07-22 · CookPilot backend (Spring Boot 4.1 / PostgreSQL / Flyway)</div>
+  <div style="margin-top:10px">
+    <span class="badge blue">구현 완료</span>
+    <span class="badge green">테스트 47건 전부 통과 · BUILD SUCCESSFUL (2m 34s)</span>
+  </div>
+</header>
+
+<section>
+  <h2>1. 뭘 왜 바꿨나</h2>
+  <p>개인 레시피 버전의 조정 내용이 opaque JSONB(<code>adjustment_payload</code>) 하나에 뭉쳐 있어
+  "뭘 바꿨는지" 추적이 불가능했다. 이번 변경으로 조정값을 <b>관계형 diff 테이블 2개</b>로 옮기고,
+  인메모리로만 있던 개인 버전·리뷰 저장을 <b>실제 PostgreSQL(JPA)</b>로 전환했다.</p>
+
+  <h3>대화에서 확정된 설계 결정</h3>
+  <table>
+    <tr><th>결정</th><th>내용</th></tr>
+    <tr><td>표현 방식</td><td><b>diff 행 (방식 A)</b> — 변경분만 저장, 렌더링은 원본 + diff 합성. 스냅샷 복사 아님</td></tr>
+    <tr><td>diff 기준</td><td><b>항상 원본 레시피 기준 누적</b> — 어떤 버전이든 원본 + 그 버전 diff만으로 렌더링 끝. 부모 체인 재생 없음</td></tr>
+    <tr><td>버전 이력</td><td>v1, v2, v3… <code>version_number</code>로 쌓고 <code>parent_version_id</code>로 계보 기록. 최신 버전이 <code>is_default</code></td></tr>
+    <tr><td>새 재료 문제</td><td><code>ADD</code> 타입은 원본 참조 없이 자기 데이터를 통째로 가짐. DB <code>CHECK</code>로 강제</td></tr>
+    <tr><td>단계 변경</td><td>재료와 동일한 ADD/MODIFY/REMOVE. "흔든다→젓는다"도 <code>MODIFY</code> 한 건. 끼워넣기는 <code>insert_after_step_index</code> 앵커</td></tr>
+    <tr><td>payload 운명</td><td><code>adjustment_payload</code> 컬럼 <b>삭제</b> — 입력은 정제된 diff로만 들어온다</td></tr>
+    <tr><td>리뷰 영속화</td><td><b>포함</b> — 리뷰를 먼저 저장하고 버전이 <code>source_review_id</code>로 역참조 (추적 안 끊김)</td></tr>
+    <tr><td>API 경로</td><td>신규 경로 설계는 <b>보류</b> (사용자 결정). 기존 GET 2개만 응답 형태 갱신, 파생은 서비스 레이어까지 구현</td></tr>
+  </table>
+</section>
+
+<section>
+  <h2>2. 스키마 — V2 마이그레이션</h2>
+  <p><code>src/main/resources/db/migration/V2__personal_diff_and_seed.sql</code></p>
+
+  <h3>새 테이블 2개</h3>
+  <pre><code>personal_ingredient_adjustments        personal_step_adjustments
+├─ personal_version_id  FK(CASCADE)    ├─ personal_version_id   FK(CASCADE)
+├─ original_ingredient_id FK, NULL허용  ├─ original_step_id      FK, NULL허용
+├─ adjustment_type  ADD|MODIFY|REMOVE  ├─ adjustment_type       ADD|MODIFY|REMOVE
+├─ name / amount / unit / is_required  ├─ insert_after_step_index  (ADD 전용 앵커, -1=맨앞)
+└─ sort_order                          ├─ sort_order (같은 앵커 내 순서)
+                                       └─ instruction / timer_seconds / caution_note
+
+CHECK: ADD 는 원본 참조 금지 + 필수값 보유, MODIFY/REMOVE 는 원본 참조 필수</code></pre>
+
+  <h3>그 외</h3>
+  <ul>
+    <li><code>ALTER TABLE personal_recipe_versions DROP COLUMN adjustment_payload</code> — 현재 내용물이 전부 목데이터라 손실 없음</li>
+    <li><b>시드</b>: 목 유저(<code>00000000-…-01</code>) + 데모 레시피 2종(라면/김치볶음밥, 재료·단계 포함)을 인메모리 픽스처와 동일한 고정 UUID로 삽입 — 개인 버전/리뷰의 FK가 실제 행을 가리키게 하는 다리. 레시피 조회 API의 JPA 전환은 별도 이슈</li>
+  </ul>
+</section>
+
+<section>
+  <h2>3. 합성(렌더링) 규칙 — 소금/칵테일 시나리오</h2>
+  <p>합성기는 <code>DiffComposer</code>(순수 함수, DB 무관). 원본 + diff → 완성된 내 레시피.</p>
+
+  <h3>예: 칵테일 원본에 "2번 뒤 소금 추가" + "흔들기→젓기"</h3>
+  <table>
+    <tr><th>#</th><th>합성 결과 단계</th><th>origin</th></tr>
+    <tr><td>0</td><td>얼음을 셰이커에 넣는다</td><td><span class="origin orig">ORIGINAL</span></td></tr>
+    <tr><td>1</td><td>재료를 붓는다</td><td><span class="origin orig">ORIGINAL</span></td></tr>
+    <tr><td>2</td><td>소금 한 꼬집을 넣는다</td><td><span class="origin add">ADDED</span> (anchor=1)</td></tr>
+    <tr><td>3</td><td><span class="del">10초간 흔든다</span> → 바 스푼으로 저어서 섞는다</td><td><span class="origin mod">MODIFIED</span></td></tr>
+  </table>
+  <ul>
+    <li><b>MODIFY</b>: null 필드는 원본 유지, non-null만 오버라이드 (수량만 바꾸기 / 행위 통째로 바꾸기 둘 다 커버)</li>
+    <li><b>ADD</b>(단계): 앵커 뒤 삽입, 같은 앵커끼리는 <code>sort_order</code>, 인덱스는 0부터 재부여</li>
+    <li><b>REMOVE</b>: 결과에서 제외. 제거된 단계 뒤에 앵커된 ADD는 살아남음 (앵커는 원본 인덱스 기준)</li>
+    <li>범위 밖 앵커(원본 3개인데 anchor=99)는 맨 뒤에 붙음. <code>-1</code>은 맨 앞</li>
+  </ul>
+
+  <h3>파생 시맨틱</h3>
+  <div class="flow">원본 ──diff──▶ v1 ──(부모 diff 복사 후 수정)──▶ v2 ──▶ v3 …<br>
+  렌더링은 언제나: 원본 + 해당 버전 diff (체인 재생 없음)<br>
+  파생 요청의 diff가 null이면 부모 diff 그대로 복사(제목/요약만 바꾼 파생)</div>
+</section>
+
+<section>
+  <h2>4. 코드 변경</h2>
+  <table>
+    <tr><th>파일</th><th>변경</th></tr>
+    <tr><td><code>db/migration/V2__personal_diff_and_seed.sql</code></td><td><b>신규</b> — diff 테이블 2개 + CHECK + 인덱스, payload drop, 시드</td></tr>
+    <tr><td><code>personalrecipe/AdjustmentType.java</code></td><td><b>신규</b> — ADD/MODIFY/REMOVE enum</td></tr>
+    <tr><td><code>personalrecipe/Personal{Ingredient,Step}AdjustmentEntity.java</code> + Repository 2개</td><td><b>신규</b> — diff 행 매핑/조회</td></tr>
+    <tr><td><code>personalrecipe/DiffComposer.java</code></td><td><b>신규</b> — 원본+diff 합성 (순수 함수)</td></tr>
+    <tr><td><code>personalrecipe/PersonalRecipeService.java</code></td><td><b>전면 재작성</b> — ConcurrentHashMap 제거 → JPA. <code>createFromReview</code>(빈 diff v1), <code>derive</code>(부모 diff 복사+검증), <code>findDetailById</code>(합성), 최신 버전 <code>is_default</code> 승격</td></tr>
+    <tr><td><code>review/ReviewService.java</code></td><td><b>전면 재작성</b> — JPA 전환. 리뷰 저장 → 버전 생성 순서로 FK 성립</td></tr>
+    <tr><td><code>personalrecipe/PersonalRecipeVersion.java</code></td><td>메타 DTO로 재정의 (payload 제거, <code>parentVersionId</code>/<code>isDefault</code> 추가)</td></tr>
+    <tr><td><code>personalrecipe/{Ingredient,Step}Adjustment, Composed{Ingredient,Step}, PersonalRecipeVersionDetail, DeriveVersionRequest</code></td><td><b>신규</b> — API/파생 계약 DTO</td></tr>
+    <tr><td><code>personalrecipe/PersonalRecipeVersionEntity.java</code></td><td>payload 필드 제거</td></tr>
+    <tr><td><code>personalrecipe/PersonalRecipeController.java</code></td><td>상세 GET이 <code>PersonalRecipeVersionDetail</code> 반환</td></tr>
+    <tr><td><code>review/PostCookReview.java</code></td><td><code>rating</code> int → Integer (DB nullable 정합)</td></tr>
+  </table>
+
+  <h3>상세 API 응답 형태 (프론트/AI 계약 기준)</h3>
+  <pre><code>GET /api/v1/personal-versions/{id}
+{
+  "version": { "id", "recipeId", "versionNumber": 2, "parentVersionId", "sourceReviewId", "isDefault": true, ... },
+  "ingredients": [ { "name": "물", "amount": 400.00, "unit": "ml", "origin": "MODIFIED", ... }, ... ],  // 그대로 렌더링
+  "steps":       [ { "stepIndex": 0, "instruction": "...", "origin": "ORIGINAL", ... }, ... ],
+  "ingredientAdjustments": [ { "type": "MODIFY", "originalIngredientId": "...", "amount": 400.00 }, ... ],  // 뭐가 바뀌었나
+  "stepAdjustments":       [ { "type": "ADD", "insertAfterStepIndex": 1, "instruction": "..." }, ... ]
+}</code></pre>
+</section>
+
+<section>
+  <h2>5. 테스트 — 전체 47건 통과 (0 실패)</h2>
+  <div class="callout" style="border-color: var(--ok)">
+    <b>실행 완료: <code>./gradlew test</code> → BUILD SUCCESSFUL (2m 34s), 2026-07-22.</b>
+    Testcontainers가 운영과 동일한 <code>postgres:16-alpine</code>을 띄워 Flyway V1+V2 적용과
+    <code>ddl-auto: validate</code> 통과까지 실 DB에서 검증. AiFeedbackApiTest(5)/UserApiTest(1)도 회귀 없음.
+  </div>
+  <table>
+    <tr><th>테스트 파일</th><th>레이어</th><th>건수</th><th>검증 내용</th></tr>
+    <tr>
+      <td><code>DiffComposerTest</code> <b>(신규)</b></td>
+      <td>Unit (Spring/DB 불필요)</td><td>11</td>
+      <td>MODIFY null-유지/오버라이드 · REMOVE 제외 · ADD 원본참조 없이 추가 · 칵테일 "흔들기→젓기" · 앵커 삽입/-1/중복앵커 순서/범위밖 · REMOVE된 단계 뒤 ADD 생존 · 인덱스 재부여 · 소금 시나리오(재료+단계 동시)</td>
+    </tr>
+    <tr>
+      <td><code>PersonalRecipeDeriveTest</code> <b>(신규)</b></td>
+      <td>Integration (Testcontainers postgres + V2 시드)</td><td>7</td>
+      <td>리뷰→v1 생성+역참조 · 파생 시 버전번호/parent/is_default 전환 · 상세 합성 end-to-end (물 400 오버라이드, 계란 제거, 치즈 추가+단계 삽입) · null diff → 부모 복사(공유 아님) · 타 레시피 재료 참조 거부 · ADD 필수값 누락 거부 ×2</td>
+    </tr>
+    <tr>
+      <td><code>CoreSchemaPersistenceTest</code> <b>(+4, 기존 수정)</b></td>
+      <td>Integration (Testcontainers)</td><td>+4</td>
+      <td>V2 적용 + <code>ddl-auto: validate</code> 통과(컨텍스트 기동 자체가 증명) · diff 저장/버전 삭제 CASCADE · ADD가 원본 참조 시 CHECK 거부 · MODIFY가 원본 참조 없을 시 CHECK 거부 · JSONB 왕복은 리뷰 <code>structured_feedback</code>으로 이전</td>
+    </tr>
+    <tr>
+      <td><code>ReviewFlowApiTest</code> <b>(재작업)</b></td>
+      <td>API (MockMvc + Testcontainers)</td><td>7 유지</td>
+      <td>db 프로파일로 이전 (리뷰/버전이 진짜 DB에 저장). 상세 응답 단언을 payload → <code>version.sourceReviewId</code> + 합성 결과/빈 diff로 교체</td>
+    </tr>
+    <tr>
+      <td><code>RecipeApiTest</code> <b>(이전)</b></td>
+      <td>API</td><td>3 유지</td>
+      <td>목록의 <code>hasPersonalVersion</code> 배지가 JPA 조회를 타므로 db 프로파일 베이스로 이동</td>
+    </tr>
+    <tr>
+      <td><code>PostgresApiTestBase</code> <b>(신규)</b></td>
+      <td>인프라</td><td>—</td>
+      <td>싱글턴 postgres 컨테이너 + 컨텍스트 캐시 공유 (클래스마다 컨테이너 안 띄움). UserApiTest/AiFeedbackApiTest는 DB 미접촉이라 기존 무프로파일 유지</td>
+    </tr>
+  </table>
+
+  <div class="callout">
+    실서버 확인 (남은 수동 단계): 터널 열고 <code>./gradlew bootRun --args='--spring.profiles.active=db'</code>
+    → 기동 시 Flyway가 <code>localhost:5432/cookpilot</code>에 V2 적용
+  </div>
+</section>
+
+<section>
+  <h2>6. 남긴 것 (Out of Scope — 후속 이슈)</h2>
+  <ul>
+    <li><b>파생/조정 API 경로</b> — 서비스(<code>derive</code>)까지 구현됨. 엔드포인트 경로/메서드는 사용자 결정 대기</li>
+    <li><b>레시피 조회의 JPA 전환</b> — <code>RecipeService</code>는 아직 인메모리 픽스처. V2 시드와 UUID 동기화로 우회 중 (드리프트 주의: 픽스처 수정 시 시드도 같이)</li>
+    <li><b>AI 조정값 구조화</b> — 리뷰 코멘트 → diff 자동 생성. 계약 형태는 <code>IngredientAdjustment</code>/<code>StepAdjustment</code>로 확정됨 (AI가 이 형태로 뱉으면 됨)</li>
+    <li><b>인증</b> — 목 유저 유지</li>
+  </ul>
+
+  <h3>롤백</h3>
+  <p>마이그레이션 미배포 상태면 PR revert로 끝. 배포 후엔 <code>DROP COLUMN</code>이 파괴적이지만 기존 payload가 전부 목데이터라 실질 손실 없음.</p>
+</section>
+
+</div>
+</body>
+</html>
