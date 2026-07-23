@@ -2,9 +2,9 @@ package com.cookpilot.backend.recipe;
 
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
-import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.web.servlet.MockMvc;
+
+import com.cookpilot.backend.PostgresApiTestBase;
 
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasSize;
@@ -12,9 +12,11 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-@SpringBootTest
-@AutoConfigureMockMvc
-class RecipeApiTest {
+/**
+ * 레시피 목록/상세 API. 목록의 hasPersonalVersion 배지가 개인 버전 조회(JPA)를 타므로
+ * db 프로파일 베이스를 쓴다(레시피 본문 자체는 아직 인메모리 픽스처).
+ */
+class RecipeApiTest extends PostgresApiTestBase {
 
 	@Autowired
 	private MockMvc mockMvc;

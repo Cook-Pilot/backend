@@ -19,8 +19,13 @@ import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 import org.testcontainers.postgresql.PostgreSQLContainer;
 
+import com.cookpilot.backend.personalrecipe.AdjustmentType;
+import com.cookpilot.backend.personalrecipe.PersonalIngredientAdjustmentEntity;
+import com.cookpilot.backend.personalrecipe.PersonalIngredientAdjustmentRepository;
 import com.cookpilot.backend.personalrecipe.PersonalRecipeVersionEntity;
 import com.cookpilot.backend.personalrecipe.PersonalRecipeVersionRepository;
+import com.cookpilot.backend.personalrecipe.PersonalStepAdjustmentEntity;
+import com.cookpilot.backend.personalrecipe.PersonalStepAdjustmentRepository;
 import com.cookpilot.backend.recipe.RecipeEntity;
 import com.cookpilot.backend.recipe.RecipeIngredientEntity;
 import com.cookpilot.backend.recipe.RecipeIngredientRepository;
@@ -69,6 +74,10 @@ class CoreSchemaPersistenceTest {
 	private RecipeStepRepository stepRepository;
 	@Autowired
 	private PersonalRecipeVersionRepository versionRepository;
+	@Autowired
+	private PersonalIngredientAdjustmentRepository ingredientAdjustmentRepository;
+	@Autowired
+	private PersonalStepAdjustmentRepository stepAdjustmentRepository;
 	@Autowired
 	private PostCookReviewRepository reviewRepository;
 
@@ -134,7 +143,6 @@ class CoreSchemaPersistenceTest {
 		PersonalRecipeVersionEntity v1 = new PersonalRecipeVersionEntity(
 				user.getId(), recipe.getId(), 1, "덜 짜게", "소금 감소", review.getId());
 		v1.setDefault(true);
-		v1.setAdjustmentPayload(Map.of("salt", "-20%"));
 		v1 = versionRepository.save(v1);
 		UUID v1Id = v1.getId();
 
@@ -142,7 +150,6 @@ class CoreSchemaPersistenceTest {
 		PersonalRecipeVersionEntity v2 = new PersonalRecipeVersionEntity(
 				user.getId(), recipe.getId(), 2, "더 덜 짜게", "소금 더 감소", null);
 		v2.setParentVersionId(v1Id);
-		v2.setAdjustmentPayload(Map.of("salt", "-40%"));
 		versionRepository.save(v2);
 
 		flushAndClear();
@@ -150,7 +157,7 @@ class CoreSchemaPersistenceTest {
 		assertThat(versionRepository.findByUserIdAndRecipeIdAndIsDefaultTrue(user.getId(), recipe.getId()))
 				.isPresent()
 				.get()
-				.satisfies(v -> assertThat(v.getAdjustmentPayload()).containsEntry("salt", "-20%"));
+				.satisfies(v -> assertThat(v.getVersionNumber()).isEqualTo(1));
 
 		// 진화 계보: v1의 자식으로 v2가 조회된다.
 		List<PersonalRecipeVersionEntity> children = versionRepository.findByParentVersionId(v1Id);
@@ -208,6 +215,88 @@ class CoreSchemaPersistenceTest {
 		// source_review_id 가 실제 리뷰가 아니면 FK 제약 위반.
 		assertThatThrownBy(() -> versionRepository.saveAndFlush(new PersonalRecipeVersionEntity(
 				user.getId(), recipe.getId(), 1, "버전", null, UUID.randomUUID())))
+				.isInstanceOf(DataIntegrityViolationException.class);
+	}
+
+	@Test
+	void 리뷰의_structured_feedback_JSONB를_왕복한다() {
+		RecipeEntity recipe = recipeRepository.save(new RecipeEntity("JSONB", null, null));
+		PostCookReviewEntity review = new PostCookReviewEntity(null, recipe.getId(), 4, "코멘트", null);
+		review.setStructuredFeedback(Map.of("salt", "-20%"));
+		UUID reviewId = reviewRepository.save(review).getId();
+		flushAndClear();
+
+		assertThat(reviewRepository.findById(reviewId).orElseThrow().getStructuredFeedback())
+				.containsEntry("salt", "-20%");
+	}
+
+	@Test
+	void 재료와_단계_diff를_저장하고_버전_삭제시_함께_지워진다() {
+		UserEntity user = userRepository.save(new UserEntity("diff@test.com", "diff"));
+		RecipeEntity recipe = recipeRepository.save(new RecipeEntity("diff레시피", null, null));
+		RecipeIngredientEntity water = ingredientRepository.save(
+				new RecipeIngredientEntity(recipe.getId(), "물", new BigDecimal("500.00"), "ml", true, 0));
+		RecipeStepEntity boil = stepRepository.save(
+				new RecipeStepEntity(recipe.getId(), 0, "끓인다", 180, null));
+
+		PersonalRecipeVersionEntity version = versionRepository.save(new PersonalRecipeVersionEntity(
+				user.getId(), recipe.getId(), 1, "diff버전", null, null));
+
+		ingredientAdjustmentRepository.save(new PersonalIngredientAdjustmentEntity(
+				version.getId(), water.getId(), AdjustmentType.MODIFY, null, new BigDecimal("400.00"),
+				null, null, 0));
+		ingredientAdjustmentRepository.save(new PersonalIngredientAdjustmentEntity(
+				version.getId(), null, AdjustmentType.ADD, "소금", new BigDecimal("1.00"), "꼬집",
+				false, 1));
+		stepAdjustmentRepository.save(new PersonalStepAdjustmentEntity(
+				version.getId(), boil.getId(), AdjustmentType.MODIFY, null, 0, "약불로 끓인다", null, null));
+		stepAdjustmentRepository.save(new PersonalStepAdjustmentEntity(
+				version.getId(), null, AdjustmentType.ADD, 0, 0, "소금을 넣는다", null, null));
+		flushAndClear();
+
+		assertThat(ingredientAdjustmentRepository.findByPersonalVersionIdOrderBySortOrderAsc(version.getId()))
+				.hasSize(2)
+				.extracting(PersonalIngredientAdjustmentEntity::getAdjustmentType)
+				.containsExactly(AdjustmentType.MODIFY, AdjustmentType.ADD);
+		assertThat(stepAdjustmentRepository.findByPersonalVersionIdOrderBySortOrderAsc(version.getId()))
+				.hasSize(2);
+
+		// ON DELETE CASCADE: 버전이 지워지면 diff 행도 함께 사라진다.
+		versionRepository.deleteById(version.getId());
+		versionRepository.flush();
+		em.clear();
+		assertThat(ingredientAdjustmentRepository.findByPersonalVersionIdOrderBySortOrderAsc(version.getId()))
+				.isEmpty();
+		assertThat(stepAdjustmentRepository.findByPersonalVersionIdOrderBySortOrderAsc(version.getId()))
+				.isEmpty();
+	}
+
+	@Test
+	void ADD_diff가_원본을_참조하면_CHECK로_거부된다() {
+		UserEntity user = userRepository.save(new UserEntity("check@test.com", "check"));
+		RecipeEntity recipe = recipeRepository.save(new RecipeEntity("check레시피", null, null));
+		RecipeIngredientEntity water = ingredientRepository.save(
+				new RecipeIngredientEntity(recipe.getId(), "물", null, null, true, 0));
+		PersonalRecipeVersionEntity version = versionRepository.save(new PersonalRecipeVersionEntity(
+				user.getId(), recipe.getId(), 1, "check버전", null, null));
+
+		// ADD 는 원본 참조가 있으면 안 된다(DB CHECK).
+		assertThatThrownBy(() -> ingredientAdjustmentRepository.saveAndFlush(
+				new PersonalIngredientAdjustmentEntity(version.getId(), water.getId(),
+						AdjustmentType.ADD, "소금", null, null, null, 0)))
+				.isInstanceOf(DataIntegrityViolationException.class);
+	}
+
+	@Test
+	void MODIFY_diff가_원본_참조없이_들어오면_CHECK로_거부된다() {
+		UserEntity user = userRepository.save(new UserEntity("check2@test.com", "check2"));
+		RecipeEntity recipe = recipeRepository.save(new RecipeEntity("check2레시피", null, null));
+		PersonalRecipeVersionEntity version = versionRepository.save(new PersonalRecipeVersionEntity(
+				user.getId(), recipe.getId(), 1, "check2버전", null, null));
+
+		assertThatThrownBy(() -> ingredientAdjustmentRepository.saveAndFlush(
+				new PersonalIngredientAdjustmentEntity(version.getId(), null,
+						AdjustmentType.MODIFY, null, new BigDecimal("1.00"), null, null, 0)))
 				.isInstanceOf(DataIntegrityViolationException.class);
 	}
 

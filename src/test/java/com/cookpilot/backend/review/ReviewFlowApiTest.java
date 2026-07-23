@@ -2,13 +2,13 @@ package com.cookpilot.backend.review;
 
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
-import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
 
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
+
+import com.cookpilot.backend.PostgresApiTestBase;
 import com.cookpilot.backend.recipe.RecipeService;
 
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
@@ -21,11 +21,10 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 /**
  * 핵심 루프 검증: (프론트에서 조리 완료) -> 피드백 저장 -> 개인 버전 생성 -> 목록 배지 반영.
  * 서버에는 세션이 없으므로 리뷰가 조리 1회의 기록이다.
+ * V2 부터 리뷰/개인 버전이 실제 postgres 에 영속되므로 db 프로파일 베이스를 쓴다.
  * 개인 버전이 생기는 테스트는 김치볶음밥 레시피만 사용한다(다른 테스트와 상태 간섭 방지).
  */
-@SpringBootTest
-@AutoConfigureMockMvc
-class ReviewFlowApiTest {
+class ReviewFlowApiTest extends PostgresApiTestBase {
 
 	@Autowired
 	private MockMvc mockMvc;
@@ -55,11 +54,16 @@ class ReviewFlowApiTest {
 				.andExpect(jsonPath("$.comment").value("너무 짰다"))
 				.andExpect(jsonPath("$.recipeId").value(RecipeService.FRIED_RICE_RECIPE_ID.toString()));
 
+		// 상세는 메타 + 합성 결과 + 원시 diff. 리뷰 직후 버전은 diff 없이 원본 그대로 합성된다.
 		mockMvc.perform(get("/api/v1/personal-versions/" + versionId))
 				.andExpect(status().isOk())
-				.andExpect(jsonPath("$.recipeId").value(RecipeService.FRIED_RICE_RECIPE_ID.toString()))
-				.andExpect(jsonPath("$.sourceReviewId").value(reviewId))
-				.andExpect(jsonPath("$.adjustmentPayload.source").value("MOCK"));
+				.andExpect(jsonPath("$.version.recipeId").value(RecipeService.FRIED_RICE_RECIPE_ID.toString()))
+				.andExpect(jsonPath("$.version.sourceReviewId").value(reviewId))
+				.andExpect(jsonPath("$.ingredients", hasSize(4)))
+				.andExpect(jsonPath("$.ingredients[0].origin").value("ORIGINAL"))
+				.andExpect(jsonPath("$.steps", hasSize(4)))
+				.andExpect(jsonPath("$.ingredientAdjustments", hasSize(0)))
+				.andExpect(jsonPath("$.stepAdjustments", hasSize(0)));
 
 		mockMvc.perform(get("/api/v1/recipes/" + RecipeService.FRIED_RICE_RECIPE_ID + "/personal-versions"))
 				.andExpect(status().isOk())
