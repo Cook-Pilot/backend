@@ -13,7 +13,7 @@ Cook-Pilot의 Backend 레포입니다.
 | Spring Boot | 4.1.0 |
 | Java | 21 |
 | Build Tool | Gradle |
-| DB | PostgreSQL (연결 준비만, repository 계층은 AI 파트 확정 후 도입) |
+| DB | PostgreSQL 16 / Spring Data JPA / Flyway |
 
 ---
 
@@ -22,6 +22,7 @@ Cook-Pilot의 Backend 레포입니다.
 ## 요구 사항
 
 - JDK 21 (`java -version` 으로 확인)
+- Docker Desktop (PostgreSQL Testcontainers 테스트 및 로컬 compose 실행)
 
 ## 실행
 
@@ -38,7 +39,8 @@ Cook-Pilot의 Backend 레포입니다.
 
 - 기본 포트: `8080`
 - Health 체크: `curl http://localhost:8080/actuator/health` → `{"status":"UP"}`
-- 기본 실행은 DB 없이 동작합니다. PostgreSQL 연결 시:
+- 기본 실행은 DB 없이 컨텍스트와 health를 확인하기 위한 용도입니다.
+  레시피·리뷰·개인 버전 등 DB API를 사용하려면 PostgreSQL과 `db` 프로파일이 필요합니다.
 
 ```bash
 ./gradlew bootRun --args='--spring.profiles.active=db'
@@ -111,7 +113,7 @@ docker compose -f docker-compose.prod.yml logs -f watchtower
 
 ```
 com.cookpilot.backend
-├── recipe/          레시피 조회 (F-01)
+├── recipe/          PostgreSQL/JPA 기반 원본 레시피 조회 (F-01)
 ├── review/          조리 후 피드백 = 조리 1회의 기록 (F-10)
 ├── personalrecipe/  개인 레시피 버전 (F-11~12)
 ├── ai/              LLM 예외 피드백 — AI 파트 미확정, mock 응답 (F-08)

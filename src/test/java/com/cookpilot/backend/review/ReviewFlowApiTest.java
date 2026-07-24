@@ -9,7 +9,7 @@ import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
 
 import com.cookpilot.backend.PostgresApiTestBase;
-import com.cookpilot.backend.recipe.RecipeService;
+import com.cookpilot.backend.TestRecipeIds;
 
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasSize;
@@ -35,7 +35,7 @@ class ReviewFlowApiTest extends PostgresApiTestBase {
 	private String submitReview(String bodyFields) throws Exception {
 		return mockMvc.perform(post("/api/v1/reviews")
 						.contentType(MediaType.APPLICATION_JSON)
-						.content("{\"recipeId\":\"" + RecipeService.FRIED_RICE_RECIPE_ID + "\"," + bodyFields + "}"))
+						.content("{\"recipeId\":\"" + TestRecipeIds.FRIED_RICE_RECIPE_ID + "\"," + bodyFields + "}"))
 				.andExpect(status().isCreated())
 				.andReturn().getResponse().getContentAsString();
 	}
@@ -52,12 +52,12 @@ class ReviewFlowApiTest extends PostgresApiTestBase {
 				.andExpect(status().isOk())
 				.andExpect(jsonPath("$.rating").value(3))
 				.andExpect(jsonPath("$.comment").value("너무 짰다"))
-				.andExpect(jsonPath("$.recipeId").value(RecipeService.FRIED_RICE_RECIPE_ID.toString()));
+				.andExpect(jsonPath("$.recipeId").value(TestRecipeIds.FRIED_RICE_RECIPE_ID.toString()));
 
 		// 상세는 메타 + 합성 결과 + 원시 diff. 리뷰 직후 버전은 diff 없이 원본 그대로 합성된다.
 		mockMvc.perform(get("/api/v1/personal-versions/" + versionId))
 				.andExpect(status().isOk())
-				.andExpect(jsonPath("$.version.recipeId").value(RecipeService.FRIED_RICE_RECIPE_ID.toString()))
+				.andExpect(jsonPath("$.version.recipeId").value(TestRecipeIds.FRIED_RICE_RECIPE_ID.toString()))
 				.andExpect(jsonPath("$.version.sourceReviewId").value(reviewId))
 				.andExpect(jsonPath("$.ingredients", hasSize(4)))
 				.andExpect(jsonPath("$.ingredients[0].origin").value("ORIGINAL"))
@@ -65,7 +65,7 @@ class ReviewFlowApiTest extends PostgresApiTestBase {
 				.andExpect(jsonPath("$.ingredientAdjustments", hasSize(0)))
 				.andExpect(jsonPath("$.stepAdjustments", hasSize(0)));
 
-		mockMvc.perform(get("/api/v1/recipes/" + RecipeService.FRIED_RICE_RECIPE_ID + "/personal-versions"))
+		mockMvc.perform(get("/api/v1/recipes/" + TestRecipeIds.FRIED_RICE_RECIPE_ID + "/personal-versions"))
 				.andExpect(status().isOk())
 				.andExpect(jsonPath("$", hasSize(greaterThanOrEqualTo(1))));
 	}
@@ -74,7 +74,7 @@ class ReviewFlowApiTest extends PostgresApiTestBase {
 	void 레시피별_리뷰_목록을_조회한다() throws Exception {
 		submitReview("\"rating\":5,\"comment\":\"좋았다\"");
 
-		mockMvc.perform(get("/api/v1/recipes/" + RecipeService.FRIED_RICE_RECIPE_ID + "/reviews"))
+		mockMvc.perform(get("/api/v1/recipes/" + TestRecipeIds.FRIED_RICE_RECIPE_ID + "/reviews"))
 				.andExpect(status().isOk())
 				.andExpect(jsonPath("$", hasSize(greaterThanOrEqualTo(1))));
 	}
@@ -90,7 +90,7 @@ class ReviewFlowApiTest extends PostgresApiTestBase {
 		JsonNode list = objectMapper.readTree(listBody);
 		boolean friedRiceHasVersion = false;
 		for (JsonNode item : list) {
-			if (item.get("id").asText().equals(RecipeService.FRIED_RICE_RECIPE_ID.toString())) {
+			if (item.get("id").asText().equals(TestRecipeIds.FRIED_RICE_RECIPE_ID.toString())) {
 				friedRiceHasVersion = item.get("hasPersonalVersion").asBoolean();
 			}
 		}
@@ -101,7 +101,7 @@ class ReviewFlowApiTest extends PostgresApiTestBase {
 	void 잘못된_rating은_400() throws Exception {
 		mockMvc.perform(post("/api/v1/reviews")
 						.contentType(MediaType.APPLICATION_JSON)
-						.content("{\"recipeId\":\"" + RecipeService.FRIED_RICE_RECIPE_ID + "\",\"rating\":6}"))
+						.content("{\"recipeId\":\"" + TestRecipeIds.FRIED_RICE_RECIPE_ID + "\",\"rating\":6}"))
 				.andExpect(status().isBadRequest());
 	}
 
