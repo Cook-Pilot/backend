@@ -1,0 +1,28 @@
+server:
+  port: ${PORT:8080}
+  shutdown: graceful
+
+spring:
+  application:
+    name: cookpilot-api
+  datasource:
+    url: ${COOKPILOT_LOCAL_DB_URL:jdbc:h2:file:./data/cookpilot;MODE=PostgreSQL;DATABASE_TO_LOWER=TRUE;AUTO_SERVER=TRUE}
+    username: sa
+    password:
+  flyway:
+    enabled: true
+    locations: classpath:db/h2/migration
+    baseline-on-migrate: true
+    baseline-version: 1
+  sql:
+    init:
+      mode: never
+  lifecycle:
+    timeout-per-shutdown-phase: 10s
+
+cookpilot:
+  ai:
+    gemini-api-key: ${GEMINI_API_KEY:}
+    gemini-model: ${GEMINI_MODEL:gemini-2.5-flash}
+  cors:
+    allowed-origin-patterns: ${COOKPILOT_ALLOWED_ORIGINS:*}
