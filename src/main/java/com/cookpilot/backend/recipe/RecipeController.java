@@ -1,6 +1,7 @@
 package com.cookpilot.backend.recipe;
 
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 import org.springframework.web.bind.annotation.GetMapping;
@@ -25,11 +26,12 @@ public class RecipeController {
 
 	@GetMapping
 	public List<RecipeSummaryResponse> list() {
-		return recipeService.findAll().stream()
+		List<RecipeOverview> recipes = recipeService.findAll();
+		Map<UUID, PersonalRecipeVersion> latestByRecipe = personalRecipeService.findLatestByRecipes(
+				recipes.stream().map(RecipeOverview::id).toList());
+		return recipes.stream()
 				.map(recipe -> {
-					PersonalRecipeVersion latest = personalRecipeService
-							.findLatestByRecipe(recipe.id())
-							.orElse(null);
+					PersonalRecipeVersion latest = latestByRecipe.get(recipe.id());
 					return new RecipeSummaryResponse(
 							recipe.id(),
 							recipe.title(),

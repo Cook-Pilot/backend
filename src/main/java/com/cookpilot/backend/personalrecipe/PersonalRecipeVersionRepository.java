@@ -1,5 +1,6 @@
 package com.cookpilot.backend.personalrecipe;
 
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -9,6 +10,9 @@ import org.springframework.data.jpa.repository.JpaRepository;
 public interface PersonalRecipeVersionRepository extends JpaRepository<PersonalRecipeVersionEntity, UUID> {
 
 	List<PersonalRecipeVersionEntity> findByUserIdAndRecipeIdOrderByVersionNumberDesc(UUID userId, UUID recipeId);
+
+	List<PersonalRecipeVersionEntity> findByUserIdAndRecipeIdInOrderByVersionNumberDesc(
+			UUID userId, Collection<UUID> recipeIds);
 
 	Optional<PersonalRecipeVersionEntity> findByUserIdAndRecipeIdAndIsDefaultTrue(UUID userId, UUID recipeId);
 

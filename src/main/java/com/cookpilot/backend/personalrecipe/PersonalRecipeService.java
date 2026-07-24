@@ -1,7 +1,10 @@
 package com.cookpilot.backend.personalrecipe;
 
+import java.util.Collection;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
@@ -169,6 +172,19 @@ public class PersonalRecipeService {
 		UUID userId = userService.getCurrentUser().id();
 		return versionRepository.findByUserIdAndRecipeIdOrderByVersionNumberDesc(userId, recipeId)
 				.stream().findFirst().map(PersonalRecipeVersion::from);
+	}
+
+	@Transactional(readOnly = true)
+	public Map<UUID, PersonalRecipeVersion> findLatestByRecipes(Collection<UUID> recipeIds) {
+		if (recipeIds.isEmpty()) {
+			return Map.of();
+		}
+		UUID userId = userService.getCurrentUser().id();
+		Map<UUID, PersonalRecipeVersion> latestByRecipe = new HashMap<>();
+		versionRepository.findByUserIdAndRecipeIdInOrderByVersionNumberDesc(userId, recipeIds)
+				.forEach(entity -> latestByRecipe.putIfAbsent(
+						entity.getRecipeId(), PersonalRecipeVersion.from(entity)));
+		return Map.copyOf(latestByRecipe);
 	}
 
 	private PersonalRecipeVersionEntity findEntity(UUID versionId) {

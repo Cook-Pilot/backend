@@ -2,12 +2,11 @@ package com.cookpilot.backend.ai;
 
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
-import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
 
-import com.cookpilot.backend.recipe.RecipeService;
+import com.cookpilot.backend.PostgresApiTestBase;
+import com.cookpilot.backend.TestRecipeIds;
 
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -16,9 +15,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 /**
  * 조리 진행은 프론트가 관리하므로, 어떤 레시피의 몇 번째 단계인지를 요청 본문으로 받는다.
  */
-@SpringBootTest
-@AutoConfigureMockMvc
-class AiFeedbackApiTest {
+class AiFeedbackApiTest extends PostgresApiTestBase {
 
 	@Autowired
 	private MockMvc mockMvc;
@@ -27,7 +24,7 @@ class AiFeedbackApiTest {
 	void AI_피드백은_목데이터_응답을_반환한다() throws Exception {
 		mockMvc.perform(post("/api/v1/ai-feedback")
 						.contentType(MediaType.APPLICATION_JSON)
-						.content("{\"recipeId\":\"" + RecipeService.RAMEN_RECIPE_ID
+						.content("{\"recipeId\":\"" + TestRecipeIds.RAMEN_RECIPE_ID
 								+ "\",\"stepIndex\":0,\"userSpeech\":\"물이 안 끓어\"}"))
 				.andExpect(status().isOk())
 				.andExpect(jsonPath("$.mock").value(true))
@@ -43,7 +40,7 @@ class AiFeedbackApiTest {
 	void userSpeech_없으면_400() throws Exception {
 		mockMvc.perform(post("/api/v1/ai-feedback")
 						.contentType(MediaType.APPLICATION_JSON)
-						.content("{\"recipeId\":\"" + RecipeService.RAMEN_RECIPE_ID + "\",\"stepIndex\":0}"))
+						.content("{\"recipeId\":\"" + TestRecipeIds.RAMEN_RECIPE_ID + "\",\"stepIndex\":0}"))
 				.andExpect(status().isBadRequest());
 	}
 
@@ -68,7 +65,7 @@ class AiFeedbackApiTest {
 	void 없는_단계면_404() throws Exception {
 		mockMvc.perform(post("/api/v1/ai-feedback")
 						.contentType(MediaType.APPLICATION_JSON)
-						.content("{\"recipeId\":\"" + RecipeService.RAMEN_RECIPE_ID
+						.content("{\"recipeId\":\"" + TestRecipeIds.RAMEN_RECIPE_ID
 								+ "\",\"stepIndex\":99,\"userSpeech\":\"물이 안 끓어\"}"))
 				.andExpect(status().isNotFound());
 	}
