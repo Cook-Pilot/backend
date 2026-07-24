@@ -40,6 +40,130 @@ JPA가 불필요한 변경 감지를 하지 않도록 한다.
 운영 `RecipeService`는 특정 라면·볶음밥 ID를 알지 않는다. Flyway V2 seed 고정 ID는
 `TestRecipeIds`에서만 테스트 fixture로 참조한다.
 
+## 코드 흐름 이해
+
+### 목록 조회: 기본 정보만 가져온다
+
+`RecipeService.findAll()`은 활성 레시피를 조회한 뒤 목록 전용 `RecipeOverview`로 변환한다.
+
+```java
+public List<RecipeOverview> findAll() {
+    return recipeRepository.findByStatus("active").stream()
+            .map(this::toOverview)
+            .toList();
+}
+```
+
+`RecipeOverview`에는 목록 응답에 필요한 값만 있다.
+
+```java
+public record RecipeOverview(
+        UUID id,
+        String title,
+        String description,
+        String imageUrl
+) {
+}
+```
+
+기존 `Recipe`는 `ingredients`, `steps`까지 포함하므로 목록에서 사용하면 필요 없는 DB 조회와
+객체 생성이 발생한다. 목록과 상세의 용도를 분리하면 코드만 읽어도 목록에서는 기본 정보만
+필요하다는 사실을 알 수 있다.
+
+전체 흐름은 다음과 같다.
+
+```text
+GET /api/v1/recipes
+→ RecipeController.list()
+→ RecipeService.findAll()
+→ recipes 테이블에서 active 레시피 조회
+→ RecipeOverview 목록 생성
+→ 개인 레시피 최신 버전 배치 조회
+→ RecipeSummaryResponse 생성
+```
+
+### 목록의 개인 레시피는 한 번에 조회한다
+
+목록 응답에는 사용자가 해당 레시피의 개인 버전을 가지고 있는지도 포함된다. 레시피마다
+`findLatestByRecipe()`를 호출하면 레시피 개수만큼 쿼리가 추가되는 N+1 문제가 생긴다.
+
+```java
+Map<UUID, PersonalRecipeVersion> latestByRecipe =
+        personalRecipeService.findLatestByRecipes(recipeIds);
+```
+
+`findLatestByRecipes()`는 여러 레시피 ID를 `IN` 조건으로 한 번에 조회한다. 결과는 버전 번호가
+큰 순서이며, `putIfAbsent()`로 레시피별 첫 번째 버전만 보관한다.
+
+```java
+versionRepository.findByUserIdAndRecipeIdInOrderByVersionNumberDesc(userId, recipeIds)
+        .forEach(entity -> latestByRecipe.putIfAbsent(
+                entity.getRecipeId(), PersonalRecipeVersion.from(entity)));
+```
+
+따라서 목록에서는 재료·단계 쿼리를 실행하지 않으면서 개인 레시피 배지는 N+1 없이 유지한다.
+
+### 상세 조회: 재료와 단계를 조합한다
+
+`RecipeService.findById()`는 먼저 원본 레시피를 조회한다. 결과가 없으면
+`NotFoundException`을 발생시키고 기존 예외 처리기가 404로 변환한다.
+
+```java
+RecipeEntity entity = recipeRepository.findById(recipeId)
+        .orElseThrow(() -> new NotFoundException(
+                "레시피를 찾을 수 없습니다: " + recipeId));
+```
+
+레시피가 있으면 상세 응답에 필요한 재료와 조리 단계를 각각 조회한다.
+
+```java
+recipeIngredientRepository.findByRecipeIdOrderBySortOrderAsc(recipeId);
+recipeStepRepository.findByRecipeIdOrderByStepIndexAsc(recipeId);
+```
+
+Spring Data JPA가 메서드 이름을 해석하므로 별도 SQL 구현 없이 다음 규칙이 적용된다.
+
+- 재료: `recipe_id`가 일치하는 행을 `sort_order` 오름차순으로 반환
+- 단계: `recipe_id`가 일치하는 행을 `step_index` 오름차순으로 반환
+
+마지막으로 Entity를 외부 API용 record로 변환한다.
+
+```text
+RecipeEntity
++ RecipeIngredientEntity 목록
++ RecipeStepEntity 목록
+→ Recipe
+→ JSON 상세 응답
+```
+
+`RecipeEntity`를 Controller가 직접 반환하지 않으므로 DB 컬럼 변경이 곧바로 JSON 계약 변경으로
+이어지는 것을 막는다.
+
+### Repository 필드명과 생성자 주입
+
+`RecipeService`는 프로젝트의 기존 스타일에 맞춰 Repository 타입 이름을 필드명에 그대로 반영한다.
+
+```java
+private final RecipeRepository recipeRepository;
+private final RecipeIngredientRepository recipeIngredientRepository;
+private final RecipeStepRepository recipeStepRepository;
+```
+
+Spring이 생성한 Repository Bean을 생성자로 주입받고, `private final`로 보관한다. 서비스가
+직접 Repository 구현체를 만들지 않으므로 의존 관계가 명확하고 테스트에서도 교체하기 쉽다.
+
+### 테스트가 보장하는 것
+
+`RecipeApiTest`는 `PostgresApiTestBase`를 상속해 Testcontainers PostgreSQL과 실제 Flyway
+스키마를 사용한다.
+
+- 목록은 `id`, `title`, 개인 버전 정보를 반환하고 `ingredients`, `steps`는 노출하지 않는다.
+- Java 코드에 하드코딩되지 않은 레시피를 DB에 저장해도 목록과 상세에서 조회된다.
+- 재료를 역순으로 저장해도 `sort_order` 순서로 반환된다.
+- 단계를 역순으로 저장해도 `step_index` 순서로 반환된다.
+- 타이머, 주의사항, 이미지가 API 모델에 빠짐없이 매핑된다.
+- 존재하지 않는 `recipeId`는 404를 반환한다.
+
 ## 스키마와 API 변경
 
 - Flyway 스키마 변경: 없음
