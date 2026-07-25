@@ -1,6 +1,5 @@
 package com.cookpilot.backend.home;
 
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -40,13 +39,9 @@ public class HomeRecipeService {
 
 	public List<RecentRecipeResponse> findRecentRecipes() {
 		UUID userId = userService.getCurrentUser().id();
-		Map<UUID, PostCookReviewEntity> latestReviewByRecipe = new LinkedHashMap<>();
-		postCookReviewRepository.findByUserIdOrderByCreatedAtDesc(userId)
-				.forEach(review -> latestReviewByRecipe.putIfAbsent(review.getRecipeId(), review));
-
-		List<PostCookReviewEntity> latestReviews = latestReviewByRecipe.values().stream()
-				.limit(RECENT_RECIPE_LIMIT)
-				.toList();
+		List<PostCookReviewEntity> latestReviews =
+				postCookReviewRepository.findRecentDistinctActiveByUserId(
+						userId, RECENT_RECIPE_LIMIT);
 		if (latestReviews.isEmpty()) {
 			return List.of();
 		}
@@ -60,7 +55,10 @@ public class HomeRecipeService {
 				personalRecipeService.findLatestByRecipes(recipeIds);
 
 		return latestReviews.stream()
-				.filter(review -> recipesById.containsKey(review.getRecipeId()))
+				.filter(review -> {
+					RecipeEntity recipe = recipesById.get(review.getRecipeId());
+					return recipe != null && "active".equals(recipe.getStatus());
+				})
 				.map(review -> {
 					RecipeEntity recipe = recipesById.get(review.getRecipeId());
 					PersonalRecipeVersion latestVersion =

@@ -36,12 +36,17 @@ X-CookPilot-User-Id: <user UUID>
 레시피와 개인 버전·즐겨찾기 상태는 ID 집합으로 배치 조회해
 항목마다 DB를 다시 조회하는 N+1을 피한다.
 
+레시피별 최신 1건 선택, 활성 상태 필터, 10건 제한은 PostgreSQL 쿼리에서
+수행한다. `user_id`, `recipe_id`, `created_at`, `id` 복합 인덱스로
+사용자의 리뷰가 늘어도 모든 이력을 애플리케이션으로 읽지 않는다.
+
 ## 주요 변경 파일
 
 - `home/HomeRecipeController.java`
 - `home/HomeRecipeService.java`
 - `home/RecentRecipeResponse.java`
-- `review/ReviewRepository.java`
+- `review/PostCookReviewRepository.java`
+- `V4_2__index_recent_reviews.sql`
 - 개인 레시피·즐겨찾기 배치 조회 Repository
 
 ## 검증
