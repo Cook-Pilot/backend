@@ -1,6 +1,8 @@
 package com.cookpilot.backend.recipe;
 
 import java.math.BigDecimal;
+import java.util.List;
+import java.util.UUID;
 
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -33,6 +35,9 @@ class RecipeApiTest extends PostgresApiTestBase {
 	@Autowired
 	private RecipeStepRepository stepRepository;
 
+	@Autowired
+	private RecipeService recipeService;
+
 	@Test
 	void 레시피_목록을_조회한다() throws Exception {
 		mockMvc.perform(get("/api/v1/recipes"))
@@ -46,10 +51,46 @@ class RecipeApiTest extends PostgresApiTestBase {
 	}
 
 	@Test
+	void 제목이_같은_레시피는_ID_순서로_반환한다() {
+		recipeRepository.save(new RecipeEntity(
+				"동일 제목 정렬 검증", "첫 번째", BigDecimal.ONE));
+		recipeRepository.save(new RecipeEntity(
+				"동일 제목 정렬 검증", "두 번째", BigDecimal.ONE));
+
+		List<String> actual = recipeService.findAll().stream()
+				.filter(recipe -> recipe.title().equals("동일 제목 정렬 검증"))
+				.map(RecipeOverview::id)
+				.map(UUID::toString)
+				.toList();
+		List<String> expected = actual.stream().sorted().toList();
+
+		org.assertj.core.api.Assertions.assertThat(actual)
+				.containsExactlyElementsOf(expected);
+	}
+
+	@Test
+	void 카탈로그의_필수_재료와_조리_안내가_일치한다() throws Exception {
+		mockMvc.perform(get("/api/v1/recipes/10000000-0000-0000-0000-000000000003"))
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$.ingredients[?(@.name == '식용유')].required")
+						.value(contains(true)))
+				.andExpect(jsonPath("$.steps[1].instruction")
+						.value("팬에 식용유를 두르고 두부를 올려 앞뒤로 노릇하게 구우세요."));
+
+		mockMvc.perform(get("/api/v1/recipes/10000000-0000-0000-0000-000000000008"))
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$.ingredients[?(@.name == '양배추')].required")
+						.value(contains(true)))
+				.andExpect(jsonPath("$.ingredients[?(@.name == '고구마')].required")
+						.value(contains(true)));
+	}
+
+	@Test
 	void 레시피_상세를_조회한다() throws Exception {
 		mockMvc.perform(get("/api/v1/recipes/" + TestRecipeIds.RAMEN_RECIPE_ID))
 				.andExpect(status().isOk())
 				.andExpect(jsonPath("$.title").value("라면"))
+				.andExpect(jsonPath("$.baseServings").value(1.0))
 				.andExpect(jsonPath("$.steps", hasSize(3)))
 				.andExpect(jsonPath("$.steps[0].instruction").value("물 500ml를 넣고 3분간 끓이세요."))
 				.andExpect(jsonPath("$.steps[0].timerSeconds").value(180))
