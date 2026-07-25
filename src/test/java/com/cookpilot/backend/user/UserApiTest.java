@@ -58,6 +58,33 @@ class UserApiTest extends PostgresApiTestBase {
 	}
 
 	@Test
+	void 같은_멱등성_키로_재시도하면_같은_익명_사용자를_반환한다() throws Exception {
+		String installationId = "91000000-0000-4000-8000-000000000001";
+
+		String firstBody = mockMvc.perform(post("/api/v1/users/anonymous")
+						.header(UserService.IDEMPOTENCY_KEY_HEADER, installationId))
+				.andExpect(status().isCreated())
+				.andReturn()
+				.getResponse()
+				.getContentAsString();
+
+		String retryBody = mockMvc.perform(post("/api/v1/users/anonymous")
+						.header(UserService.IDEMPOTENCY_KEY_HEADER, installationId))
+				.andExpect(status().isCreated())
+				.andReturn()
+				.getResponse()
+				.getContentAsString();
+
+		JsonNode first = objectMapper.readTree(firstBody);
+		JsonNode retry = objectMapper.readTree(retryBody);
+
+		org.assertj.core.api.Assertions.assertThat(retry.get("id").asText())
+				.isEqualTo(first.get("id").asText());
+		org.assertj.core.api.Assertions.assertThat(retry.get("betaNumber").asLong())
+				.isEqualTo(first.get("betaNumber").asLong());
+	}
+
+	@Test
 	void 헤더가_없으면_기존_데모_사용자를_반환한다() throws Exception {
 		mockMvc.perform(get("/api/v1/users/me"))
 				.andExpect(status().isOk())

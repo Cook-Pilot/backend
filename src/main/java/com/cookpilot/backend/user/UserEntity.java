@@ -36,6 +36,9 @@ public class UserEntity {
 	@Column(name = "is_anonymous", nullable = false)
 	private boolean anonymous;
 
+	@Column(name = "anonymous_installation_id")
+	private UUID anonymousInstallationId;
+
 	@CreationTimestamp
 	@Column(name = "created_at", nullable = false, updatable = false)
 	private Instant createdAt;
@@ -52,9 +55,18 @@ public class UserEntity {
 	}
 
 	public UserEntity(String email, String displayName, boolean anonymous) {
+		this(email, displayName, anonymous, null);
+	}
+
+	public UserEntity(
+			String email,
+			String displayName,
+			boolean anonymous,
+			UUID anonymousInstallationId) {
 		this.email = email;
 		this.displayName = displayName;
 		this.anonymous = anonymous;
+		this.anonymousInstallationId = anonymousInstallationId;
 	}
 
 	public UUID getId() {
@@ -79,6 +91,10 @@ public class UserEntity {
 
 	public boolean isAnonymous() {
 		return anonymous;
+	}
+
+	public UUID getAnonymousInstallationId() {
+		return anonymousInstallationId;
 	}
 
 	public Instant getCreatedAt() {

@@ -19,6 +19,7 @@ import jakarta.servlet.http.HttpServletRequest;
 public class UserService {
 
 	public static final String USER_ID_HEADER = "X-CookPilot-User-Id";
+	public static final String IDEMPOTENCY_KEY_HEADER = "Idempotency-Key";
 
 	private static final User DEMO_USER = new User(
 			UUID.fromString("00000000-0000-0000-0000-000000000001"),
@@ -37,14 +38,36 @@ public class UserService {
 	}
 
 	@Transactional
-	public User createAnonymousUser() {
+	public User createAnonymousUser(String idempotencyKey) {
+		UUID installationId = parseInstallationId(idempotencyKey);
+		if (installationId != null) {
+			User existingUser = userRepository.findByAnonymousInstallationId(installationId)
+					.map(this::toUser)
+					.orElse(null);
+			if (existingUser != null) {
+				return existingUser;
+			}
+		}
+
 		UserEntity entity = userRepository.saveAndFlush(
-				new UserEntity(null, "베타 사용자", true));
+				new UserEntity(null, "베타 사용자", true, installationId));
 
 		// beta_number는 DB 시퀀스 기본값이므로 INSERT 뒤 다시 읽어 온다.
 		entityManager.refresh(entity);
 		entity.setDisplayName("베타 사용자 " + entity.getBetaNumber());
 		return toUser(entity);
+	}
+
+	private UUID parseInstallationId(String idempotencyKey) {
+		if (idempotencyKey == null || idempotencyKey.isBlank()) {
+			// 기존 데모 클라이언트와 테스트는 키 없이도 매번 새 사용자를 만들 수 있다.
+			return null;
+		}
+		try {
+			return UUID.fromString(idempotencyKey);
+		} catch (IllegalArgumentException exception) {
+			throw new IllegalArgumentException("익명 사용자 생성 키 형식이 올바르지 않습니다.");
+		}
 	}
 
 	@Transactional(readOnly = true)
