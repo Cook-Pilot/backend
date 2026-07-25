@@ -1,5 +1,11 @@
 package com.cookpilot.backend.user;
 
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
+
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.MediaType;
@@ -87,14 +93,48 @@ class UserApiTest extends PostgresApiTestBase {
 	}
 
 	@Test
-	void 헤더가_없으면_기존_데모_사용자를_반환한다() throws Exception {
-		mockMvc.perform(get("/api/v1/users/me"))
-				.andExpect(status().isOk())
-				.andExpect(jsonPath("$.id").value("00000000-0000-0000-0000-000000000001"))
-				.andExpect(jsonPath("$.email").value("demo@cookpilot.app"))
-				.andExpect(jsonPath("$.displayName").value("데모 사용자"))
-				.andExpect(jsonPath("$.betaNumber").value(0))
-				.andExpect(jsonPath("$.anonymous").value(false));
+	void 같은_멱등성_키의_동시_요청도_같은_사용자를_반환한다() throws Exception {
+		String installationId = "91000000-0000-4000-8000-000000000002";
+		CountDownLatch ready = new CountDownLatch(2);
+		CountDownLatch start = new CountDownLatch(1);
+		ExecutorService executor = Executors.newFixedThreadPool(2);
+
+		try {
+			Future<String> first = executor.submit(() -> createUserConcurrently(
+					installationId, ready, start));
+			Future<String> second = executor.submit(() -> createUserConcurrently(
+					installationId, ready, start));
+			org.assertj.core.api.Assertions.assertThat(
+					ready.await(5, TimeUnit.SECONDS)).isTrue();
+			start.countDown();
+
+			JsonNode firstUser = objectMapper.readTree(first.get(10, TimeUnit.SECONDS));
+			JsonNode secondUser = objectMapper.readTree(second.get(10, TimeUnit.SECONDS));
+
+			org.assertj.core.api.Assertions.assertThat(secondUser.get("id").asText())
+					.isEqualTo(firstUser.get("id").asText());
+			org.assertj.core.api.Assertions.assertThat(secondUser.get("betaNumber").asLong())
+					.isEqualTo(firstUser.get("betaNumber").asLong());
+		} finally {
+			executor.shutdownNow();
+		}
+	}
+
+	@Test
+	void 사용자_헤더가_비어_있으면_개인화_요청을_거부한다() throws Exception {
+		mockMvc.perform(get("/api/v1/users/me")
+						.header(UserService.USER_ID_HEADER, ""))
+				.andExpect(status().isUnauthorized())
+				.andExpect(jsonPath("$.code").value("USER_SESSION_REQUIRED"));
+	}
+
+	@Test
+	void 존재하지_않는_사용자는_구조화된_오류_코드를_반환한다() throws Exception {
+		mockMvc.perform(get("/api/v1/users/me")
+						.header(UserService.USER_ID_HEADER,
+								"99999999-0000-0000-0000-000000000000"))
+				.andExpect(status().isNotFound())
+				.andExpect(jsonPath("$.code").value("USER_NOT_FOUND"));
 	}
 
 	@Test
@@ -177,6 +217,10 @@ class UserApiTest extends PostgresApiTestBase {
 		mockMvc.perform(get("/api/v1/personal-versions/" + versionId)
 						.header(UserService.USER_ID_HEADER, secondUserId))
 				.andExpect(status().isNotFound());
+		mockMvc.perform(get("/api/v1/home/recent-recipes")
+						.header(UserService.USER_ID_HEADER, secondUserId))
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$.length()").value(0));
 
 		mockMvc.perform(get("/api/v1/reviews/" + reviewId)
 						.header(UserService.USER_ID_HEADER, firstUserId))
@@ -186,5 +230,27 @@ class UserApiTest extends PostgresApiTestBase {
 						.header(UserService.USER_ID_HEADER, firstUserId))
 				.andExpect(status().isOk())
 				.andExpect(jsonPath("$.version.id").value(versionId));
+		mockMvc.perform(get("/api/v1/home/recent-recipes")
+						.header(UserService.USER_ID_HEADER, firstUserId))
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$.length()").value(1))
+				.andExpect(jsonPath("$[0].id")
+						.value(TestRecipeIds.RAMEN_RECIPE_ID.toString()));
+	}
+
+	private String createUserConcurrently(
+			String installationId,
+			CountDownLatch ready,
+			CountDownLatch start) throws Exception {
+		ready.countDown();
+		if (!start.await(5, TimeUnit.SECONDS)) {
+			throw new IllegalStateException("동시 요청 시작을 기다리지 못했습니다.");
+		}
+		return mockMvc.perform(post("/api/v1/users/anonymous")
+						.header(UserService.IDEMPOTENCY_KEY_HEADER, installationId))
+				.andExpect(status().isCreated())
+				.andReturn()
+				.getResponse()
+				.getContentAsString();
 	}
 }

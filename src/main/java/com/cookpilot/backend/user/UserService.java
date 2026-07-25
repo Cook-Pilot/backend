@@ -7,8 +7,6 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.context.request.RequestContextHolder;
 import org.springframework.web.context.request.ServletRequestAttributes;
 
-import com.cookpilot.backend.common.NotFoundException;
-
 import jakarta.persistence.EntityManager;
 import jakarta.servlet.http.HttpServletRequest;
 
@@ -20,14 +18,6 @@ public class UserService {
 
 	public static final String USER_ID_HEADER = "X-CookPilot-User-Id";
 	public static final String IDEMPOTENCY_KEY_HEADER = "Idempotency-Key";
-
-	private static final User DEMO_USER = new User(
-			UUID.fromString("00000000-0000-0000-0000-000000000001"),
-			"demo@cookpilot.app",
-			"데모 사용자",
-			0,
-			false
-	);
 
 	private final UserRepository userRepository;
 	private final EntityManager entityManager;
@@ -41,12 +31,13 @@ public class UserService {
 	public User createAnonymousUser(String idempotencyKey) {
 		UUID installationId = parseInstallationId(idempotencyKey);
 		if (installationId != null) {
-			User existingUser = userRepository.findByAnonymousInstallationId(installationId)
-					.map(this::toUser)
-					.orElse(null);
-			if (existingUser != null) {
-				return existingUser;
+			int inserted = userRepository.insertAnonymousIgnore(UUID.randomUUID(), installationId);
+			UserEntity entity = userRepository.findByAnonymousInstallationId(installationId)
+					.orElseThrow(() -> new IllegalStateException("익명 사용자를 조회하지 못했습니다."));
+			if (inserted == 1) {
+				entity.setDisplayName("베타 사용자 " + entity.getBetaNumber());
 			}
+			return toUser(entity);
 		}
 
 		UserEntity entity = userRepository.saveAndFlush(
@@ -74,8 +65,7 @@ public class UserService {
 	public User getCurrentUser() {
 		String userIdValue = currentRequestUserId();
 		if (userIdValue == null || userIdValue.isBlank()) {
-			// 기존 테스트와 데모 클라이언트 호환용. 베타 앱은 항상 발급받은 ID를 보낸다.
-			return DEMO_USER;
+			throw new MissingUserSessionException("베타 사용자 세션이 필요합니다.");
 		}
 
 		UUID userId;
@@ -87,7 +77,8 @@ public class UserService {
 
 		return userRepository.findById(userId)
 				.map(this::toUser)
-				.orElseThrow(() -> new NotFoundException("사용자를 찾을 수 없습니다: " + userId));
+				.orElseThrow(() -> new UserNotFoundException(
+						"사용자를 찾을 수 없습니다: " + userId));
 	}
 
 	private String currentRequestUserId() {
