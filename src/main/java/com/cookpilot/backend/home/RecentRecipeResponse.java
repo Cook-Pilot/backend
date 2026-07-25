@@ -11,6 +11,7 @@ public record RecentRecipeResponse(
 		Instant lastCookedAt,
 		Integer lastRating,
 		boolean hasPersonalVersion,
-		UUID latestPersonalVersionId
+		UUID latestPersonalVersionId,
+		boolean favorite
 ) {
 }

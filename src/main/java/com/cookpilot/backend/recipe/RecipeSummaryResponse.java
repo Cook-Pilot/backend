@@ -8,6 +8,7 @@ public record RecipeSummaryResponse(
 		String description,
 		String imageUrl,
 		boolean hasPersonalVersion,
-		UUID latestPersonalVersionId
+		UUID latestPersonalVersionId,
+		boolean favorite
 ) {
 }

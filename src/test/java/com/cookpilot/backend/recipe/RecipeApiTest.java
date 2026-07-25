@@ -46,6 +46,7 @@ class RecipeApiTest extends PostgresApiTestBase {
 				.andExpect(jsonPath("$[0].id").exists())
 				.andExpect(jsonPath("$[0].title").exists())
 				.andExpect(jsonPath("$[0].hasPersonalVersion").exists())
+				.andExpect(jsonPath("$[0].favorite").exists())
 				.andExpect(jsonPath("$[0].ingredients").doesNotExist())
 				.andExpect(jsonPath("$[0].steps").doesNotExist());
 	}
