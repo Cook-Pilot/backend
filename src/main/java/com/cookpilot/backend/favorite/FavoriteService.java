@@ -75,10 +75,10 @@ public class FavoriteService {
 	public FavoriteRecipeResponse add(UUID recipeId) {
 		RecipeEntity recipe = findRecipe(recipeId);
 		UUID userId = userService.getCurrentUser().id();
+		recipeFavoriteRepository.insertIgnore(UUID.randomUUID(), userId, recipeId);
 		RecipeFavoriteEntity favorite = recipeFavoriteRepository
 				.findByUserIdAndRecipeId(userId, recipeId)
-				.orElseGet(() -> recipeFavoriteRepository.saveAndFlush(
-						new RecipeFavoriteEntity(userId, recipeId)));
+				.orElseThrow(() -> new IllegalStateException("즐겨찾기 저장 결과를 찾을 수 없습니다."));
 		PersonalRecipeVersion latest = personalRecipeService.findLatestByRecipe(recipeId)
 				.orElse(null);
 		return toResponse(favorite, recipe, latest);

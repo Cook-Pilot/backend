@@ -11,6 +11,7 @@ import org.springframework.test.web.servlet.MockMvc;
 
 import com.cookpilot.backend.PostgresApiTestBase;
 import com.cookpilot.backend.TestRecipeIds;
+import com.cookpilot.backend.favorite.RecipeFavoriteRepository;
 import com.cookpilot.backend.recipe.RecipeEntity;
 import com.cookpilot.backend.recipe.RecipeRepository;
 import com.cookpilot.backend.review.PostCookReviewEntity;
@@ -19,6 +20,7 @@ import com.cookpilot.backend.review.PostCookReviewRepository;
 import static org.hamcrest.Matchers.hasSize;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -33,8 +35,12 @@ class RecentRecipeApiTest extends PostgresApiTestBase {
 	@Autowired
 	private RecipeRepository recipeRepository;
 
+	@Autowired
+	private RecipeFavoriteRepository recipeFavoriteRepository;
+
 	@BeforeEach
 	void clearReviews() {
+		recipeFavoriteRepository.deleteAll();
 		postCookReviewRepository.deleteAll();
 	}
 
@@ -47,6 +53,10 @@ class RecentRecipeApiTest extends PostgresApiTestBase {
 
 	@Test
 	void 조리_후기를_남기면_최근_조리에_표시된다() throws Exception {
+		mockMvc.perform(put("/api/v1/recipes/"
+						+ TestRecipeIds.BRAISED_TOFU_RECIPE_ID + "/favorite"))
+				.andExpect(status().isOk());
+
 		mockMvc.perform(post("/api/v1/reviews")
 						.contentType(MediaType.APPLICATION_JSON)
 						.content("""
@@ -64,7 +74,8 @@ class RecentRecipeApiTest extends PostgresApiTestBase {
 				.andExpect(jsonPath("$[0].id").value(TestRecipeIds.BRAISED_TOFU_RECIPE_ID.toString()))
 				.andExpect(jsonPath("$[0].lastCookedAt").exists())
 				.andExpect(jsonPath("$[0].lastRating").value(5))
-				.andExpect(jsonPath("$[0].hasPersonalVersion").value(true));
+				.andExpect(jsonPath("$[0].hasPersonalVersion").value(true))
+				.andExpect(jsonPath("$[0].favorite").value(true));
 	}
 
 	@Test

@@ -1,5 +1,13 @@
 package com.cookpilot.backend.favorite;
 
+import java.util.List;
+import java.util.concurrent.Callable;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
+
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -23,6 +31,9 @@ class FavoriteApiTest extends PostgresApiTestBase {
 
 	@Autowired
 	private RecipeFavoriteRepository recipeFavoriteRepository;
+
+	@Autowired
+	private FavoriteService favoriteService;
 
 	@BeforeEach
 	void clearFavorites() {
@@ -76,5 +87,34 @@ class FavoriteApiTest extends PostgresApiTestBase {
 				.andExpect(status().isNotFound());
 		mockMvc.perform(delete(path))
 				.andExpect(status().isNotFound());
+	}
+
+	@Test
+	void 동시에_즐겨찾기를_추가해도_한_건만_저장한다() throws Exception {
+		CountDownLatch ready = new CountDownLatch(2);
+		CountDownLatch start = new CountDownLatch(1);
+		Callable<FavoriteRecipeResponse> addFavorite = () -> {
+			ready.countDown();
+			start.await(5, TimeUnit.SECONDS);
+			return favoriteService.add(TestRecipeIds.RAMEN_RECIPE_ID);
+		};
+
+		try (ExecutorService executor = Executors.newFixedThreadPool(2)) {
+			List<Future<FavoriteRecipeResponse>> requests = List.of(
+					executor.submit(addFavorite),
+					executor.submit(addFavorite));
+			org.assertj.core.api.Assertions.assertThat(
+					ready.await(5, TimeUnit.SECONDS)).isTrue();
+			start.countDown();
+
+			for (Future<FavoriteRecipeResponse> request : requests) {
+				org.assertj.core.api.Assertions.assertThat(
+						request.get(10, TimeUnit.SECONDS).id())
+						.isEqualTo(TestRecipeIds.RAMEN_RECIPE_ID);
+			}
+		}
+
+		org.assertj.core.api.Assertions.assertThat(
+				recipeFavoriteRepository.count()).isEqualTo(1);
 	}
 }

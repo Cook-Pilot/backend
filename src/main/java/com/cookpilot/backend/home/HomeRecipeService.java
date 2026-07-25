@@ -2,12 +2,14 @@ package com.cookpilot.backend.home;
 
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.cookpilot.backend.favorite.FavoriteService;
 import com.cookpilot.backend.personalrecipe.PersonalRecipeService;
 import com.cookpilot.backend.personalrecipe.PersonalRecipeVersion;
 import com.cookpilot.backend.recipe.RecipeEntity;
@@ -25,15 +27,18 @@ public class HomeRecipeService {
 	private final PostCookReviewRepository postCookReviewRepository;
 	private final RecipeRepository recipeRepository;
 	private final PersonalRecipeService personalRecipeService;
+	private final FavoriteService favoriteService;
 	private final UserService userService;
 
 	public HomeRecipeService(PostCookReviewRepository postCookReviewRepository,
 			RecipeRepository recipeRepository,
 			PersonalRecipeService personalRecipeService,
+			FavoriteService favoriteService,
 			UserService userService) {
 		this.postCookReviewRepository = postCookReviewRepository;
 		this.recipeRepository = recipeRepository;
 		this.personalRecipeService = personalRecipeService;
+		this.favoriteService = favoriteService;
 		this.userService = userService;
 	}
 
@@ -53,6 +58,7 @@ public class HomeRecipeService {
 				.collect(Collectors.toMap(RecipeEntity::getId, recipe -> recipe));
 		Map<UUID, PersonalRecipeVersion> latestVersionByRecipe =
 				personalRecipeService.findLatestByRecipes(recipeIds);
+		Set<UUID> favoriteRecipeIds = favoriteService.findFavoriteRecipeIds(recipeIds);
 
 		return latestReviews.stream()
 				.filter(review -> {
@@ -71,7 +77,8 @@ public class HomeRecipeService {
 							review.getCreatedAt(),
 							review.getRating(),
 							latestVersion != null,
-							latestVersion == null ? null : latestVersion.id());
+							latestVersion == null ? null : latestVersion.id(),
+							favoriteRecipeIds.contains(recipe.getId()));
 				})
 				.toList();
 	}
