@@ -50,6 +50,7 @@ class RecipeApiTest extends PostgresApiTestBase {
 		mockMvc.perform(get("/api/v1/recipes/" + TestRecipeIds.RAMEN_RECIPE_ID))
 				.andExpect(status().isOk())
 				.andExpect(jsonPath("$.title").value("라면"))
+				.andExpect(jsonPath("$.baseServings").value(1.0))
 				.andExpect(jsonPath("$.steps", hasSize(3)))
 				.andExpect(jsonPath("$.steps[0].instruction").value("물 500ml를 넣고 3분간 끓이세요."))
 				.andExpect(jsonPath("$.steps[0].timerSeconds").value(180))

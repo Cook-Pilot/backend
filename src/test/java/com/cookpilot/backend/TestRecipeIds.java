@@ -9,6 +9,8 @@ public final class TestRecipeIds {
 			UUID.fromString("10000000-0000-0000-0000-000000000001");
 	public static final UUID FRIED_RICE_RECIPE_ID =
 			UUID.fromString("10000000-0000-0000-0000-000000000002");
+	public static final UUID BRAISED_TOFU_RECIPE_ID =
+			UUID.fromString("10000000-0000-0000-0000-000000000003");
 
 	private TestRecipeIds() {
 	}

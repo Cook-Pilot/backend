@@ -25,7 +25,7 @@ public class RecipeService {
 	}
 
 	public List<RecipeOverview> findAll() {
-		return recipeRepository.findByStatus("active").stream()
+		return recipeRepository.findByStatusOrderByTitleAsc("active").stream()
 				.map(this::toOverview)
 				.toList();
 	}
@@ -70,6 +70,7 @@ public class RecipeService {
 				entity.getId(),
 				entity.getTitle(),
 				entity.getDescription(),
+				entity.getBaseServings().doubleValue(),
 				entity.getImageUrl(),
 				ingredients,
 				steps);

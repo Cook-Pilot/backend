@@ -7,5 +7,5 @@ import org.springframework.data.jpa.repository.JpaRepository;
 
 public interface RecipeRepository extends JpaRepository<RecipeEntity, UUID> {
 
-	List<RecipeEntity> findByStatus(String status);
+	List<RecipeEntity> findByStatusOrderByTitleAsc(String status);
 }
