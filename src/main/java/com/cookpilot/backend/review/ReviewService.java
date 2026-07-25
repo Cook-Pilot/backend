@@ -55,14 +55,16 @@ public class ReviewService {
 
 	@Transactional(readOnly = true)
 	public PostCookReview findById(UUID reviewId) {
-		PostCookReviewEntity review = reviewRepository.findById(reviewId)
+		UUID userId = userService.getCurrentUser().id();
+		PostCookReviewEntity review = reviewRepository.findByIdAndUserId(reviewId, userId)
 				.orElseThrow(() -> new NotFoundException("피드백을 찾을 수 없습니다: " + reviewId));
 		return toDto(review, null);
 	}
 
 	@Transactional(readOnly = true)
 	public List<PostCookReview> findByRecipe(UUID recipeId) {
-		return reviewRepository.findByRecipeIdOrderByCreatedAtDesc(recipeId)
+		UUID userId = userService.getCurrentUser().id();
+		return reviewRepository.findByUserIdAndRecipeIdOrderByCreatedAtDesc(userId, recipeId)
 				.stream().map(r -> toDto(r, null)).toList();
 	}
 

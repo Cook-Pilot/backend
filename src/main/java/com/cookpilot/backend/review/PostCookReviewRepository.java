@@ -1,6 +1,7 @@
 package com.cookpilot.backend.review;
 
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 
 import org.springframework.data.jpa.repository.JpaRepository;
@@ -10,6 +11,11 @@ import org.springframework.data.repository.query.Param;
 public interface PostCookReviewRepository extends JpaRepository<PostCookReviewEntity, UUID> {
 
 	List<PostCookReviewEntity> findByRecipeIdOrderByCreatedAtDesc(UUID recipeId);
+
+	List<PostCookReviewEntity> findByUserIdAndRecipeIdOrderByCreatedAtDesc(
+			UUID userId, UUID recipeId);
+
+	Optional<PostCookReviewEntity> findByIdAndUserId(UUID id, UUID userId);
 
 	List<PostCookReviewEntity> findByUserIdOrderByCreatedAtDesc(UUID userId);
 

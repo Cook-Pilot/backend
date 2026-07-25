@@ -1,11 +1,24 @@
 package com.cookpilot.backend;
 
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.boot.test.context.TestConfiguration;
+import org.springframework.boot.webmvc.test.autoconfigure.MockMvcBuilderCustomizer;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Import;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
+import org.springframework.mock.web.MockHttpServletRequest;
+import org.springframework.web.context.request.RequestContextHolder;
+import org.springframework.web.context.request.ServletRequestAttributes;
 import org.testcontainers.postgresql.PostgreSQLContainer;
+
+import com.cookpilot.backend.user.UserService;
+
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 
 /**
  * db 프로파일 API 테스트 공용 베이스.
@@ -21,7 +34,11 @@ import org.testcontainers.postgresql.PostgreSQLContainer;
 @SpringBootTest
 @AutoConfigureMockMvc
 @ActiveProfiles("db")
+@Import(PostgresApiTestBase.MockMvcDefaults.class)
 public abstract class PostgresApiTestBase {
+
+	private static final String DEMO_USER_ID =
+			"00000000-0000-0000-0000-000000000001";
 
 	static final PostgreSQLContainer POSTGRES = new PostgreSQLContainer("postgres:16-alpine");
 
@@ -34,5 +51,27 @@ public abstract class PostgresApiTestBase {
 		registry.add("spring.datasource.url", POSTGRES::getJdbcUrl);
 		registry.add("spring.datasource.username", POSTGRES::getUsername);
 		registry.add("spring.datasource.password", POSTGRES::getPassword);
+	}
+
+	@BeforeEach
+	void setDemoUserRequestContext() {
+		MockHttpServletRequest request = new MockHttpServletRequest();
+		request.addHeader(UserService.USER_ID_HEADER, DEMO_USER_ID);
+		RequestContextHolder.setRequestAttributes(new ServletRequestAttributes(request));
+	}
+
+	@AfterEach
+	void clearDemoUserRequestContext() {
+		RequestContextHolder.resetRequestAttributes();
+	}
+
+	@TestConfiguration
+	static class MockMvcDefaults {
+
+		@Bean
+		MockMvcBuilderCustomizer cookPilotUserHeader() {
+			return builder -> builder.defaultRequest(get("/")
+					.header(UserService.USER_ID_HEADER, DEMO_USER_ID));
+		}
 	}
 }

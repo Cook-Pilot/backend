@@ -32,9 +32,6 @@ class FavoriteApiTest extends PostgresApiTestBase {
 	@Autowired
 	private RecipeFavoriteRepository recipeFavoriteRepository;
 
-	@Autowired
-	private FavoriteService favoriteService;
-
 	@BeforeEach
 	void clearFavorites() {
 		recipeFavoriteRepository.deleteAll();
@@ -91,26 +88,31 @@ class FavoriteApiTest extends PostgresApiTestBase {
 
 	@Test
 	void 동시에_즐겨찾기를_추가해도_한_건만_저장한다() throws Exception {
+		String path = "/api/v1/recipes/" + TestRecipeIds.RAMEN_RECIPE_ID + "/favorite";
 		CountDownLatch ready = new CountDownLatch(2);
 		CountDownLatch start = new CountDownLatch(1);
-		Callable<FavoriteRecipeResponse> addFavorite = () -> {
+		Callable<String> addFavorite = () -> {
 			ready.countDown();
 			start.await(5, TimeUnit.SECONDS);
-			return favoriteService.add(TestRecipeIds.RAMEN_RECIPE_ID);
+			return mockMvc.perform(put(path))
+					.andExpect(status().isOk())
+					.andReturn()
+					.getResponse()
+					.getContentAsString();
 		};
 
 		try (ExecutorService executor = Executors.newFixedThreadPool(2)) {
-			List<Future<FavoriteRecipeResponse>> requests = List.of(
+			List<Future<String>> requests = List.of(
 					executor.submit(addFavorite),
 					executor.submit(addFavorite));
 			org.assertj.core.api.Assertions.assertThat(
 					ready.await(5, TimeUnit.SECONDS)).isTrue();
 			start.countDown();
 
-			for (Future<FavoriteRecipeResponse> request : requests) {
+			for (Future<String> request : requests) {
 				org.assertj.core.api.Assertions.assertThat(
-						request.get(10, TimeUnit.SECONDS).id())
-						.isEqualTo(TestRecipeIds.RAMEN_RECIPE_ID);
+						request.get(10, TimeUnit.SECONDS))
+						.contains(TestRecipeIds.RAMEN_RECIPE_ID.toString());
 			}
 		}
 
