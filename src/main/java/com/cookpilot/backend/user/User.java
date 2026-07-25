@@ -5,6 +5,8 @@ import java.util.UUID;
 public record User(
 		UUID id,
 		String email,
-		String displayName
+		String displayName,
+		long betaNumber,
+		boolean anonymous
 ) {
 }
