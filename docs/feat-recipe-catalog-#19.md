@@ -23,13 +23,16 @@
   - 레시피·재료·조리 단계 추가
 - `V4__fix_seed_instructions.sql`
   - 이미 적용된 V3를 수정하지 않고 후속 마이그레이션으로 잘못된 조리 문구 보정
+- `V4_1__repair_recipe_catalog.sql`
+  - 조리 단계에서 항상 사용하는 재료를 필수 재료로 보정
+  - 두부조림에 식용유를 추가하고 굽기 안내와 주의 문구를 일치시킴
 
 Flyway 이력을 유지해야 하므로 적용된 마이그레이션을 직접 수정하지 않는다.
 
 ## API 동작
 
 - `GET /api/v1/recipes`
-  - 활성 레시피를 제목 오름차순으로 안정적으로 반환
+- 활성 레시피를 제목, ID 오름차순으로 안정적으로 반환
 - `GET /api/v1/recipes/{recipeId}`
   - DB의 `base_servings`를 `baseServings`로 포함
   - 재료는 `sort_order`, 조리 단계는 `step_index` 순서 유지
@@ -49,6 +52,8 @@ PostgreSQL Testcontainers를 사용해 다음을 확인한다.
 
 - 총 8개 레시피 목록
 - 제목순 정렬
+- 같은 제목의 ID 보조 정렬
+- 필수 재료와 조리 단계 안내의 일치
 - 기준 인분 응답
 - 재료와 조리 단계 순서
 - 상세 404

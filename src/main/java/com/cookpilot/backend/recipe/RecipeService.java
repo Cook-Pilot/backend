@@ -25,7 +25,7 @@ public class RecipeService {
 	}
 
 	public List<RecipeOverview> findAll() {
-		return recipeRepository.findByStatusOrderByTitleAsc("active").stream()
+		return recipeRepository.findByStatusOrderByTitleAscIdAsc("active").stream()
 				.map(this::toOverview)
 				.toList();
 	}
