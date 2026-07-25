@@ -1,10 +1,20 @@
 # #17 익명 베타 사용자
 
+## 목적
+
 폐쇄 베타에서는 앱 최초 진입 시 익명 사용자를 발급하고, 앱이 사용자 UUID를
 기기에 저장한다. 이후 개인화 API 요청에는 `X-CookPilot-User-Id` 헤더를 보낸다.
 
 UUID는 사용자 데이터의 FK 식별자이고, `beta_number`는
 `베타 사용자 1`, `베타 사용자 2`처럼 참여 순서를 표시하는 용도다.
+
+## DB
+
+Flyway V6에서 `users.beta_number`와 발급 순서를 위한 sequence를 추가한다.
+기존 데모 사용자는 고정 번호로 보존하고, 신규 익명 사용자는 sequence의 다음 값을 받는다.
+UUID와 beta 번호는 서로 다른 목적이므로 개인 데이터 FK는 계속 UUID를 사용한다.
+
+## API
 
 | Method | URL | 역할 |
 | --- | --- | --- |
@@ -12,6 +22,49 @@ UUID는 사용자 데이터의 FK 식별자이고, `beta_number`는
 | `GET` | `/api/v1/users/me` | 헤더로 전달한 현재 사용자 조회 |
 
 ## 적용 범위와 한계
+
+`POST /users/anonymous`는 이메일 없이 사용자를 생성하고
+`베타 사용자 N` 형식의 표시 이름, UUID, beta 번호를 반환한다.
+
+`GET /users/me`와 개인화 API는 헤더의 UUID를 `CurrentUserResolver`로 해석한다.
+
+- 유효한 UUID: 해당 사용자로 처리
+- 형식이 잘못된 UUID: 400
+- 존재하지 않는 UUID: 404
+- 헤더가 없는 기존 데모 요청: 고정 데모 사용자 사용
+
+## 사용자별 데이터 분리
+
+해석된 사용자 ID를 다음 기능의 조회·저장 조건에 전달한다.
+
+- 최근 조리
+- 즐겨찾기
+- 후기
+- 개인 레시피 버전
+
+Controller마다 헤더 처리 코드를 반복하지 않고 공통 resolver를 사용한다.
+
+## 주요 변경 파일
+
+- `db/migration/V6__add_anonymous_beta_users.sql`
+- `user/UserController.java`
+- `user/UserService.java`
+- `user/UserResponse.java`
+- `user/CurrentUserResolver.java`
+- 사용자별 데이터 Service와 Controller
+
+## 검증
+
+- 익명 사용자의 순차 beta 번호 발급
+- 헤더로 현재 사용자 재조회
+- 잘못된 UUID 400
+- 존재하지 않는 사용자 404
+- 헤더 없는 기존 데모 사용자 호환
+- 서로 다른 사용자 간 즐겨찾기 분리
+- PostgreSQL Testcontainers
+- Gradle 전체 테스트와 빌드
+
+## 보안 한계
 
 이 방식은 로그인 화면을 유지하면서 즐겨찾기, 최근 조리, 리뷰, 개인 레시피를
 사용자별로 분리하기 위한 임시 식별 방식이다. 인증 토큰이 아니므로 헤더의 UUID를
