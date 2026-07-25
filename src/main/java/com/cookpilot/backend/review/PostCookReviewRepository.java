@@ -8,4 +8,6 @@ import org.springframework.data.jpa.repository.JpaRepository;
 public interface PostCookReviewRepository extends JpaRepository<PostCookReviewEntity, UUID> {
 
 	List<PostCookReviewEntity> findByRecipeIdOrderByCreatedAtDesc(UUID recipeId);
+
+	List<PostCookReviewEntity> findByUserIdOrderByCreatedAtDesc(UUID userId);
 }
