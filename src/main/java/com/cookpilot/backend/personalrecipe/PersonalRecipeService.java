@@ -188,7 +188,8 @@ public class PersonalRecipeService {
 	}
 
 	private PersonalRecipeVersionEntity findEntity(UUID versionId) {
-		return versionRepository.findById(versionId)
+		UUID userId = userService.getCurrentUser().id();
+		return versionRepository.findByIdAndUserId(versionId, userId)
 				.orElseThrow(() -> new NotFoundException("개인 레시피 버전을 찾을 수 없습니다: " + versionId));
 	}
 

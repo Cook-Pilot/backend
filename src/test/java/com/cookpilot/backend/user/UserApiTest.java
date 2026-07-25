@@ -2,9 +2,11 @@ package com.cookpilot.backend.user;
 
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
 
 import com.cookpilot.backend.PostgresApiTestBase;
+import com.cookpilot.backend.TestRecipeIds;
 
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
@@ -124,5 +126,65 @@ class UserApiTest extends PostgresApiTestBase {
 						.header(UserService.USER_ID_HEADER, secondUserId))
 				.andExpect(status().isOk())
 				.andExpect(jsonPath("$.length()").value(0));
+	}
+
+	@Test
+	void 익명_사용자마다_후기와_개인_레시피가_분리된다() throws Exception {
+		String firstUserBody = mockMvc.perform(post("/api/v1/users/anonymous"))
+				.andExpect(status().isCreated())
+				.andReturn()
+				.getResponse()
+				.getContentAsString();
+		String secondUserBody = mockMvc.perform(post("/api/v1/users/anonymous"))
+				.andExpect(status().isCreated())
+				.andReturn()
+				.getResponse()
+				.getContentAsString();
+		String firstUserId = objectMapper.readTree(firstUserBody).get("id").asText();
+		String secondUserId = objectMapper.readTree(secondUserBody).get("id").asText();
+
+		String reviewBody = mockMvc.perform(post("/api/v1/reviews")
+						.header(UserService.USER_ID_HEADER, firstUserId)
+						.contentType(MediaType.APPLICATION_JSON)
+						.content("""
+								{
+								  "recipeId": "%s",
+								  "rating": 5,
+								  "comment": "첫 번째 사용자 후기"
+								}
+								""".formatted(TestRecipeIds.RAMEN_RECIPE_ID)))
+				.andExpect(status().isCreated())
+				.andReturn()
+				.getResponse()
+				.getContentAsString();
+		JsonNode review = objectMapper.readTree(reviewBody);
+		String reviewId = review.get("id").asText();
+		String versionId = review.get("createdPersonalVersionId").asText();
+
+		mockMvc.perform(get("/api/v1/recipes/"
+						+ TestRecipeIds.RAMEN_RECIPE_ID + "/reviews")
+						.header(UserService.USER_ID_HEADER, secondUserId))
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$.length()").value(0));
+		mockMvc.perform(get("/api/v1/reviews/" + reviewId)
+						.header(UserService.USER_ID_HEADER, secondUserId))
+				.andExpect(status().isNotFound());
+		mockMvc.perform(get("/api/v1/recipes/"
+						+ TestRecipeIds.RAMEN_RECIPE_ID + "/personal-versions")
+						.header(UserService.USER_ID_HEADER, secondUserId))
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$.length()").value(0));
+		mockMvc.perform(get("/api/v1/personal-versions/" + versionId)
+						.header(UserService.USER_ID_HEADER, secondUserId))
+				.andExpect(status().isNotFound());
+
+		mockMvc.perform(get("/api/v1/reviews/" + reviewId)
+						.header(UserService.USER_ID_HEADER, firstUserId))
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$.id").value(reviewId));
+		mockMvc.perform(get("/api/v1/personal-versions/" + versionId)
+						.header(UserService.USER_ID_HEADER, firstUserId))
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$.version.id").value(versionId));
 	}
 }

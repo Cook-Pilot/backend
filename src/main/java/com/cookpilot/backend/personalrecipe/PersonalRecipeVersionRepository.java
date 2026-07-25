@@ -9,6 +9,8 @@ import org.springframework.data.jpa.repository.JpaRepository;
 
 public interface PersonalRecipeVersionRepository extends JpaRepository<PersonalRecipeVersionEntity, UUID> {
 
+	Optional<PersonalRecipeVersionEntity> findByIdAndUserId(UUID id, UUID userId);
+
 	List<PersonalRecipeVersionEntity> findByUserIdAndRecipeIdOrderByVersionNumberDesc(UUID userId, UUID recipeId);
 
 	List<PersonalRecipeVersionEntity> findByUserIdAndRecipeIdInOrderByVersionNumberDesc(

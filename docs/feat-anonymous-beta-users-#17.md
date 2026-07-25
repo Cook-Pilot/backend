@@ -26,7 +26,7 @@ UUID와 beta 번호는 서로 다른 목적이므로 개인 데이터 FK는 계�
 `POST /users/anonymous`는 이메일 없이 사용자를 생성하고
 `베타 사용자 N` 형식의 표시 이름, UUID, beta 번호를 반환한다.
 
-`GET /users/me`와 개인화 API는 헤더의 UUID를 `CurrentUserResolver`로 해석한다.
+`GET /users/me`와 개인화 API는 `UserService`에서 헤더의 UUID를 해석한다.
 
 - 유효한 UUID: 해당 사용자로 처리
 - 형식이 잘못된 UUID: 400
@@ -42,7 +42,9 @@ UUID와 beta 번호는 서로 다른 목적이므로 개인 데이터 FK는 계�
 - 후기
 - 개인 레시피 버전
 
-Controller마다 헤더 처리 코드를 반복하지 않고 공통 resolver를 사용한다.
+Controller마다 헤더 처리 코드를 반복하지 않고 공통 `UserService`를 사용한다.
+후기와 개인 레시피의 목록뿐 아니라 개별 ID 상세 조회도 현재 사용자 ID를
+Repository 조건에 포함해 다른 사용자의 데이터를 404 또는 빈 목록으로 숨긴다.
 
 ## 주요 변경 파일
 
@@ -50,7 +52,6 @@ Controller마다 헤더 처리 코드를 반복하지 않고 공통 resolver를 
 - `user/UserController.java`
 - `user/UserService.java`
 - `user/UserResponse.java`
-- `user/CurrentUserResolver.java`
 - 사용자별 데이터 Service와 Controller
 
 ## 검증
@@ -61,6 +62,7 @@ Controller마다 헤더 처리 코드를 반복하지 않고 공통 resolver를 
 - 존재하지 않는 사용자 404
 - 헤더 없는 기존 데모 사용자 호환
 - 서로 다른 사용자 간 즐겨찾기 분리
+- 서로 다른 사용자 간 후기·개인 레시피 목록/상세 분리
 - PostgreSQL Testcontainers
 - Gradle 전체 테스트와 빌드
 
