@@ -34,7 +34,7 @@ public record SubmitReviewRequest(
 									item.amount(),
 									item.unit(),
 									item.required(),
-									item.omitted(),
+									Boolean.TRUE.equals(item.omitted()),
 									item.sortOrder());
 						})
 						.toList();
@@ -50,7 +50,7 @@ public record SubmitReviewRequest(
 									item.instruction(),
 									item.timerSeconds(),
 									item.cautionNote(),
-									item.omitted(),
+									Boolean.TRUE.equals(item.omitted()),
 									item.sortOrder());
 						})
 						.toList();
@@ -67,7 +67,9 @@ public record SubmitReviewRequest(
 			BigDecimal amount,
 			String unit,
 			Boolean required,
-			boolean omitted,
+			// Jackson 3 는 primitive 생성자 인자가 JSON 에 없으면 역직렬화를 거부한다.
+			// 필드 생략을 false(실행함)로 허용하기 위해 박싱 타입으로 받는다.
+			Boolean omitted,
 			int sortOrder
 	) {
 	}
@@ -77,7 +79,8 @@ public record SubmitReviewRequest(
 			String instruction,
 			Integer timerSeconds,
 			String cautionNote,
-			boolean omitted,
+			// ExecutedIngredientRequest.omitted 와 같은 이유로 박싱 타입.
+			Boolean omitted,
 			int sortOrder
 	) {
 	}
