@@ -1,5 +1,6 @@
 package com.cookpilot.backend.personalrecipe;
 
+import java.util.Collection;
 import java.util.List;
 import java.util.UUID;
 
@@ -9,4 +10,8 @@ public interface PersonalIngredientAdjustmentRepository
 		extends JpaRepository<PersonalIngredientAdjustmentEntity, UUID> {
 
 	List<PersonalIngredientAdjustmentEntity> findByPersonalVersionIdOrderBySortOrderAsc(UUID personalVersionId);
+
+	List<PersonalIngredientAdjustmentEntity>
+			findByPersonalVersionIdInOrderByPersonalVersionIdAscSortOrderAsc(
+					Collection<UUID> personalVersionIds);
 }

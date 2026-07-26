@@ -1,5 +1,6 @@
 package com.cookpilot.backend.review;
 
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -20,7 +21,13 @@ public interface PostCookReviewRepository extends JpaRepository<PostCookReviewEn
 
 	Optional<PostCookReviewEntity> findByUserIdAndClientSessionId(UUID userId, UUID clientSessionId);
 
+	List<PostCookReviewEntity> findByUserIdAndIdIn(UUID userId, Collection<UUID> reviewIds);
+
 	List<PostCookReviewEntity> findByUserIdOrderByCreatedAtDesc(UUID userId);
+
+	List<PostCookReviewEntity>
+			findTop100ByUserIdAndRatingGreaterThanEqualOrderByCookedAtDescCreatedAtDesc(
+					UUID userId, Integer rating);
 
 	List<PostCookReviewEntity> findByUserIdAndCookedAtGreaterThanEqualAndCookedAtLessThanOrderByCookedAtDesc(
 			UUID userId, Instant from, Instant to);
