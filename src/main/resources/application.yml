@@ -9,6 +9,15 @@ spring:
       ddl-auto: none    # 스키마를 건드리지 않음
     open-in-view: false
 
+# F-11 추천 설명 생성. 키가 없거나 호출이 실패하면 규칙 결과는 유지하고 추천 fallback을 쓴다.
+cookpilot:
+  ai:
+    gemini:
+      enabled: ${GEMINI_ENABLED:false}
+      api-key: ${GEMINI_API_KEY:}
+      model: ${GEMINI_MODEL:gemini-3.5-flash}
+      base-url: ${GEMINI_BASE_URL:https://generativelanguage.googleapis.com}
+
 ---
 # db 프로파일: 실제 postgres. 운영/서버 배포는 SPRING_PROFILES_ACTIVE=db 로 이 설정을 쓴다.
 #
