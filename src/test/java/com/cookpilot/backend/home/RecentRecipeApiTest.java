@@ -80,6 +80,49 @@ class RecentRecipeApiTest extends PostgresApiTestBase {
 	}
 
 	@Test
+	void 최근_조리는_서버_저장_시각이_아닌_실제_조리_시각으로_정렬한다() throws Exception {
+		mockMvc.perform(post("/api/v1/reviews")
+						.contentType(MediaType.APPLICATION_JSON)
+						.content("""
+								{
+								  "clientSessionId": "%s",
+								  "recipeId": "%s",
+								  "cookedAt": "2026-07-26T10:00:00Z",
+								  "rating": 5
+								}
+								""".formatted(
+								UUID.randomUUID(),
+								TestRecipeIds.BRAISED_TOFU_RECIPE_ID)))
+				.andExpect(status().isCreated());
+
+		mockMvc.perform(post("/api/v1/reviews")
+						.contentType(MediaType.APPLICATION_JSON)
+						.content("""
+								{
+								  "clientSessionId": "%s",
+								  "recipeId": "%s",
+								  "cookedAt": "2026-07-26T09:00:00Z",
+								  "rating": 3
+								}
+								""".formatted(
+								UUID.randomUUID(),
+								TestRecipeIds.FRIED_RICE_RECIPE_ID)))
+				.andExpect(status().isCreated());
+
+		mockMvc.perform(get("/api/v1/home/recent-recipes"))
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$", hasSize(2)))
+				.andExpect(jsonPath("$[0].id")
+						.value(TestRecipeIds.BRAISED_TOFU_RECIPE_ID.toString()))
+				.andExpect(jsonPath("$[0].lastCookedAt")
+						.value("2026-07-26T10:00:00Z"))
+				.andExpect(jsonPath("$[1].id")
+						.value(TestRecipeIds.FRIED_RICE_RECIPE_ID.toString()))
+				.andExpect(jsonPath("$[1].lastCookedAt")
+						.value("2026-07-26T09:00:00Z"));
+	}
+
+	@Test
 	void 비활성_레시피는_최근_조리에서_제외한다() throws Exception {
 		RecipeEntity inactive = new RecipeEntity(
 				"비활성 레시피", "최근 조리에 노출되면 안 됨", BigDecimal.ONE);

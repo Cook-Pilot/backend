@@ -33,9 +33,10 @@ public interface PostCookReviewRepository extends JpaRepository<PostCookReviewEn
 				JOIN recipes recipe ON recipe.id = review.recipe_id
 				WHERE review.user_id = :userId
 				  AND recipe.status = 'active'
-				ORDER BY review.recipe_id, review.created_at DESC, review.id DESC
+				ORDER BY review.recipe_id, review.cooked_at DESC,
+				         review.created_at DESC, review.id DESC
 			) latest
-			ORDER BY latest.created_at DESC, latest.id DESC
+			ORDER BY latest.cooked_at DESC, latest.created_at DESC, latest.id DESC
 			LIMIT :limit
 			""", nativeQuery = true)
 	List<PostCookReviewEntity> findRecentDistinctActiveByUserId(

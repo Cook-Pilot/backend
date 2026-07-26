@@ -1,6 +1,12 @@
 package com.cookpilot.backend.review;
 
+import java.util.List;
 import java.util.UUID;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
 
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -12,6 +18,7 @@ import tools.jackson.databind.ObjectMapper;
 
 import com.cookpilot.backend.PostgresApiTestBase;
 import com.cookpilot.backend.TestRecipeIds;
+import com.cookpilot.backend.personalrecipe.PersonalRecipeVersionRepository;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
@@ -37,6 +44,12 @@ class ReviewFlowApiTest extends PostgresApiTestBase {
 
 	@Autowired
 	private ObjectMapper objectMapper;
+
+	@Autowired
+	private PostCookReviewRepository reviewRepository;
+
+	@Autowired
+	private PersonalRecipeVersionRepository personalRecipeVersionRepository;
 
 	@Test
 	void 실행_변경이_있을_때만_개인_버전을_생성한다() throws Exception {
@@ -73,6 +86,41 @@ class ReviewFlowApiTest extends PostgresApiTestBase {
 		assertThat(retried.get("id").asText()).isEqualTo(first.get("id").asText());
 		assertThat(retried.get("createdPersonalVersionId").asText())
 				.isEqualTo(first.get("createdPersonalVersionId").asText());
+	}
+
+	@Test
+	void 동일한_조리_세션을_동시에_전송해도_한_번만_저장한다() throws Exception {
+		UUID clientSessionId = UUID.randomUUID();
+		CountDownLatch start = new CountDownLatch(1);
+		ExecutorService executor = Executors.newFixedThreadPool(2);
+		try {
+			Future<JsonNode> firstRequest = executor.submit(() -> {
+				start.await();
+				return submitReview(clientSessionId, 1, 1, 70, 1, 1);
+			});
+			Future<JsonNode> secondRequest = executor.submit(() -> {
+				start.await();
+				return submitReview(clientSessionId, 1, 1, 70, 1, 1);
+			});
+
+			start.countDown();
+			JsonNode first = firstRequest.get(10, TimeUnit.SECONDS);
+			JsonNode second = secondRequest.get(10, TimeUnit.SECONDS);
+
+			assertThat(second.get("id").asText()).isEqualTo(first.get("id").asText());
+			assertThat(second.get("createdPersonalVersionId").asText())
+					.isEqualTo(first.get("createdPersonalVersionId").asText());
+
+			PostCookReviewEntity saved = reviewRepository
+					.findByUserIdAndClientSessionId(
+							UUID.fromString("00000000-0000-0000-0000-000000000001"),
+							clientSessionId)
+					.orElseThrow();
+			assertThat(personalRecipeVersionRepository.findBySourceReviewIdIn(
+					List.of(saved.getId()))).hasSize(1);
+		} finally {
+			executor.shutdownNow();
+		}
 	}
 
 	@Test
@@ -142,6 +190,65 @@ class ReviewFlowApiTest extends PostgresApiTestBase {
 
 		mockMvc.perform(get("/api/v1/reviews/99999999-0000-0000-0000-000000000000"))
 				.andExpect(status().isNotFound());
+	}
+
+	@Test
+	void 기존_재료의_양이나_단위를_비울_수_없다() throws Exception {
+		mockMvc.perform(post("/api/v1/reviews")
+						.contentType(MediaType.APPLICATION_JSON)
+						.content("""
+								{
+								  "clientSessionId": "%s",
+								  "recipeId": "%s",
+								  "targetServings": 1,
+								  "rating": 4,
+								  "ingredients": [
+								    {
+								      "originalIngredientId": "%s",
+								      "name": "밥",
+								      "amount": null,
+								      "unit": "공기",
+								      "required": true,
+								      "omitted": false,
+								      "sortOrder": 0
+								    }
+								  ]
+								}
+								""".formatted(
+								UUID.randomUUID(),
+								TestRecipeIds.FRIED_RICE_RECIPE_ID,
+								ING_RICE)))
+				.andExpect(status().isBadRequest())
+				.andExpect(jsonPath("$.detail")
+						.value("MVP에서는 기존 재료의 양 제거를 지원하지 않습니다."));
+
+		mockMvc.perform(post("/api/v1/reviews")
+						.contentType(MediaType.APPLICATION_JSON)
+						.content("""
+								{
+								  "clientSessionId": "%s",
+								  "recipeId": "%s",
+								  "targetServings": 1,
+								  "rating": 4,
+								  "ingredients": [
+								    {
+								      "originalIngredientId": "%s",
+								      "name": "밥",
+								      "amount": 1,
+								      "unit": "",
+								      "required": true,
+								      "omitted": false,
+								      "sortOrder": 0
+								    }
+								  ]
+								}
+								""".formatted(
+								UUID.randomUUID(),
+								TestRecipeIds.FRIED_RICE_RECIPE_ID,
+								ING_RICE)))
+				.andExpect(status().isBadRequest())
+				.andExpect(jsonPath("$.detail")
+						.value("MVP에서는 기존 재료의 단위 제거를 지원하지 않습니다."));
 	}
 
 	private JsonNode submitReview(

@@ -309,6 +309,14 @@ public class PersonalRecipeService {
 				continue;
 			}
 			validateIngredient(actual);
+			if (original.getAmount() != null && actual.amount() == null) {
+				throw new IllegalArgumentException(
+						"MVP에서는 기존 재료의 양 제거를 지원하지 않습니다.");
+			}
+			if (trimToNull(original.getUnit()) != null && trimToNull(actual.unit()) == null) {
+				throw new IllegalArgumentException(
+						"MVP에서는 기존 재료의 단위 제거를 지원하지 않습니다.");
+			}
 			BigDecimal normalizedAmount = normalizeAmount(
 					actual.amount(), recipe.getBaseServings(), targetServings);
 			String changedName = sameText(original.getName(), actual.name()) ? null : actual.name().trim();

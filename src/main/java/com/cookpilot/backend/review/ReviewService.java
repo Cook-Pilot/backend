@@ -56,7 +56,8 @@ public class ReviewService {
 			throw new NotFoundException("레시피를 찾을 수 없습니다: " + request.recipeId());
 		}
 
-		UUID userId = userService.getCurrentUser().id();
+		// 같은 사용자의 동시 재전송을 직렬화해 멱등성 조회와 저장을 하나의 원자적 흐름으로 만든다.
+		UUID userId = userService.lockCurrentUser().id();
 		PostCookReviewEntity existing = reviewRepository
 				.findByUserIdAndClientSessionId(userId, request.clientSessionId())
 				.orElse(null);
