@@ -61,11 +61,12 @@ class RecentRecipeApiTest extends PostgresApiTestBase {
 						.contentType(MediaType.APPLICATION_JSON)
 						.content("""
 								{
+								  "clientSessionId": "%s",
 								  "recipeId": "%s",
 								  "rating": 5,
 								  "comment": "다시 만들고 싶다"
 								}
-								""".formatted(TestRecipeIds.BRAISED_TOFU_RECIPE_ID)))
+								""".formatted(UUID.randomUUID(), TestRecipeIds.BRAISED_TOFU_RECIPE_ID)))
 				.andExpect(status().isCreated());
 
 		mockMvc.perform(get("/api/v1/home/recent-recipes"))
@@ -74,8 +75,51 @@ class RecentRecipeApiTest extends PostgresApiTestBase {
 				.andExpect(jsonPath("$[0].id").value(TestRecipeIds.BRAISED_TOFU_RECIPE_ID.toString()))
 				.andExpect(jsonPath("$[0].lastCookedAt").exists())
 				.andExpect(jsonPath("$[0].lastRating").value(5))
-				.andExpect(jsonPath("$[0].hasPersonalVersion").value(true))
+				.andExpect(jsonPath("$[0].hasPersonalVersion").value(false))
 				.andExpect(jsonPath("$[0].favorite").value(true));
+	}
+
+	@Test
+	void 최근_조리는_서버_저장_시각이_아닌_실제_조리_시각으로_정렬한다() throws Exception {
+		mockMvc.perform(post("/api/v1/reviews")
+						.contentType(MediaType.APPLICATION_JSON)
+						.content("""
+								{
+								  "clientSessionId": "%s",
+								  "recipeId": "%s",
+								  "cookedAt": "2026-07-26T10:00:00Z",
+								  "rating": 5
+								}
+								""".formatted(
+								UUID.randomUUID(),
+								TestRecipeIds.BRAISED_TOFU_RECIPE_ID)))
+				.andExpect(status().isCreated());
+
+		mockMvc.perform(post("/api/v1/reviews")
+						.contentType(MediaType.APPLICATION_JSON)
+						.content("""
+								{
+								  "clientSessionId": "%s",
+								  "recipeId": "%s",
+								  "cookedAt": "2026-07-26T09:00:00Z",
+								  "rating": 3
+								}
+								""".formatted(
+								UUID.randomUUID(),
+								TestRecipeIds.FRIED_RICE_RECIPE_ID)))
+				.andExpect(status().isCreated());
+
+		mockMvc.perform(get("/api/v1/home/recent-recipes"))
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$", hasSize(2)))
+				.andExpect(jsonPath("$[0].id")
+						.value(TestRecipeIds.BRAISED_TOFU_RECIPE_ID.toString()))
+				.andExpect(jsonPath("$[0].lastCookedAt")
+						.value("2026-07-26T10:00:00Z"))
+				.andExpect(jsonPath("$[1].id")
+						.value(TestRecipeIds.FRIED_RICE_RECIPE_ID.toString()))
+				.andExpect(jsonPath("$[1].lastCookedAt")
+						.value("2026-07-26T09:00:00Z"));
 	}
 
 	@Test

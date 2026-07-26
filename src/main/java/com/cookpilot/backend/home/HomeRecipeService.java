@@ -74,7 +74,7 @@ public class HomeRecipeService {
 							recipe.getTitle(),
 							recipe.getDescription(),
 							recipe.getImageUrl(),
-							review.getCreatedAt(),
+							review.getCookedAt(),
 							review.getRating(),
 							latestVersion != null,
 							latestVersion == null ? null : latestVersion.id(),

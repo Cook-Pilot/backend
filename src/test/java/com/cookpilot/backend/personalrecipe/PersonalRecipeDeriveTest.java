@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.math.BigDecimal;
+import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
 
@@ -14,6 +15,7 @@ import org.springframework.transaction.annotation.Transactional;
 import com.cookpilot.backend.PostgresApiTestBase;
 import com.cookpilot.backend.review.PostCookReview;
 import com.cookpilot.backend.review.ReviewService;
+import com.cookpilot.backend.review.SubmitReviewRequest;
 
 /**
  * 개인 버전 파생 흐름 통합 테스트(실제 postgres, V2 시드 라면 레시피 사용).
@@ -42,23 +44,23 @@ class PersonalRecipeDeriveTest extends PostgresApiTestBase {
 	private PersonalIngredientAdjustmentRepository ingredientAdjustmentRepository;
 
 	private PersonalRecipeVersion createV1() {
-		PostCookReview review = reviewService.submit(RAMEN_ID, 4, "국물이 싱거웠다", "다음엔 물을 줄이자");
+		PostCookReview review = submitChangedRamenReview();
 		return personalRecipeService.findById(review.createdPersonalVersionId());
 	}
 
 	@Test
 	void 리뷰가_v1을_만들고_리뷰를_역참조한다() {
-		PostCookReview review = reviewService.submit(RAMEN_ID, 5, "좋았다", null);
+		PostCookReview review = submitChangedRamenReview();
 		PersonalRecipeVersion v1 = personalRecipeService.findById(review.createdPersonalVersionId());
 
 		assertThat(v1.versionNumber()).isEqualTo(1);
 		assertThat(v1.sourceReviewId()).isEqualTo(review.id());
 		assertThat(v1.parentVersionId()).isNull();
-		assertThat(v1.isDefault()).isTrue();
+		assertThat(v1.isDefault()).isFalse();
 	}
 
 	@Test
-	void 파생하면_버전이_쌓이고_기본_버전이_넘어간다() {
+	void 파생하면_버전과_계보가_쌓이지만_자동_기본값은_지정하지_않는다() {
 		PersonalRecipeVersion v1 = createV1();
 
 		PersonalRecipeVersion v2 = personalRecipeService.derive(v1.id(), new DeriveVersionRequest(
@@ -69,7 +71,7 @@ class PersonalRecipeDeriveTest extends PostgresApiTestBase {
 
 		assertThat(v2.versionNumber()).isEqualTo(v1.versionNumber() + 1);
 		assertThat(v2.parentVersionId()).isEqualTo(v1.id());
-		assertThat(v2.isDefault()).isTrue();
+		assertThat(v2.isDefault()).isFalse();
 		assertThat(personalRecipeService.findById(v1.id()).isDefault()).isFalse();
 		assertThat(personalRecipeService.findLatestByRecipe(RAMEN_ID).orElseThrow().id())
 				.isEqualTo(v2.id());
@@ -172,5 +174,39 @@ class PersonalRecipeDeriveTest extends PostgresApiTestBase {
 				List.of(new StepAdjustment(null, AdjustmentType.ADD, null, 0, "새 단계", null, null)))))
 				.isInstanceOf(IllegalArgumentException.class)
 				.hasMessageContaining("insertAfterStepIndex");
+	}
+
+	private PostCookReview submitChangedRamenReview() {
+		return reviewService.submit(new SubmitReviewRequest(
+				UUID.randomUUID(),
+				RAMEN_ID,
+				Instant.parse("2026-07-26T01:00:00Z"),
+				BigDecimal.ONE,
+				null,
+				4,
+				"국물이 싱거웠다",
+				"다음엔 물을 줄이자",
+				List.of(
+						new SubmitReviewRequest.ExecutedIngredientRequest(
+								UUID.fromString("20000000-0000-0000-0000-000000000101"),
+								"라면", BigDecimal.ONE, "봉", true, false, 0),
+						new SubmitReviewRequest.ExecutedIngredientRequest(
+								ING_WATER, "물", new BigDecimal("400"), "ml", true, false, 1),
+						new SubmitReviewRequest.ExecutedIngredientRequest(
+								ING_EGG, "계란", BigDecimal.ONE, "개", false, false, 2),
+						new SubmitReviewRequest.ExecutedIngredientRequest(
+								UUID.fromString("20000000-0000-0000-0000-000000000104"),
+								"파", new BigDecimal("0.5"), "대", false, false, 3)),
+				List.of(
+						new SubmitReviewRequest.ExecutedStepRequest(
+								STEP_BOIL, "물 500ml를 넣고 3분간 끓이세요.", 180, null, false, 0),
+						new SubmitReviewRequest.ExecutedStepRequest(
+								UUID.fromString("30000000-0000-0000-0000-000000000102"),
+								"건더기, 분말스프, 면을 넣고 3분간 끓이세요.",
+								180, "끓어 넘침 주의", false, 1),
+						new SubmitReviewRequest.ExecutedStepRequest(
+								UUID.fromString("30000000-0000-0000-0000-000000000103"),
+								"불을 끄고 그릇에 옮겨 담으세요.",
+								null, "뜨거우니 조심하세요", false, 2))));
 	}
 }

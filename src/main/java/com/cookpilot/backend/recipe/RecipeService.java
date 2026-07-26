@@ -49,6 +49,7 @@ public class RecipeService {
 				.findByRecipeIdOrderBySortOrderAsc(entity.getId())
 				.stream()
 				.map(ingredient -> new RecipeIngredient(
+						ingredient.getId(),
 						ingredient.getName(),
 						ingredient.getAmount() == null ? null : ingredient.getAmount().doubleValue(),
 						ingredient.getUnit(),
@@ -59,6 +60,7 @@ public class RecipeService {
 				.findByRecipeIdOrderByStepIndexAsc(entity.getId())
 				.stream()
 				.map(step -> new RecipeStep(
+						step.getId(),
 						step.getStepIndex(),
 						step.getInstruction(),
 						step.getTimerSeconds(),

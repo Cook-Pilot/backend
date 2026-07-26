@@ -1,5 +1,7 @@
 package com.cookpilot.backend.user;
 
+import java.util.UUID;
+
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -188,11 +190,51 @@ class UserApiTest extends PostgresApiTestBase {
 						.contentType(MediaType.APPLICATION_JSON)
 						.content("""
 								{
+								  "clientSessionId": "%s",
 								  "recipeId": "%s",
 								  "rating": 5,
-								  "comment": "첫 번째 사용자 후기"
+								  "comment": "첫 번째 사용자 후기",
+								  "targetServings": 1,
+								  "ingredients": [
+								    {
+								      "originalIngredientId": "20000000-0000-0000-0000-000000000101",
+								      "name": "라면",
+								      "amount": 1,
+								      "unit": "봉",
+								      "required": true,
+								      "omitted": false,
+								      "sortOrder": 0
+								    },
+								    {
+								      "originalIngredientId": "20000000-0000-0000-0000-000000000102",
+								      "name": "물",
+								      "amount": 400,
+								      "unit": "ml",
+								      "required": true,
+								      "omitted": false,
+								      "sortOrder": 1
+								    },
+								    {
+								      "originalIngredientId": "20000000-0000-0000-0000-000000000103",
+								      "name": "계란",
+								      "amount": 1,
+								      "unit": "개",
+								      "required": false,
+								      "omitted": false,
+								      "sortOrder": 2
+								    },
+								    {
+								      "originalIngredientId": "20000000-0000-0000-0000-000000000104",
+								      "name": "파",
+								      "amount": 0.5,
+								      "unit": "대",
+								      "required": false,
+								      "omitted": false,
+								      "sortOrder": 3
+								    }
+								  ]
 								}
-								""".formatted(TestRecipeIds.RAMEN_RECIPE_ID)))
+								""".formatted(UUID.randomUUID(), TestRecipeIds.RAMEN_RECIPE_ID)))
 				.andExpect(status().isCreated())
 				.andReturn()
 				.getResponse()

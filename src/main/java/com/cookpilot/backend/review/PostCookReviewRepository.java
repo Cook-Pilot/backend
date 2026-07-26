@@ -3,6 +3,7 @@ package com.cookpilot.backend.review;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
+import java.time.Instant;
 
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
@@ -17,7 +18,12 @@ public interface PostCookReviewRepository extends JpaRepository<PostCookReviewEn
 
 	Optional<PostCookReviewEntity> findByIdAndUserId(UUID id, UUID userId);
 
+	Optional<PostCookReviewEntity> findByUserIdAndClientSessionId(UUID userId, UUID clientSessionId);
+
 	List<PostCookReviewEntity> findByUserIdOrderByCreatedAtDesc(UUID userId);
+
+	List<PostCookReviewEntity> findByUserIdAndCookedAtGreaterThanEqualAndCookedAtLessThanOrderByCookedAtDesc(
+			UUID userId, Instant from, Instant to);
 
 	@Query(value = """
 			SELECT latest.*
@@ -27,9 +33,10 @@ public interface PostCookReviewRepository extends JpaRepository<PostCookReviewEn
 				JOIN recipes recipe ON recipe.id = review.recipe_id
 				WHERE review.user_id = :userId
 				  AND recipe.status = 'active'
-				ORDER BY review.recipe_id, review.created_at DESC, review.id DESC
+				ORDER BY review.recipe_id, review.cooked_at DESC,
+				         review.created_at DESC, review.id DESC
 			) latest
-			ORDER BY latest.created_at DESC, latest.id DESC
+			ORDER BY latest.cooked_at DESC, latest.created_at DESC, latest.id DESC
 			LIMIT :limit
 			""", nativeQuery = true)
 	List<PostCookReviewEntity> findRecentDistinctActiveByUserId(

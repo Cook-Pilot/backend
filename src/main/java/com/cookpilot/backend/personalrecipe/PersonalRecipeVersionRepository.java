@@ -23,4 +23,6 @@ public interface PersonalRecipeVersionRepository extends JpaRepository<PersonalR
 
 	// 리뷰 → 그 리뷰가 만든 버전(리뷰당 1개 생성이 규칙이지만 스키마 강제는 없어 Optional 로 첫 건만).
 	Optional<PersonalRecipeVersionEntity> findFirstBySourceReviewId(UUID sourceReviewId);
+
+	List<PersonalRecipeVersionEntity> findBySourceReviewIdIn(Collection<UUID> sourceReviewIds);
 }

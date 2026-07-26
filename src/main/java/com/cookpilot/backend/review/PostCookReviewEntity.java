@@ -1,5 +1,6 @@
 package com.cookpilot.backend.review;
 
+import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.HashMap;
 import java.util.Map;
@@ -41,6 +42,18 @@ public class PostCookReviewEntity {
 	@Column(name = "recipe_id", nullable = false)
 	private UUID recipeId;
 
+	@Column(name = "client_session_id")
+	private UUID clientSessionId;
+
+	@Column(name = "cooked_at", nullable = false)
+	private Instant cookedAt;
+
+	@Column(name = "source_personal_version_id")
+	private UUID sourcePersonalVersionId;
+
+	@Column(name = "target_servings")
+	private BigDecimal targetServings;
+
 	// DB의 CHECK (rating BETWEEN 1 AND 5)와 짝을 이룬다. null(무평점)은 허용, 값이 있으면 1~5.
 	@Min(1)
 	@Max(5)
@@ -64,13 +77,24 @@ public class PostCookReviewEntity {
 	protected PostCookReviewEntity() {
 	}
 
-	public PostCookReviewEntity(UUID userId, UUID recipeId, Integer rating,
-			String comment, String nextTimeNote) {
+	public PostCookReviewEntity(UUID userId, UUID recipeId, UUID clientSessionId,
+			Instant cookedAt, UUID sourcePersonalVersionId, BigDecimal targetServings,
+			Integer rating, String comment, String nextTimeNote) {
 		this.userId = userId;
 		this.recipeId = recipeId;
+		this.clientSessionId = clientSessionId;
+		this.cookedAt = cookedAt;
+		this.sourcePersonalVersionId = sourcePersonalVersionId;
+		this.targetServings = targetServings;
 		this.rating = rating;
 		this.comment = comment;
 		this.nextTimeNote = nextTimeNote;
+	}
+
+	/** 테스트·기존 내부 호출 호환용. 새 API 저장은 clientSessionId를 포함한 생성자를 사용한다. */
+	public PostCookReviewEntity(UUID userId, UUID recipeId, Integer rating,
+			String comment, String nextTimeNote) {
+		this(userId, recipeId, null, Instant.now(), null, null, rating, comment, nextTimeNote);
 	}
 
 	public UUID getId() {
@@ -83,6 +107,22 @@ public class PostCookReviewEntity {
 
 	public UUID getRecipeId() {
 		return recipeId;
+	}
+
+	public UUID getClientSessionId() {
+		return clientSessionId;
+	}
+
+	public Instant getCookedAt() {
+		return cookedAt;
+	}
+
+	public UUID getSourcePersonalVersionId() {
+		return sourcePersonalVersionId;
+	}
+
+	public BigDecimal getTargetServings() {
+		return targetServings;
 	}
 
 	public Integer getRating() {

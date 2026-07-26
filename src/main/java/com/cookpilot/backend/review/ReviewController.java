@@ -1,5 +1,6 @@
 package com.cookpilot.backend.review;
 
+import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
 
@@ -9,6 +10,7 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 
@@ -26,14 +28,16 @@ public class ReviewController {
 	@PostMapping("/reviews")
 	@ResponseStatus(HttpStatus.CREATED)
 	public PostCookReview submit(@RequestBody SubmitReviewRequest request) {
+		if (request.clientSessionId() == null) {
+			throw new IllegalArgumentException("clientSessionId는 필수입니다.");
+		}
 		if (request.recipeId() == null) {
 			throw new IllegalArgumentException("recipeId는 필수입니다.");
 		}
 		if (request.rating() == null) {
 			throw new IllegalArgumentException("rating은 필수입니다.");
 		}
-		return reviewService.submit(request.recipeId(), request.rating(), request.comment(),
-				request.nextTimeNote());
+		return reviewService.submit(request);
 	}
 
 	@GetMapping("/reviews/{reviewId}")
@@ -46,6 +50,11 @@ public class ReviewController {
 		return reviewService.findByRecipe(recipeId);
 	}
 
-	public record SubmitReviewRequest(UUID recipeId, Integer rating, String comment, String nextTimeNote) {
+	@GetMapping("/cooking-history")
+	public List<CookingHistoryItem> history(
+			@RequestParam Instant from,
+			@RequestParam Instant to) {
+		return reviewService.findHistory(from, to);
 	}
+
 }

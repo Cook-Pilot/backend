@@ -63,22 +63,32 @@ public class UserService {
 
 	@Transactional(readOnly = true)
 	public User getCurrentUser() {
-		String userIdValue = currentRequestUserId();
-		if (userIdValue == null || userIdValue.isBlank()) {
-			throw new MissingUserSessionException("베타 사용자 세션이 필요합니다.");
-		}
-
-		UUID userId;
-		try {
-			userId = UUID.fromString(userIdValue);
-		} catch (IllegalArgumentException exception) {
-			throw new IllegalArgumentException("사용자 ID 형식이 올바르지 않습니다.");
-		}
-
+		UUID userId = currentUserId();
 		return userRepository.findById(userId)
 				.map(this::toUser)
 				.orElseThrow(() -> new UserNotFoundException(
 						"사용자를 찾을 수 없습니다: " + userId));
+	}
+
+	@Transactional
+	public User lockCurrentUser() {
+		UUID userId = currentUserId();
+		return userRepository.findByIdForUpdate(userId)
+				.map(this::toUser)
+				.orElseThrow(() -> new UserNotFoundException(
+						"사용자를 찾을 수 없습니다: " + userId));
+	}
+
+	private UUID currentUserId() {
+		String userIdValue = currentRequestUserId();
+		if (userIdValue == null || userIdValue.isBlank()) {
+			throw new MissingUserSessionException("베타 사용자 세션이 필요합니다.");
+		}
+		try {
+			return UUID.fromString(userIdValue);
+		} catch (IllegalArgumentException exception) {
+			throw new IllegalArgumentException("사용자 ID 형식이 올바르지 않습니다.");
+		}
 	}
 
 	private String currentRequestUserId() {
