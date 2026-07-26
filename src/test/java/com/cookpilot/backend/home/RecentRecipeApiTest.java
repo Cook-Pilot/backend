@@ -61,11 +61,12 @@ class RecentRecipeApiTest extends PostgresApiTestBase {
 						.contentType(MediaType.APPLICATION_JSON)
 						.content("""
 								{
+								  "clientSessionId": "%s",
 								  "recipeId": "%s",
 								  "rating": 5,
 								  "comment": "다시 만들고 싶다"
 								}
-								""".formatted(TestRecipeIds.BRAISED_TOFU_RECIPE_ID)))
+								""".formatted(UUID.randomUUID(), TestRecipeIds.BRAISED_TOFU_RECIPE_ID)))
 				.andExpect(status().isCreated());
 
 		mockMvc.perform(get("/api/v1/home/recent-recipes"))
@@ -74,7 +75,7 @@ class RecentRecipeApiTest extends PostgresApiTestBase {
 				.andExpect(jsonPath("$[0].id").value(TestRecipeIds.BRAISED_TOFU_RECIPE_ID.toString()))
 				.andExpect(jsonPath("$[0].lastCookedAt").exists())
 				.andExpect(jsonPath("$[0].lastRating").value(5))
-				.andExpect(jsonPath("$[0].hasPersonalVersion").value(true))
+				.andExpect(jsonPath("$[0].hasPersonalVersion").value(false))
 				.andExpect(jsonPath("$[0].favorite").value(true));
 	}
 

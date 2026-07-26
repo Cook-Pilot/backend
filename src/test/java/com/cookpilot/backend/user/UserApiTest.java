@@ -1,5 +1,7 @@
 package com.cookpilot.backend.user;
 
+import java.util.UUID;
+
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -188,11 +190,24 @@ class UserApiTest extends PostgresApiTestBase {
 						.contentType(MediaType.APPLICATION_JSON)
 						.content("""
 								{
+								  "clientSessionId": "%s",
 								  "recipeId": "%s",
 								  "rating": 5,
-								  "comment": "첫 번째 사용자 후기"
+								  "comment": "첫 번째 사용자 후기",
+								  "targetServings": 1,
+								  "ingredients": [
+								    {
+								      "originalIngredientId": "20000000-0000-0000-0000-000000000102",
+								      "name": "물",
+								      "amount": 400,
+								      "unit": "ml",
+								      "required": true,
+								      "omitted": false,
+								      "sortOrder": 1
+								    }
+								  ]
 								}
-								""".formatted(TestRecipeIds.RAMEN_RECIPE_ID)))
+								""".formatted(UUID.randomUUID(), TestRecipeIds.RAMEN_RECIPE_ID)))
 				.andExpect(status().isCreated())
 				.andReturn()
 				.getResponse()
