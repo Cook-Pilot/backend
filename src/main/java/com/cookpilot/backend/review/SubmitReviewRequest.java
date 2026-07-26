@@ -50,6 +50,7 @@ public record SubmitReviewRequest(
 									item.instruction(),
 									item.timerSeconds(),
 									item.cautionNote(),
+									item.omitted(),
 									item.sortOrder());
 						})
 						.toList();
@@ -76,6 +77,7 @@ public record SubmitReviewRequest(
 			String instruction,
 			Integer timerSeconds,
 			String cautionNote,
+			boolean omitted,
 			int sortOrder
 	) {
 	}

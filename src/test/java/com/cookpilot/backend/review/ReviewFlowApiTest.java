@@ -203,21 +203,16 @@ class ReviewFlowApiTest extends PostgresApiTestBase {
 								  "targetServings": 1,
 								  "rating": 4,
 								  "ingredients": [
-								    {
-								      "originalIngredientId": "%s",
-								      "name": "밥",
-								      "amount": null,
-								      "unit": "공기",
-								      "required": true,
-								      "omitted": false,
-								      "sortOrder": 0
-								    }
+								    {"originalIngredientId":"%s","name":"밥","amount":null,"unit":"공기","required":true,"omitted":false,"sortOrder":0},
+								    {"originalIngredientId":"%s","name":"김치","amount":100,"unit":"g","required":true,"omitted":false,"sortOrder":1},
+								    {"originalIngredientId":"%s","name":"식용유","amount":1,"unit":"큰술","required":true,"omitted":false,"sortOrder":2},
+								    {"originalIngredientId":"%s","name":"계란","amount":1,"unit":"개","required":false,"omitted":false,"sortOrder":3}
 								  ]
 								}
 								""".formatted(
 								UUID.randomUUID(),
 								TestRecipeIds.FRIED_RICE_RECIPE_ID,
-								ING_RICE)))
+								ING_RICE, ING_KIMCHI, ING_OIL, ING_EGG)))
 				.andExpect(status().isBadRequest())
 				.andExpect(jsonPath("$.detail")
 						.value("MVP에서는 기존 재료의 양 제거를 지원하지 않습니다."));
@@ -231,15 +226,33 @@ class ReviewFlowApiTest extends PostgresApiTestBase {
 								  "targetServings": 1,
 								  "rating": 4,
 								  "ingredients": [
-								    {
-								      "originalIngredientId": "%s",
-								      "name": "밥",
-								      "amount": 1,
-								      "unit": "",
-								      "required": true,
-								      "omitted": false,
-								      "sortOrder": 0
-								    }
+								    {"originalIngredientId":"%s","name":"밥","amount":1,"unit":"","required":true,"omitted":false,"sortOrder":0},
+								    {"originalIngredientId":"%s","name":"김치","amount":100,"unit":"g","required":true,"omitted":false,"sortOrder":1},
+								    {"originalIngredientId":"%s","name":"식용유","amount":1,"unit":"큰술","required":true,"omitted":false,"sortOrder":2},
+								    {"originalIngredientId":"%s","name":"계란","amount":1,"unit":"개","required":false,"omitted":false,"sortOrder":3}
+								  ]
+								}
+								""".formatted(
+								UUID.randomUUID(),
+								TestRecipeIds.FRIED_RICE_RECIPE_ID,
+								ING_RICE, ING_KIMCHI, ING_OIL, ING_EGG)))
+				.andExpect(status().isBadRequest())
+				.andExpect(jsonPath("$.detail")
+						.value("MVP에서는 기존 재료의 단위 제거를 지원하지 않습니다."));
+	}
+
+	@Test
+	void 실행_스냅샷이_원본_재료를_누락하면_400() throws Exception {
+		mockMvc.perform(post("/api/v1/reviews")
+						.contentType(MediaType.APPLICATION_JSON)
+						.content("""
+								{
+								  "clientSessionId": "%s",
+								  "recipeId": "%s",
+								  "targetServings": 1,
+								  "rating": 4,
+								  "ingredients": [
+								    {"originalIngredientId":"%s","name":"밥","amount":2,"unit":"공기","required":true,"omitted":false,"sortOrder":0}
 								  ]
 								}
 								""".formatted(
@@ -247,8 +260,67 @@ class ReviewFlowApiTest extends PostgresApiTestBase {
 								TestRecipeIds.FRIED_RICE_RECIPE_ID,
 								ING_RICE)))
 				.andExpect(status().isBadRequest())
-				.andExpect(jsonPath("$.detail")
-						.value("MVP에서는 기존 재료의 단위 제거를 지원하지 않습니다."));
+				.andExpect(jsonPath("$.detail").value(
+						"실행 스냅샷에 원본 재료가 누락되었습니다(사용하지 않았다면 omitted=true로 보내세요): 김치"));
+	}
+
+	@Test
+	void 스냅샷_없이_개인_버전만_선택하면_후기만_저장한다() throws Exception {
+		JsonNode first = submitReview(UUID.randomUUID(), 1, 1, 85, 1, 1);
+		String sourceVersionId = first.get("createdPersonalVersionId").asText();
+
+		String response = mockMvc.perform(post("/api/v1/reviews")
+						.contentType(MediaType.APPLICATION_JSON)
+						.content("""
+								{
+								  "clientSessionId": "%s",
+								  "recipeId": "%s",
+								  "targetServings": 1,
+								  "sourcePersonalVersionId": "%s",
+								  "rating": 5,
+								  "comment": "별점만 남긴다"
+								}
+								""".formatted(
+								UUID.randomUUID(),
+								TestRecipeIds.FRIED_RICE_RECIPE_ID,
+								sourceVersionId)))
+				.andExpect(status().isCreated())
+				.andReturn().getResponse().getContentAsString();
+
+		assertThat(objectMapper.readTree(response).get("createdPersonalVersionId").isNull())
+				.isTrue();
+	}
+
+	@Test
+	void 단계를_omitted로_생략하면_REMOVE_버전이_생성된다() throws Exception {
+		String response = mockMvc.perform(post("/api/v1/reviews")
+						.contentType(MediaType.APPLICATION_JSON)
+						.content("""
+								{
+								  "clientSessionId": "%s",
+								  "recipeId": "%s",
+								  "targetServings": 1,
+								  "rating": 4,
+								  "steps": [
+								    {"originalStepId":"%s","instruction":"팬에 기름을 두르고 중불로 달구세요.","timerSeconds":60,"cautionNote":"기름이 튈 수 있어요","sortOrder":0},
+								    {"originalStepId":"%s","instruction":"김치를 넣고 2분간 볶으세요.","timerSeconds":120,"sortOrder":1},
+								    {"originalStepId":"%s","instruction":"밥을 넣고 3분간 볶으세요.","timerSeconds":180,"sortOrder":2},
+								    {"originalStepId":"%s","omitted":true,"sortOrder":3}
+								  ]
+								}
+								""".formatted(
+								UUID.randomUUID(),
+								TestRecipeIds.FRIED_RICE_RECIPE_ID,
+								STEP_HEAT, STEP_KIMCHI, STEP_RICE, STEP_SERVE)))
+				.andExpect(status().isCreated())
+				.andReturn().getResponse().getContentAsString();
+		String versionId = objectMapper.readTree(response)
+				.get("createdPersonalVersionId").asText();
+
+		mockMvc.perform(get("/api/v1/personal-versions/" + versionId))
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$.stepAdjustments", hasSize(1)))
+				.andExpect(jsonPath("$.stepAdjustments[0].type").value("REMOVE"));
 	}
 
 	private JsonNode submitReview(

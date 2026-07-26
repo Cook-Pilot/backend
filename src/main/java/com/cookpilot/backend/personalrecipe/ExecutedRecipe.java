@@ -33,6 +33,7 @@ public record ExecutedRecipe(
 			String instruction,
 			Integer timerSeconds,
 			String cautionNote,
+			boolean omitted,
 			int sortOrder
 	) {
 	}

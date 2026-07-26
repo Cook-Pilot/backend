@@ -77,10 +77,25 @@ public class PersonalRecipeService {
 		}
 		validateSourceVersion(userId, recipeId, execution.sourcePersonalVersionId());
 
+		// 스냅샷 자체가 없으면(별점·메모만 전송) 실행 변경 판정이 불가능하므로 버전을 만들지 않는다.
+		// 소스 버전이 지정된 경우에도 마찬가지 — 빈 diff 와 소스 diff 를 비교하면 원본과 동일한
+		// 빈 버전이 생기는 오판을 막는다.
+		boolean hasIngredientSnapshot = execution.ingredients() != null
+				&& !execution.ingredients().isEmpty();
+		boolean hasStepSnapshot = execution.steps() != null && !execution.steps().isEmpty();
+		if (!hasIngredientSnapshot && !hasStepSnapshot) {
+			return Optional.empty();
+		}
+
 		List<IngredientAdjustment> ingredientAdjustments =
 				buildIngredientAdjustments(recipe, targetServings, execution.ingredients());
 		List<StepAdjustment> stepAdjustments =
 				buildStepAdjustments(recipeId, execution.steps());
+		// 조정 0개 = 원본과 동일한 실행. 소스 diff 와 다르더라도(예: 개인 버전을 쓰다 원본으로
+		// 돌아간 조리) 원본과 같은 빈 버전을 만들 이유는 없다.
+		if (ingredientAdjustments.isEmpty() && stepAdjustments.isEmpty()) {
+			return Optional.empty();
+		}
 		List<IngredientAdjustment> sourceIngredientAdjustments =
 				sourceIngredientAdjustments(execution.sourcePersonalVersionId());
 		List<StepAdjustment> sourceStepAdjustments =
@@ -299,10 +314,20 @@ public class PersonalRecipeService {
 			}
 		}
 
+		// 스냅샷은 원본 재료 전체를 커버해야 한다. 목록 부재를 암묵적 생략(REMOVE)으로
+		// 해석하면 부분 페이로드가 조용히 재료 대량 삭제 버전을 만든다 — 생략은 omitted=true 로만 표현한다.
+		for (RecipeIngredientEntity original : originals) {
+			if (!executedByOriginal.containsKey(original.getId())) {
+				throw new IllegalArgumentException(
+						"실행 스냅샷에 원본 재료가 누락되었습니다(사용하지 않았다면 omitted=true로 보내세요): "
+								+ original.getName());
+			}
+		}
+
 		List<IngredientAdjustment> adjustments = new ArrayList<>();
 		for (RecipeIngredientEntity original : originals) {
 			ExecutedRecipe.ExecutedIngredient actual = executedByOriginal.get(original.getId());
-			if (actual == null || actual.omitted()) {
+			if (actual.omitted()) {
 				adjustments.add(new IngredientAdjustment(
 						original.getId(), AdjustmentType.REMOVE,
 						null, null, null, null, original.getSortOrder()));
@@ -380,10 +405,19 @@ public class PersonalRecipeService {
 			}
 		}
 
+		// 재료와 동일한 완전성 계약: 스냅샷은 원본 단계 전체를 커버해야 하고, 생략은 omitted=true 로만 표현한다.
+		for (RecipeStepEntity original : originals) {
+			if (!executedByOriginal.containsKey(original.getId())) {
+				throw new IllegalArgumentException(
+						"실행 스냅샷에 원본 단계가 누락되었습니다(수행하지 않았다면 omitted=true로 보내세요): "
+								+ (original.getStepIndex() + 1) + "번째 단계");
+			}
+		}
+
 		List<StepAdjustment> adjustments = new ArrayList<>();
 		for (RecipeStepEntity original : originals) {
 			ExecutedRecipe.ExecutedStep actual = executedByOriginal.get(original.getId());
-			if (actual == null) {
+			if (actual.omitted()) {
 				adjustments.add(new StepAdjustment(
 						original.getId(), AdjustmentType.REMOVE,
 						null, original.getStepIndex(), null, null, null));
@@ -415,6 +449,9 @@ public class PersonalRecipeService {
 		for (ExecutedRecipe.ExecutedStep actual : ordered) {
 			if (actual.originalStepId() != null) {
 				lastOriginalStepIndex = originalsById.get(actual.originalStepId()).getStepIndex();
+				continue;
+			}
+			if (actual.omitted()) {
 				continue;
 			}
 			validateStep(actual);

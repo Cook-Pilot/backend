@@ -199,14 +199,14 @@ class PersonalRecipeDeriveTest extends PostgresApiTestBase {
 								"파", new BigDecimal("0.5"), "대", false, false, 3)),
 				List.of(
 						new SubmitReviewRequest.ExecutedStepRequest(
-								STEP_BOIL, "물 500ml를 넣고 3분간 끓이세요.", 180, null, 0),
+								STEP_BOIL, "물 500ml를 넣고 3분간 끓이세요.", 180, null, false, 0),
 						new SubmitReviewRequest.ExecutedStepRequest(
 								UUID.fromString("30000000-0000-0000-0000-000000000102"),
 								"건더기, 분말스프, 면을 넣고 3분간 끓이세요.",
-								180, "끓어 넘침 주의", 1),
+								180, "끓어 넘침 주의", false, 1),
 						new SubmitReviewRequest.ExecutedStepRequest(
 								UUID.fromString("30000000-0000-0000-0000-000000000103"),
 								"불을 끄고 그릇에 옮겨 담으세요.",
-								null, "뜨거우니 조심하세요", 2))));
+								null, "뜨거우니 조심하세요", false, 2))));
 	}
 }
