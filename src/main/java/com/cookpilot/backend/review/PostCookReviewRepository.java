@@ -3,6 +3,7 @@ package com.cookpilot.backend.review;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
+import java.time.Instant;
 
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
@@ -17,7 +18,12 @@ public interface PostCookReviewRepository extends JpaRepository<PostCookReviewEn
 
 	Optional<PostCookReviewEntity> findByIdAndUserId(UUID id, UUID userId);
 
+	Optional<PostCookReviewEntity> findByUserIdAndClientSessionId(UUID userId, UUID clientSessionId);
+
 	List<PostCookReviewEntity> findByUserIdOrderByCreatedAtDesc(UUID userId);
+
+	List<PostCookReviewEntity> findByUserIdAndCookedAtGreaterThanEqualAndCookedAtLessThanOrderByCookedAtDesc(
+			UUID userId, Instant from, Instant to);
 
 	@Query(value = """
 			SELECT latest.*

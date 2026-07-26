@@ -1,21 +1,20 @@
 package com.cookpilot.backend.review;
 
-import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.UUID;
 
-public record PostCookReview(
-		UUID id,
-		UUID userId,
+public record CookingHistoryItem(
+		UUID reviewId,
 		UUID recipeId,
-		UUID clientSessionId,
+		String recipeTitle,
+		String recipeImageUrl,
 		Instant cookedAt,
-		UUID sourcePersonalVersionId,
-		BigDecimal targetServings,
 		Integer rating,
 		String comment,
 		String nextTimeNote,
+		UUID sourcePersonalVersionId,
 		UUID createdPersonalVersionId,
-		Instant createdAt
+		Integer createdPersonalVersionNumber,
+		String createdPersonalVersionSummary
 ) {
 }
