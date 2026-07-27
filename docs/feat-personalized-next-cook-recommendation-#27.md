@@ -1,4 +1,4 @@
-# F-11 다음 조리 개인화 추천
+# #27 다음 조리 개인화 추천
 
 ## 현재 AI 구현 수준
 
@@ -23,7 +23,36 @@
 
 ## 추천 계산 정책
 
-추천 수치는 서버의 규칙 엔진이 결정한다.
+추천 수치는 서버의 규칙 엔진이 결정한다. 역할을 셋으로 나눴다.
+
+| 클래스 | 역할 |
+| --- | --- |
+| `RecommendationRuleEngine` | 판정 규칙(순수 함수, DB 무관). 임계값이 전부 여기 상수로 모여 있다 |
+| `RecommendationDraftLoader` | 조회 + 트랜잭션. 규칙 엔진에 값 타입을 넘겨 추천 후보를 만든다 |
+| `RecommendationService` | 후보에 설명 문구를 붙여 응답 조립 |
+
+규칙 엔진은 `personalrecipe`의 `DiffComposer`와 같은 구조다. 정책을 바꿀 때는 규칙 엔진
+파일만 보면 된다.
+
+**설명 생성은 트랜잭션 밖에서 호출한다.** 조회는 `RecommendationDraftLoader`가 한
+트랜잭션으로 끝내고, Gemini 호출은 그 뒤에 일어난다. 같은 트랜잭션 안에서 부르면 응답을
+최대 6초(connect 2s + read 4s) 기다리는 동안 DB 커넥션을 붙잡아, 동시 요청 몇 건으로
+커넥션 풀이 마른다.
+
+### 패키지 구성
+
+`recommendation`은 파일이 20개까지 늘어 관심사별 하위 패키지로 나눴다. 이 저장소에서
+하위 패키지를 쓰는 첫 기능 패키지다.
+
+| 패키지 | 내용 |
+| --- | --- |
+| `recommendation` | 컨트롤러·서비스·조회 로더·규칙 엔진·응답 DTO |
+| `recommendation.explanation` | 설명 생성(클라이언트 인터페이스, Gemini 구현, 프롬프트, 설정) |
+| `recommendation.feedback` | 피드백 요청·응답·엔티티·리포지토리 |
+| `recommendation.profile` | 맛 프로파일 엔티티·리포지토리 |
+
+`GeminiApi`(벤더 와이어 DTO), `RecommendationRuleEngine`, `RecommendationDraftLoader`는
+package-private 이라 각각 `explanation`, `recommendation` 밖으로 새지 않는다.
 
 1. 현재 사용자의 최근 만족도 4점 이상 조리 기록을 최대 100개 조회한다.
 2. 각 기록이 새로 만든 개인 버전이 있으면 그 버전을 사용한다.
@@ -104,6 +133,8 @@ Gemini는 추천량을 계산하지 않는다. 서버가 계산한 추천량과 
 - 거절 뒤 새 근거가 생기기 전까지 동일 재료 추천 숨김
 - 다른 사용자의 후기·버전·근거를 사용하지 않음
 - Flyway V9와 PostgreSQL/JPA 통합 검증
+- `RecommendationRuleEngineTest`: 유사도 가중치·컷라인 경계, 가중 평균, confidence
+  상한, 근거 중복 제거, 거절 후 재제안 판정을 Docker 없이 검증(순수 단위 테스트)
 
 실행 명령:
 
