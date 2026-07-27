@@ -1,6 +1,5 @@
 package com.cookpilot.backend.recommendation;
 
-import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -8,7 +7,6 @@ import java.util.Optional;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 import org.springframework.http.client.SimpleClientHttpRequestFactory;
 import org.springframework.web.client.RestClient;
@@ -24,27 +22,20 @@ public class GeminiRecommendationExplanationClient
 	private static final Logger log =
 			LoggerFactory.getLogger(GeminiRecommendationExplanationClient.class);
 
-	private final boolean enabled;
-	private final String apiKey;
-	private final String model;
+	private final GeminiProperties properties;
 	private final RestClient restClient;
 	private final ObjectMapper objectMapper;
 
 	public GeminiRecommendationExplanationClient(
-			@Value("${cookpilot.ai.gemini.enabled:false}") boolean enabled,
-			@Value("${cookpilot.ai.gemini.api-key:}") String apiKey,
-			@Value("${cookpilot.ai.gemini.model:gemini-3.5-flash}") String model,
-			@Value("${cookpilot.ai.gemini.base-url:https://generativelanguage.googleapis.com}") String baseUrl,
+			GeminiProperties properties,
 			ObjectMapper objectMapper) {
-		this.enabled = enabled;
-		this.apiKey = apiKey;
-		this.model = model;
+		this.properties = properties;
 		SimpleClientHttpRequestFactory requestFactory =
 				new SimpleClientHttpRequestFactory();
-		requestFactory.setConnectTimeout(Duration.ofSeconds(2));
-		requestFactory.setReadTimeout(Duration.ofSeconds(4));
+		requestFactory.setConnectTimeout(properties.connectTimeout());
+		requestFactory.setReadTimeout(properties.readTimeout());
 		this.restClient = RestClient.builder()
-				.baseUrl(baseUrl)
+				.baseUrl(properties.baseUrl())
 				.requestFactory(requestFactory)
 				.build();
 		this.objectMapper = objectMapper;
@@ -53,7 +44,7 @@ public class GeminiRecommendationExplanationClient
 	@Override
 	public Optional<List<String>> explainAll(
 			List<RecommendationExplanationContext> contexts) {
-		if (!enabled || apiKey == null || apiKey.isBlank()) {
+		if (!properties.callable()) {
 			return Optional.empty();
 		}
 		if (contexts.isEmpty()) {
@@ -78,8 +69,8 @@ public class GeminiRecommendationExplanationClient
 									"required", List.of("reasons"))));
 
 			String response = restClient.post()
-					.uri("/v1beta/models/{model}:generateContent", model)
-					.header("x-goog-api-key", apiKey)
+					.uri("/v1beta/models/{model}:generateContent", properties.model())
+					.header("x-goog-api-key", properties.apiKey())
 					.body(body)
 					.retrieve()
 					.body(String.class);
@@ -93,7 +84,7 @@ public class GeminiRecommendationExplanationClient
 
 	@Override
 	public String model() {
-		return model;
+		return properties.model();
 	}
 
 	private Optional<List<String>> parseReason(String response) {

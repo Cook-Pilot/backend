@@ -17,6 +17,8 @@ cookpilot:
       api-key: ${GEMINI_API_KEY:}
       model: ${GEMINI_MODEL:gemini-3.5-flash}
       base-url: ${GEMINI_BASE_URL:https://generativelanguage.googleapis.com}
+      connect-timeout: ${GEMINI_CONNECT_TIMEOUT:2s}
+      read-timeout: ${GEMINI_READ_TIMEOUT:4s}
 
 ---
 # db 프로파일: 실제 postgres. 운영/서버 배포는 SPRING_PROFILES_ACTIVE=db 로 이 설정을 쓴다.
