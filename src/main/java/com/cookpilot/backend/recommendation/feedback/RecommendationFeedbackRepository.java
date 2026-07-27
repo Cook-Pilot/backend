@@ -1,4 +1,4 @@
-package com.cookpilot.backend.recommendation;
+package com.cookpilot.backend.recommendation.feedback;
 
 import java.util.List;
 import java.util.Optional;

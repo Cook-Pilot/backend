@@ -1,4 +1,4 @@
-package com.cookpilot.backend.recommendation;
+package com.cookpilot.backend.recommendation.feedback;
 
 import java.math.BigDecimal;
 import java.time.Instant;
@@ -13,7 +13,7 @@ public record RecommendationFeedbackResponse(
 		BigDecimal appliedAmount,
 		Instant createdAt
 ) {
-	static RecommendationFeedbackResponse from(RecommendationFeedbackEntity entity) {
+	public static RecommendationFeedbackResponse from(RecommendationFeedbackEntity entity) {
 		return new RecommendationFeedbackResponse(
 				entity.getId(),
 				entity.getRecommendationId(),

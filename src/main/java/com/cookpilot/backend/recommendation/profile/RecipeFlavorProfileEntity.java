@@ -1,4 +1,4 @@
-package com.cookpilot.backend.recommendation;
+package com.cookpilot.backend.recommendation.profile;
 
 import java.time.Instant;
 import java.util.ArrayList;

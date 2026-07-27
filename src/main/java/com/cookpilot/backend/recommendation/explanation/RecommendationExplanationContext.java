@@ -1,7 +1,9 @@
-package com.cookpilot.backend.recommendation;
+package com.cookpilot.backend.recommendation.explanation;
 
 import java.math.BigDecimal;
 import java.util.List;
+
+import com.cookpilot.backend.recommendation.RecommendationEvidence;
 
 public record RecommendationExplanationContext(
 		String targetRecipeTitle,
