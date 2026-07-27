@@ -9,14 +9,22 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+import com.cookpilot.backend.recommendation.feedback.RecommendationFeedbackResponse;
+import com.cookpilot.backend.recommendation.feedback.RecommendationFeedbackService;
+import com.cookpilot.backend.recommendation.feedback.SubmitRecommendationFeedbackRequest;
+
 @RestController
 @RequestMapping("/api/v1/recipes/{recipeId}")
 public class RecommendationController {
 
 	private final RecommendationService recommendationService;
+	private final RecommendationFeedbackService feedbackService;
 
-	public RecommendationController(RecommendationService recommendationService) {
+	public RecommendationController(
+			RecommendationService recommendationService,
+			RecommendationFeedbackService feedbackService) {
 		this.recommendationService = recommendationService;
+		this.feedbackService = feedbackService;
 	}
 
 	@GetMapping("/next-cook-recommendations")
@@ -29,6 +37,6 @@ public class RecommendationController {
 			@PathVariable UUID recipeId,
 			@PathVariable UUID recommendationId,
 			@RequestBody SubmitRecommendationFeedbackRequest request) {
-		return recommendationService.recordFeedback(recipeId, recommendationId, request);
+		return feedbackService.recordFeedback(recipeId, recommendationId, request);
 	}
 }

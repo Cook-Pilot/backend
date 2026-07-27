@@ -1,4 +1,4 @@
-package com.cookpilot.backend.recommendation;
+package com.cookpilot.backend.recommendation.feedback;
 
 import java.math.BigDecimal;
 import java.time.Instant;
@@ -18,6 +18,7 @@ import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
+import lombok.Builder;
 import lombok.Getter;
 
 @Entity
@@ -80,7 +81,8 @@ public class RecommendationFeedbackEntity {
 	protected RecommendationFeedbackEntity() {
 	}
 
-	public RecommendationFeedbackEntity(
+	@Builder
+	private RecommendationFeedbackEntity(
 			UUID recommendationId,
 			UUID userId,
 			UUID recipeId,
