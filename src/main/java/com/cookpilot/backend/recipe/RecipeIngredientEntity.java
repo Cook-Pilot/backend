@@ -9,12 +9,14 @@ import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
+import lombok.Getter;
 
 /**
  * recipe_ingredients 테이블 매핑(그룹 A). recipe_id FK로 레시피에 속한다.
  */
 @Entity
 @Table(name = "recipe_ingredients")
+@Getter
 public class RecipeIngredientEntity {
 
 	@Id
@@ -50,33 +52,5 @@ public class RecipeIngredientEntity {
 		this.unit = unit;
 		this.required = required;
 		this.sortOrder = sortOrder;
-	}
-
-	public UUID getId() {
-		return id;
-	}
-
-	public UUID getRecipeId() {
-		return recipeId;
-	}
-
-	public String getName() {
-		return name;
-	}
-
-	public BigDecimal getAmount() {
-		return amount;
-	}
-
-	public String getUnit() {
-		return unit;
-	}
-
-	public boolean isRequired() {
-		return required;
-	}
-
-	public int getSortOrder() {
-		return sortOrder;
 	}
 }

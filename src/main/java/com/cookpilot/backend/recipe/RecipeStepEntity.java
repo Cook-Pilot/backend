@@ -11,12 +11,15 @@ import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
+import lombok.Getter;
+import lombok.Setter;
 
 /**
  * recipe_steps 테이블 매핑(그룹 A). (recipe_id, step_index) 유니크.
  */
 @Entity
 @Table(name = "recipe_steps")
+@Getter
 public class RecipeStepEntity {
 
 	@Id
@@ -39,6 +42,7 @@ public class RecipeStepEntity {
 	private String cautionNote;
 
 	/** 단계 참고 이미지 URL. 원본은 외부 스토리지에 두고 여기엔 URL만 둔다(NULL = 이미지 없음). */
+	@Setter
 	@Column(name = "image_url")
 	private String imageUrl;
 
@@ -62,41 +66,5 @@ public class RecipeStepEntity {
 		this.timerSeconds = timerSeconds;
 		this.cautionNote = cautionNote;
 		this.imageUrl = imageUrl;
-	}
-
-	public UUID getId() {
-		return id;
-	}
-
-	public UUID getRecipeId() {
-		return recipeId;
-	}
-
-	public int getStepIndex() {
-		return stepIndex;
-	}
-
-	public String getInstruction() {
-		return instruction;
-	}
-
-	public Integer getTimerSeconds() {
-		return timerSeconds;
-	}
-
-	public String getCautionNote() {
-		return cautionNote;
-	}
-
-	public String getImageUrl() {
-		return imageUrl;
-	}
-
-	public void setImageUrl(String imageUrl) {
-		this.imageUrl = imageUrl;
-	}
-
-	public Instant getCreatedAt() {
-		return createdAt;
 	}
 }

@@ -13,6 +13,8 @@ import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
+import lombok.Getter;
+import lombok.Setter;
 
 /**
  * recipes 테이블 매핑. 기본 레시피 메타(그룹 A).
@@ -20,25 +22,31 @@ import jakarta.persistence.Table;
  */
 @Entity
 @Table(name = "recipes")
+@Getter
 public class RecipeEntity {
 
 	@Id
 	@GeneratedValue(strategy = GenerationType.UUID)
 	private UUID id;
 
+	@Setter
 	@Column(name = "title", nullable = false)
 	private String title;
 
+	@Setter
 	@Column(name = "description")
 	private String description;
 
+	@Setter
 	@Column(name = "base_servings", nullable = false)
 	private BigDecimal baseServings = BigDecimal.ONE;
 
+	@Setter
 	@Column(name = "status", nullable = false)
 	private String status = "active";
 
 	/** 대표 이미지 URL. 원본은 외부 스토리지에 두고 여기엔 URL만 둔다(NULL = 이미지 없음). */
+	@Setter
 	@Column(name = "image_url")
 	private String imageUrl;
 
@@ -64,57 +72,5 @@ public class RecipeEntity {
 			this.baseServings = baseServings;
 		}
 		this.imageUrl = imageUrl;
-	}
-
-	public UUID getId() {
-		return id;
-	}
-
-	public String getTitle() {
-		return title;
-	}
-
-	public void setTitle(String title) {
-		this.title = title;
-	}
-
-	public String getDescription() {
-		return description;
-	}
-
-	public void setDescription(String description) {
-		this.description = description;
-	}
-
-	public BigDecimal getBaseServings() {
-		return baseServings;
-	}
-
-	public void setBaseServings(BigDecimal baseServings) {
-		this.baseServings = baseServings;
-	}
-
-	public String getStatus() {
-		return status;
-	}
-
-	public void setStatus(String status) {
-		this.status = status;
-	}
-
-	public String getImageUrl() {
-		return imageUrl;
-	}
-
-	public void setImageUrl(String imageUrl) {
-		this.imageUrl = imageUrl;
-	}
-
-	public Instant getCreatedAt() {
-		return createdAt;
-	}
-
-	public Instant getUpdatedAt() {
-		return updatedAt;
 	}
 }

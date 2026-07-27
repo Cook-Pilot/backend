@@ -13,9 +13,11 @@ import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
+import lombok.Getter;
 
 @Entity
 @Table(name = "recipe_flavor_profiles")
+@Getter
 public class RecipeFlavorProfileEntity {
 
 	@Id
@@ -53,17 +55,8 @@ public class RecipeFlavorProfileEntity {
 	protected RecipeFlavorProfileEntity() {
 	}
 
-	public UUID getRecipeId() {
-		return recipeId;
-	}
-
-	public String getCuisine() {
-		return cuisine;
-	}
-
-	public String getDishType() {
-		return dishType;
-	}
+	// 아래 JSONB 컬렉션 3개는 내부 리스트를 그대로 넘기지 않도록 방어 복사한다.
+	// Lombok 은 직접 정의한 게터가 있으면 생성하지 않는다.
 
 	public List<String> getCookingMethods() {
 		return List.copyOf(cookingMethods);
@@ -75,17 +68,5 @@ public class RecipeFlavorProfileEntity {
 
 	public List<String> getFlavorTags() {
 		return List.copyOf(flavorTags);
-	}
-
-	public int getProfileVersion() {
-		return profileVersion;
-	}
-
-	public String getSource() {
-		return source;
-	}
-
-	public Instant getUpdatedAt() {
-		return updatedAt;
 	}
 }

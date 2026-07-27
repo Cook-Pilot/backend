@@ -18,9 +18,11 @@ import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
+import lombok.Getter;
 
 @Entity
 @Table(name = "recommendation_feedback")
+@Getter
 public class RecommendationFeedbackEntity {
 
 	@Id
@@ -109,67 +111,8 @@ public class RecommendationFeedbackEntity {
 		this.evidenceReviewIds = new ArrayList<>(evidenceReviewIds);
 	}
 
-	public UUID getId() {
-		return id;
-	}
-
-	public UUID getRecommendationId() {
-		return recommendationId;
-	}
-
-	public UUID getUserId() {
-		return userId;
-	}
-
-	public UUID getRecipeId() {
-		return recipeId;
-	}
-
-	public UUID getOriginalIngredientId() {
-		return originalIngredientId;
-	}
-
-	public RecommendationDecision getDecision() {
-		return decision;
-	}
-
-	public BigDecimal getOriginalAmount() {
-		return originalAmount;
-	}
-
-	public BigDecimal getSuggestedAmount() {
-		return suggestedAmount;
-	}
-
-	public BigDecimal getAppliedAmount() {
-		return appliedAmount;
-	}
-
-	public String getUnit() {
-		return unit;
-	}
-
-	public String getReason() {
-		return reason;
-	}
-
-	public String getExplanationSource() {
-		return explanationSource;
-	}
-
-	public String getModel() {
-		return model;
-	}
-
-	public String getPromptVersion() {
-		return promptVersion;
-	}
-
+	// 내부 리스트를 그대로 넘기지 않도록 방어 복사. Lombok 은 직접 정의한 게터를 덮어쓰지 않는다.
 	public List<UUID> getEvidenceReviewIds() {
 		return List.copyOf(evidenceReviewIds);
-	}
-
-	public Instant getCreatedAt() {
-		return createdAt;
 	}
 }

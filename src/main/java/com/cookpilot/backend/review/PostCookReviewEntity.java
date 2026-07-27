@@ -18,6 +18,8 @@ import jakarta.persistence.Id;
 import jakarta.persistence.Table;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
+import lombok.Getter;
+import lombok.Setter;
 
 /**
  * post_cook_reviews 테이블 매핑(그룹 A 구조).
@@ -30,6 +32,7 @@ import jakarta.validation.constraints.Min;
  */
 @Entity
 @Table(name = "post_cook_reviews")
+@Getter
 public class PostCookReviewEntity {
 
 	@Id
@@ -66,6 +69,7 @@ public class PostCookReviewEntity {
 	@Column(name = "next_time_note")
 	private String nextTimeNote;
 
+	@Setter
 	@JdbcTypeCode(SqlTypes.JSON)
 	@Column(name = "structured_feedback", nullable = false, columnDefinition = "jsonb")
 	private Map<String, Object> structuredFeedback = new HashMap<>();
@@ -95,57 +99,5 @@ public class PostCookReviewEntity {
 	public PostCookReviewEntity(UUID userId, UUID recipeId, Integer rating,
 			String comment, String nextTimeNote) {
 		this(userId, recipeId, null, Instant.now(), null, null, rating, comment, nextTimeNote);
-	}
-
-	public UUID getId() {
-		return id;
-	}
-
-	public UUID getUserId() {
-		return userId;
-	}
-
-	public UUID getRecipeId() {
-		return recipeId;
-	}
-
-	public UUID getClientSessionId() {
-		return clientSessionId;
-	}
-
-	public Instant getCookedAt() {
-		return cookedAt;
-	}
-
-	public UUID getSourcePersonalVersionId() {
-		return sourcePersonalVersionId;
-	}
-
-	public BigDecimal getTargetServings() {
-		return targetServings;
-	}
-
-	public Integer getRating() {
-		return rating;
-	}
-
-	public String getComment() {
-		return comment;
-	}
-
-	public String getNextTimeNote() {
-		return nextTimeNote;
-	}
-
-	public Map<String, Object> getStructuredFeedback() {
-		return structuredFeedback;
-	}
-
-	public void setStructuredFeedback(Map<String, Object> structuredFeedback) {
-		this.structuredFeedback = structuredFeedback;
-	}
-
-	public Instant getCreatedAt() {
-		return createdAt;
 	}
 }
