@@ -1,16 +1,14 @@
-package com.cookpilot.backend.recommendation;
+package com.cookpilot.backend.recommendation.explanation;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Map;
 import java.util.Optional;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.stereotype.Component;
 import org.springframework.http.client.SimpleClientHttpRequestFactory;
+import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestClient;
-import org.springframework.web.client.RestClientException;
 
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
@@ -22,9 +20,33 @@ public class GeminiRecommendationExplanationClient
 	private static final Logger log =
 			LoggerFactory.getLogger(GeminiRecommendationExplanationClient.class);
 
+	private static final double TEMPERATURE = 0.2;
+	/**
+	 * 최대 유효 응답(3건 × 180자 한국어 + JSON 문법)이 잘리지 않을 크기.
+	 * thinking 예산을 0 으로 꺼서(ThinkingConfig) 이 예산이 전부 본문에 쓰이게 한다.
+	 */
+	private static final int MAX_OUTPUT_TOKENS = 1024;
+	/** 설명 한 줄의 상한. 넘거나 줄바꿈이 섞이면 모델이 형식을 벗어난 것으로 보고 버린다. */
+	private static final int MAX_REASON_LENGTH = 180;
+
+	/**
+	 * 응답 형식 강제용 JSON 스키마. 도메인이 아니라 벤더에 넘기는 스키마 리터럴이라
+	 * 레코드로 쪼개지 않고 JSON 그대로 둔다(생성자에서 한 번만 파싱).
+	 */
+	static final String REASONS_SCHEMA = """
+			{
+			  "type": "object",
+			  "properties": {
+			    "reasons": { "type": "array", "items": { "type": "string" } }
+			  },
+			  "required": ["reasons"]
+			}
+			""";
+
 	private final GeminiProperties properties;
 	private final RestClient restClient;
 	private final ObjectMapper objectMapper;
+	private final GeminiApi.GenerationConfig generationConfig;
 
 	public GeminiRecommendationExplanationClient(
 			GeminiProperties properties,
@@ -39,6 +61,10 @@ public class GeminiRecommendationExplanationClient
 				.requestFactory(requestFactory)
 				.build();
 		this.objectMapper = objectMapper;
+		JsonNode schema = objectMapper.readTree(REASONS_SCHEMA);
+		this.generationConfig = new GeminiApi.GenerationConfig(
+				TEMPERATURE, MAX_OUTPUT_TOKENS, "application/json", schema,
+				new GeminiApi.ThinkingConfig(0));
 	}
 
 	@Override
@@ -52,30 +78,19 @@ public class GeminiRecommendationExplanationClient
 		}
 
 		try {
-			Map<String, Object> body = Map.of(
-					"contents", List.of(Map.of(
-							"role", "user",
-							"parts", List.of(Map.of("text", prompt(contexts))))),
-					"generationConfig", Map.of(
-							"temperature", 0.2,
-							"maxOutputTokens", 360,
-							"responseMimeType", "application/json",
-							"responseJsonSchema", Map.of(
-									"type", "object",
-									"properties", Map.of(
-											"reasons", Map.of(
-													"type", "array",
-													"items", Map.of("type", "string"))),
-									"required", List.of("reasons"))));
+			GeminiApi.GenerateContentRequest request =
+					GeminiApi.GenerateContentRequest.ofUserText(prompt(contexts), generationConfig);
 
-			String response = restClient.post()
+			GeminiApi.GenerateContentResponse response = restClient.post()
 					.uri("/v1beta/models/{model}:generateContent", properties.model())
 					.header("x-goog-api-key", properties.apiKey())
-					.body(body)
+					.body(request)
 					.retrieve()
-					.body(String.class);
-			return parseReason(response);
-		} catch (RestClientException | IllegalArgumentException exception) {
+					.body(GeminiApi.GenerateContentResponse.class);
+			return parseReasons(response);
+		} catch (RuntimeException exception) {
+			// 호출·역직렬화·파싱 어디서 무엇이 어긋나도 추천 자체는 살아야 하므로
+			// 전부 fallback 으로 흡수한다(수치는 이미 서버가 계산한 값이라 안전).
 			log.warn("Gemini 추천 설명 생성에 실패해 추천 fallback을 사용합니다 ({})",
 					exception.getClass().getSimpleName());
 			return Optional.empty();
@@ -87,31 +102,30 @@ public class GeminiRecommendationExplanationClient
 		return properties.model();
 	}
 
-	private Optional<List<String>> parseReason(String response) {
-		if (response == null || response.isBlank()) {
+	/**
+	 * 응답 본문에서 설명 목록을 꺼낸다. 형식이 조금이라도 어긋나면 empty 를 돌려주고
+	 * 호출부가 규칙 기반 fallback 문구를 쓴다(추천 수치 자체는 이미 서버가 계산해 둔 값이라 안전).
+	 */
+	Optional<List<String>> parseReasons(GeminiApi.GenerateContentResponse response) {
+		if (response == null) {
+			return Optional.empty();
+		}
+		Optional<String> generated = response.firstText();
+		if (generated.isEmpty()) {
 			return Optional.empty();
 		}
 		try {
-			JsonNode root = objectMapper.readTree(response);
-			String generated = root.path("candidates")
-					.path(0)
-					.path("content")
-					.path("parts")
-					.path(0)
-					.path("text")
-					.asText("");
-			if (generated.isBlank()) {
+			GeminiApi.ReasonsPayload payload = objectMapper.readValue(
+					stripCodeFence(generated.get()), GeminiApi.ReasonsPayload.class);
+			if (payload.reasons() == null) {
 				return Optional.empty();
 			}
-			JsonNode payload = objectMapper.readTree(stripCodeFence(generated));
-			JsonNode reasonsNode = payload.path("reasons");
-			if (!reasonsNode.isArray()) {
-				return Optional.empty();
-			}
-			List<String> reasons = new ArrayList<>();
-			for (JsonNode item : reasonsNode) {
-				String reason = item.asText("").trim();
-				if (reason.isBlank() || reason.length() > 180 || reason.contains("\n")) {
+			List<String> reasons = new ArrayList<>(payload.reasons().size());
+			for (String item : payload.reasons()) {
+				String reason = item == null ? "" : item.trim();
+				if (reason.isBlank()
+						|| reason.length() > MAX_REASON_LENGTH
+						|| reason.contains("\n")) {
 					return Optional.empty();
 				}
 				reasons.add(reason);
