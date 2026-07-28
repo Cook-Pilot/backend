@@ -4,6 +4,7 @@ import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
@@ -87,19 +88,24 @@ public class PersonalRecipeService {
 			return Optional.empty();
 		}
 
+		List<IngredientAdjustment> sourceIngredientAdjustments =
+				sourceIngredientAdjustments(execution.sourcePersonalVersionId());
+		List<StepAdjustment> sourceStepAdjustments =
+				sourceStepAdjustments(execution.sourcePersonalVersionId());
 		List<IngredientAdjustment> ingredientAdjustments =
-				buildIngredientAdjustments(recipe, targetServings, execution.ingredients());
+				hasIngredientSnapshot
+						? buildIngredientAdjustments(recipe, targetServings, execution.ingredients(),
+								sourceIngredientAdjustments)
+						: sourceIngredientAdjustments;
 		List<StepAdjustment> stepAdjustments =
-				buildStepAdjustments(recipeId, execution.steps());
+				hasStepSnapshot
+						? buildStepAdjustments(recipeId, execution.steps(), sourceStepAdjustments)
+						: sourceStepAdjustments;
 		// 조정 0개 = 원본과 동일한 실행. 소스 diff 와 다르더라도(예: 개인 버전을 쓰다 원본으로
 		// 돌아간 조리) 원본과 같은 빈 버전을 만들 이유는 없다.
 		if (ingredientAdjustments.isEmpty() && stepAdjustments.isEmpty()) {
 			return Optional.empty();
 		}
-		List<IngredientAdjustment> sourceIngredientAdjustments =
-				sourceIngredientAdjustments(execution.sourcePersonalVersionId());
-		List<StepAdjustment> sourceStepAdjustments =
-				sourceStepAdjustments(execution.sourcePersonalVersionId());
 		if (sameIngredientAdjustments(ingredientAdjustments, sourceIngredientAdjustments)
 				&& sameStepAdjustments(stepAdjustments, sourceStepAdjustments)) {
 			return Optional.empty();
@@ -287,7 +293,8 @@ public class PersonalRecipeService {
 
 	private List<IngredientAdjustment> buildIngredientAdjustments(
 			RecipeEntity recipe, BigDecimal targetServings,
-			List<ExecutedRecipe.ExecutedIngredient> executedIngredients) {
+			List<ExecutedRecipe.ExecutedIngredient> executedIngredients,
+			List<IngredientAdjustment> sourceAdjustments) {
 		if (executedIngredients == null || executedIngredients.isEmpty()) {
 			return List.of();
 		}
@@ -296,6 +303,15 @@ public class PersonalRecipeService {
 				.findByRecipeIdOrderBySortOrderAsc(recipe.getId());
 		Map<UUID, RecipeIngredientEntity> originalsById = new LinkedHashMap<>();
 		originals.forEach(item -> originalsById.put(item.getId(), item));
+		Map<UUID, IngredientAdjustment> sourceByOriginal = new HashMap<>();
+		List<IngredientAdjustment> sourceAdditions = sourceAdjustments.stream()
+				.filter(adjustment -> adjustment.type() == AdjustmentType.ADD)
+				.sorted(Comparator.comparingInt(IngredientAdjustment::sortOrder))
+				.toList();
+		sourceAdjustments.stream()
+				.filter(adjustment -> adjustment.type() != AdjustmentType.ADD)
+				.forEach(adjustment -> sourceByOriginal.put(
+						adjustment.originalIngredientId(), adjustment));
 
 		Map<UUID, ExecutedRecipe.ExecutedIngredient> executedByOriginal = new HashMap<>();
 		List<ExecutedRecipe.ExecutedIngredient> additions = new ArrayList<>();
@@ -313,11 +329,21 @@ public class PersonalRecipeService {
 						"같은 원본 재료가 중복되었습니다: " + item.originalIngredientId());
 			}
 		}
+		additions.sort(Comparator.comparingInt(ExecutedRecipe.ExecutedIngredient::sortOrder));
+		List<ExecutedRecipe.ExecutedIngredient> activeAdditions = additions.stream()
+				.filter(addition -> !addition.omitted())
+				.toList();
 
 		// 스냅샷은 원본 재료 전체를 커버해야 한다. 목록 부재를 암묵적 생략(REMOVE)으로
-		// 해석하면 부분 페이로드가 조용히 재료 대량 삭제 버전을 만든다 — 생략은 omitted=true 로만 표현한다.
+		// 해석하면 부분 페이로드가 조용히 재료 대량 삭제 버전을 만든다. 단, 선택한 개인
+		// 버전에서 이미 REMOVE 된 원본은 합성 응답에 노출되지 않으므로 그 항목만 source
+		// diff 의 명시적 REMOVE 로 복원한다.
 		for (RecipeIngredientEntity original : originals) {
 			if (!executedByOriginal.containsKey(original.getId())) {
+				IngredientAdjustment source = sourceByOriginal.get(original.getId());
+				if (source != null && source.type() == AdjustmentType.REMOVE) {
+					continue;
+				}
 				throw new IllegalArgumentException(
 						"실행 스냅샷에 원본 재료가 누락되었습니다(사용하지 않았다면 omitted=true로 보내세요): "
 								+ original.getName());
@@ -327,7 +353,12 @@ public class PersonalRecipeService {
 		List<IngredientAdjustment> adjustments = new ArrayList<>();
 		for (RecipeIngredientEntity original : originals) {
 			ExecutedRecipe.ExecutedIngredient actual = executedByOriginal.get(original.getId());
-			if (actual.omitted()) {
+			IngredientAdjustment source = sourceByOriginal.get(original.getId());
+			if (actual == null || actual.omitted()) {
+				if (source != null && source.type() == AdjustmentType.REMOVE) {
+					adjustments.add(source);
+					continue;
+				}
 				adjustments.add(new IngredientAdjustment(
 						original.getId(), AdjustmentType.REMOVE,
 						null, null, null, null, original.getSortOrder()));
@@ -354,30 +385,39 @@ public class PersonalRecipeService {
 
 			if (changedName != null || changedAmount != null
 					|| changedUnit != null || changedRequired != null) {
+				int sortOrder = source != null && source.type() == AdjustmentType.MODIFY
+						? source.sortOrder()
+						: actual.sortOrder();
 				adjustments.add(new IngredientAdjustment(
 						original.getId(), AdjustmentType.MODIFY,
 						changedName, changedAmount, changedUnit, changedRequired,
-						actual.sortOrder()));
+						sortOrder));
 			}
 		}
 
-		for (ExecutedRecipe.ExecutedIngredient addition : additions) {
-			if (addition.omitted()) {
-				continue;
-			}
+		boolean canPairSourceAdditions = activeAdditions.size() == sourceAdditions.size();
+		for (int index = 0; index < activeAdditions.size(); index++) {
+			ExecutedRecipe.ExecutedIngredient addition = activeAdditions.get(index);
+			IngredientAdjustment source = canPairSourceAdditions
+					? sourceAdditions.get(index)
+					: null;
 			validateIngredient(addition);
-			adjustments.add(new IngredientAdjustment(
+			IngredientAdjustment candidate = new IngredientAdjustment(
 					null, AdjustmentType.ADD, addition.name().trim(),
 					normalizeAmount(addition.amount(), recipe.getBaseServings(), targetServings),
 					trimToNull(addition.unit()),
 					addition.required() != null ? addition.required() : true,
-					addition.sortOrder()));
+					source != null ? source.sortOrder() : addition.sortOrder());
+			adjustments.add(source != null && sameIngredientAddition(candidate, source)
+					? source
+					: candidate);
 		}
 		return List.copyOf(adjustments);
 	}
 
 	private List<StepAdjustment> buildStepAdjustments(
-			UUID recipeId, List<ExecutedRecipe.ExecutedStep> executedSteps) {
+			UUID recipeId, List<ExecutedRecipe.ExecutedStep> executedSteps,
+			List<StepAdjustment> sourceAdjustments) {
 		if (executedSteps == null || executedSteps.isEmpty()) {
 			return List.of();
 		}
@@ -386,10 +426,22 @@ public class PersonalRecipeService {
 				.findByRecipeIdOrderByStepIndexAsc(recipeId);
 		Map<UUID, RecipeStepEntity> originalsById = new LinkedHashMap<>();
 		originals.forEach(item -> originalsById.put(item.getId(), item));
+		Map<UUID, StepAdjustment> sourceByOriginal = new HashMap<>();
+		List<StepAdjustment> sourceAdditions = sourceAdjustments.stream()
+				.filter(adjustment -> adjustment.type() == AdjustmentType.ADD)
+				.sorted(Comparator
+						.comparingInt((StepAdjustment adjustment) ->
+								adjustment.insertAfterStepIndex())
+						.thenComparingInt(StepAdjustment::sortOrder))
+				.toList();
+		sourceAdjustments.stream()
+				.filter(adjustment -> adjustment.type() != AdjustmentType.ADD)
+				.forEach(adjustment -> sourceByOriginal.put(
+						adjustment.originalStepId(), adjustment));
 
 		Map<UUID, ExecutedRecipe.ExecutedStep> executedByOriginal = new HashMap<>();
 		List<ExecutedRecipe.ExecutedStep> ordered = executedSteps.stream()
-				.sorted(java.util.Comparator.comparingInt(ExecutedRecipe.ExecutedStep::sortOrder))
+				.sorted(Comparator.comparingInt(ExecutedRecipe.ExecutedStep::sortOrder))
 				.toList();
 		for (ExecutedRecipe.ExecutedStep item : ordered) {
 			if (item.originalStepId() == null) {
@@ -405,9 +457,14 @@ public class PersonalRecipeService {
 			}
 		}
 
-		// 재료와 동일한 완전성 계약: 스냅샷은 원본 단계 전체를 커버해야 하고, 생략은 omitted=true 로만 표현한다.
+		// 재료와 동일한 완전성 계약. 선택한 source 에서 이미 REMOVE 된 원본 단계만
+		// 합성 응답에서 사라질 수 있으므로 source diff 로 복원한다.
 		for (RecipeStepEntity original : originals) {
 			if (!executedByOriginal.containsKey(original.getId())) {
+				StepAdjustment source = sourceByOriginal.get(original.getId());
+				if (source != null && source.type() == AdjustmentType.REMOVE) {
+					continue;
+				}
 				throw new IllegalArgumentException(
 						"실행 스냅샷에 원본 단계가 누락되었습니다(수행하지 않았다면 omitted=true로 보내세요): "
 								+ (original.getStepIndex() + 1) + "번째 단계");
@@ -417,7 +474,12 @@ public class PersonalRecipeService {
 		List<StepAdjustment> adjustments = new ArrayList<>();
 		for (RecipeStepEntity original : originals) {
 			ExecutedRecipe.ExecutedStep actual = executedByOriginal.get(original.getId());
-			if (actual.omitted()) {
+			StepAdjustment source = sourceByOriginal.get(original.getId());
+			if (actual == null || actual.omitted()) {
+				if (source != null && source.type() == AdjustmentType.REMOVE) {
+					adjustments.add(source);
+					continue;
+				}
 				adjustments.add(new StepAdjustment(
 						original.getId(), AdjustmentType.REMOVE,
 						null, original.getStepIndex(), null, null, null));
@@ -437,16 +499,24 @@ public class PersonalRecipeService {
 				throw new IllegalArgumentException("MVP에서는 기존 주의 문구 제거를 지원하지 않습니다.");
 			}
 			if (changedInstruction != null || changedTimer != null || changedCaution != null) {
+				int sortOrder = source != null && source.type() == AdjustmentType.MODIFY
+						? source.sortOrder()
+						: actual.sortOrder();
 				adjustments.add(new StepAdjustment(
 						original.getId(), AdjustmentType.MODIFY,
-						null, actual.sortOrder(),
+						null, sortOrder,
 						changedInstruction, changedTimer, changedCaution));
 			}
 		}
 
+		boolean reuseSourceAdditionMetadata =
+				canReuseSourceStepAdditionMetadata(
+						originals, sourceAdjustments, ordered);
 		int lastOriginalStepIndex = -1;
 		int addedOrder = 0;
-		for (ExecutedRecipe.ExecutedStep actual : ordered) {
+		int activeAdditionIndex = 0;
+		for (int orderedIndex = 0; orderedIndex < ordered.size(); orderedIndex++) {
+			ExecutedRecipe.ExecutedStep actual = ordered.get(orderedIndex);
 			if (actual.originalStepId() != null) {
 				lastOriginalStepIndex = originalsById.get(actual.originalStepId()).getStepIndex();
 				continue;
@@ -454,15 +524,48 @@ public class PersonalRecipeService {
 			if (actual.omitted()) {
 				continue;
 			}
+			StepAdjustment source = reuseSourceAdditionMetadata
+					? sourceAdditions.get(activeAdditionIndex)
+					: null;
+			activeAdditionIndex++;
 			validateStep(actual);
-			adjustments.add(new StepAdjustment(
+			StepAdjustment candidate = new StepAdjustment(
 					null, AdjustmentType.ADD,
-					lastOriginalStepIndex, addedOrder++,
+					source != null ? source.insertAfterStepIndex() : lastOriginalStepIndex,
+					source != null ? source.sortOrder() : addedOrder++,
 					actual.instruction().trim(),
 					actual.timerSeconds(),
-					trimToNull(actual.cautionNote())));
+					trimToNull(actual.cautionNote()));
+			adjustments.add(source != null && sameStepAddition(candidate, source)
+					? source
+					: candidate);
 		}
 		return List.copyOf(adjustments);
+	}
+
+	private boolean canReuseSourceStepAdditionMetadata(
+			List<RecipeStepEntity> originals,
+			List<StepAdjustment> sourceAdjustments,
+			List<ExecutedRecipe.ExecutedStep> executedSteps) {
+		List<DiffComposer.OriginalStep> sourceOriginals = originals.stream()
+				.map(step -> new DiffComposer.OriginalStep(
+						step.getId(),
+						step.getStepIndex(),
+						step.getInstruction(),
+						step.getTimerSeconds(),
+						step.getCautionNote()))
+				.toList();
+		List<UUID> sourceShape = new ArrayList<>();
+		DiffComposer.composeSteps(sourceOriginals, sourceAdjustments)
+				.forEach(step -> sourceShape.add(step.originalStepId()));
+		List<UUID> executedShape = new ArrayList<>();
+		for (ExecutedRecipe.ExecutedStep step : executedSteps) {
+			if (step.omitted()) {
+				continue;
+			}
+			executedShape.add(step.originalStepId());
+		}
+		return sourceShape.equals(executedShape);
 	}
 
 	private void validateIngredient(ExecutedRecipe.ExecutedIngredient ingredient) {
@@ -533,6 +636,18 @@ public class PersonalRecipeService {
 				&& left.sortOrder() == right.sortOrder();
 	}
 
+	private boolean sameIngredientAddition(
+			IngredientAdjustment candidate, IngredientAdjustment source) {
+		boolean candidateRequired = candidate.required() == null || candidate.required();
+		boolean sourceRequired = source.required() == null || source.required();
+		return source.type() == AdjustmentType.ADD
+				&& sameText(candidate.name(), source.name())
+				&& sameAmount(candidate.amount(), source.amount())
+				&& sameText(candidate.unit(), source.unit())
+				&& candidateRequired == sourceRequired
+				&& candidate.sortOrder() == source.sortOrder();
+	}
+
 	private boolean sameStepAdjustments(
 			List<StepAdjustment> left, List<StepAdjustment> right) {
 		if (left.size() != right.size()) {
@@ -563,6 +678,11 @@ public class PersonalRecipeService {
 				&& sameText(left.instruction(), right.instruction())
 				&& java.util.Objects.equals(left.timerSeconds(), right.timerSeconds())
 				&& sameText(left.cautionNote(), right.cautionNote());
+	}
+
+	private boolean sameStepAddition(StepAdjustment candidate, StepAdjustment source) {
+		return source.type() == AdjustmentType.ADD
+				&& sameStepAdjustment(candidate, source);
 	}
 
 	private String trimToNull(String value) {
