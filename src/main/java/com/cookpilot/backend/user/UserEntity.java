@@ -12,12 +12,15 @@ import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
+import lombok.Getter;
+import lombok.Setter;
 
 /**
  * users 테이블 매핑. 순수 계정 도메인(AI 파트 무관, 그룹 A).
  */
 @Entity
 @Table(name = "users")
+@Getter
 public class UserEntity {
 
 	@Id
@@ -27,6 +30,7 @@ public class UserEntity {
 	@Column(name = "email", unique = true)
 	private String email;
 
+	@Setter
 	@Column(name = "display_name")
 	private String displayName;
 
@@ -69,39 +73,11 @@ public class UserEntity {
 		this.anonymousInstallationId = anonymousInstallationId;
 	}
 
-	public UUID getId() {
-		return id;
-	}
-
-	public String getEmail() {
-		return email;
-	}
-
-	public String getDisplayName() {
-		return displayName;
-	}
-
-	public void setDisplayName(String displayName) {
-		this.displayName = displayName;
-	}
-
+	/**
+	 * 시퀀스가 채우는 컬럼이라 필드는 Long 이지만 조회 시점에는 항상 값이 있다.
+	 * 기존 호출부 시그니처(long)를 유지하려고 @Getter 대신 직접 둔다.
+	 */
 	public long getBetaNumber() {
 		return betaNumber;
-	}
-
-	public boolean isAnonymous() {
-		return anonymous;
-	}
-
-	public UUID getAnonymousInstallationId() {
-		return anonymousInstallationId;
-	}
-
-	public Instant getCreatedAt() {
-		return createdAt;
-	}
-
-	public Instant getUpdatedAt() {
-		return updatedAt;
 	}
 }

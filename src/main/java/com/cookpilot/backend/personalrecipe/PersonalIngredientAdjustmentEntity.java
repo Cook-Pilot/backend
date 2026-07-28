@@ -11,6 +11,7 @@ import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
+import lombok.Getter;
 
 /**
  * personal_ingredient_adjustments 테이블 매핑.
@@ -22,6 +23,7 @@ import jakarta.persistence.Table;
  */
 @Entity
 @Table(name = "personal_ingredient_adjustments")
+@Getter
 public class PersonalIngredientAdjustmentEntity {
 
 	@Id
@@ -47,6 +49,7 @@ public class PersonalIngredientAdjustmentEntity {
 	@Column(name = "unit")
 	private String unit;
 
+	// 래퍼 Boolean 이라 Lombok 이 isRequired() 가 아니라 getRequired() 를 만든다(기존과 동일).
 	@Column(name = "is_required")
 	private Boolean required;
 
@@ -67,41 +70,5 @@ public class PersonalIngredientAdjustmentEntity {
 		this.unit = unit;
 		this.required = required;
 		this.sortOrder = sortOrder;
-	}
-
-	public UUID getId() {
-		return id;
-	}
-
-	public UUID getPersonalVersionId() {
-		return personalVersionId;
-	}
-
-	public UUID getOriginalIngredientId() {
-		return originalIngredientId;
-	}
-
-	public AdjustmentType getAdjustmentType() {
-		return adjustmentType;
-	}
-
-	public String getName() {
-		return name;
-	}
-
-	public BigDecimal getAmount() {
-		return amount;
-	}
-
-	public String getUnit() {
-		return unit;
-	}
-
-	public Boolean getRequired() {
-		return required;
-	}
-
-	public int getSortOrder() {
-		return sortOrder;
 	}
 }

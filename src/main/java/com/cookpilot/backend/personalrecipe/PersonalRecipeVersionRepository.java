@@ -25,4 +25,10 @@ public interface PersonalRecipeVersionRepository extends JpaRepository<PersonalR
 	Optional<PersonalRecipeVersionEntity> findFirstBySourceReviewId(UUID sourceReviewId);
 
 	List<PersonalRecipeVersionEntity> findBySourceReviewIdIn(Collection<UUID> sourceReviewIds);
+
+	List<PersonalRecipeVersionEntity> findByUserIdAndSourceReviewIdIn(
+			UUID userId, Collection<UUID> sourceReviewIds);
+
+	List<PersonalRecipeVersionEntity> findByUserIdAndIdIn(
+			UUID userId, Collection<UUID> ids);
 }

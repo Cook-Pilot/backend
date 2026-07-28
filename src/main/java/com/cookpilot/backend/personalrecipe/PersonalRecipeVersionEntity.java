@@ -12,6 +12,8 @@ import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
+import lombok.Getter;
+import lombok.Setter;
 
 /**
  * personal_recipe_versions 테이블 매핑(그룹 A 구조).
@@ -22,6 +24,7 @@ import jakarta.persistence.Table;
  */
 @Entity
 @Table(name = "personal_recipe_versions")
+@Getter
 public class PersonalRecipeVersionEntity {
 
 	@Id
@@ -37,9 +40,11 @@ public class PersonalRecipeVersionEntity {
 	@Column(name = "version_number", nullable = false)
 	private int versionNumber;
 
+	@Setter
 	@Column(name = "title", nullable = false)
 	private String title;
 
+	@Setter
 	@Column(name = "summary")
 	private String summary;
 
@@ -48,9 +53,12 @@ public class PersonalRecipeVersionEntity {
 	private UUID sourceReviewId;
 
 	// 진화 계보: 이 버전이 파생된 상위 버전(원본에서 바로 나왔으면 null).
+	@Setter
 	@Column(name = "parent_version_id")
 	private UUID parentVersionId;
 
+	// boolean + is 접두 필드라 Lombok 이 isDefault()/setDefault() 를 그대로 만든다.
+	@Setter
 	@Column(name = "is_default", nullable = false)
 	private boolean isDefault = false;
 
@@ -73,65 +81,5 @@ public class PersonalRecipeVersionEntity {
 		this.title = title;
 		this.summary = summary;
 		this.sourceReviewId = sourceReviewId;
-	}
-
-	public UUID getId() {
-		return id;
-	}
-
-	public UUID getUserId() {
-		return userId;
-	}
-
-	public UUID getRecipeId() {
-		return recipeId;
-	}
-
-	public int getVersionNumber() {
-		return versionNumber;
-	}
-
-	public String getTitle() {
-		return title;
-	}
-
-	public void setTitle(String title) {
-		this.title = title;
-	}
-
-	public String getSummary() {
-		return summary;
-	}
-
-	public void setSummary(String summary) {
-		this.summary = summary;
-	}
-
-	public UUID getSourceReviewId() {
-		return sourceReviewId;
-	}
-
-	public UUID getParentVersionId() {
-		return parentVersionId;
-	}
-
-	public void setParentVersionId(UUID parentVersionId) {
-		this.parentVersionId = parentVersionId;
-	}
-
-	public boolean isDefault() {
-		return isDefault;
-	}
-
-	public void setDefault(boolean isDefault) {
-		this.isDefault = isDefault;
-	}
-
-	public Instant getCreatedAt() {
-		return createdAt;
-	}
-
-	public Instant getUpdatedAt() {
-		return updatedAt;
 	}
 }

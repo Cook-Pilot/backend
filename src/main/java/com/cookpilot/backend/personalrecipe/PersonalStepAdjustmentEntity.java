@@ -10,6 +10,7 @@ import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
+import lombok.Getter;
 
 /**
  * personal_step_adjustments 테이블 매핑.
@@ -21,6 +22,7 @@ import jakarta.persistence.Table;
  */
 @Entity
 @Table(name = "personal_step_adjustments")
+@Getter
 public class PersonalStepAdjustmentEntity {
 
 	@Id
@@ -66,41 +68,5 @@ public class PersonalStepAdjustmentEntity {
 		this.instruction = instruction;
 		this.timerSeconds = timerSeconds;
 		this.cautionNote = cautionNote;
-	}
-
-	public UUID getId() {
-		return id;
-	}
-
-	public UUID getPersonalVersionId() {
-		return personalVersionId;
-	}
-
-	public UUID getOriginalStepId() {
-		return originalStepId;
-	}
-
-	public AdjustmentType getAdjustmentType() {
-		return adjustmentType;
-	}
-
-	public Integer getInsertAfterStepIndex() {
-		return insertAfterStepIndex;
-	}
-
-	public int getSortOrder() {
-		return sortOrder;
-	}
-
-	public String getInstruction() {
-		return instruction;
-	}
-
-	public Integer getTimerSeconds() {
-		return timerSeconds;
-	}
-
-	public String getCautionNote() {
-		return cautionNote;
 	}
 }

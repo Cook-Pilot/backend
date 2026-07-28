@@ -12,12 +12,14 @@ import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
 import jakarta.persistence.UniqueConstraint;
+import lombok.Getter;
 
 @Entity
 @Table(
 		name = "recipe_favorites",
 		uniqueConstraints = @UniqueConstraint(columnNames = {"user_id", "recipe_id"})
 )
+@Getter
 public class RecipeFavoriteEntity {
 
 	@Id
@@ -40,21 +42,5 @@ public class RecipeFavoriteEntity {
 	public RecipeFavoriteEntity(UUID userId, UUID recipeId) {
 		this.userId = userId;
 		this.recipeId = recipeId;
-	}
-
-	public UUID getId() {
-		return id;
-	}
-
-	public UUID getUserId() {
-		return userId;
-	}
-
-	public UUID getRecipeId() {
-		return recipeId;
-	}
-
-	public Instant getCreatedAt() {
-		return createdAt;
 	}
 }
