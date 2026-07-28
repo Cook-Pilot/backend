@@ -29,6 +29,9 @@ dependencies {
 	// Boot 4 는 자동설정이 모듈별로 쪼개져 있다. 이 모듈이 없으면 flyway-core 가 있어도
 	// FlywayAutoConfiguration 이 없어 마이그레이션이 아예 실행되지 않는다(= validate 실패).
 	implementation 'org.springframework.boot:spring-boot-flyway'
+	// OpenAPI 스펙 자동 생성 + Swagger UI(/swagger-ui.html). 3.x 라인이 Boot 4/Framework 7 호환
+	// (2.x 는 Boot 3 전용이라 올리면 기동 실패). Boot BOM 이 버전을 관리하지 않아 명시 고정한다.
+	implementation 'org.springdoc:springdoc-openapi-starter-webmvc-ui:3.0.3'
 	runtimeOnly 'org.postgresql:postgresql'
 	// 엔티티 getter/setter 보일러플레이트 제거. 컴파일 타임 전용(런타임 의존성 아님).
 	// 엔티티에는 @Getter/@Setter 만 쓴다 — @Data/@EqualsAndHashCode/@ToString 은
