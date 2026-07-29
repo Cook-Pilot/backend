@@ -12,6 +12,8 @@ import org.hibernate.type.SqlTypes;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
@@ -24,11 +26,12 @@ import lombok.Setter;
 /**
  * post_cook_reviews 테이블 매핑(그룹 A 구조).
  *
- * 조리 진행은 프론트가 관리하므로 서버에는 조리 1회의 "결과"인 이 리뷰만 남는다.
+ * 조리 진행은 프론트가 관리한다. 서버에는 완료 결과를 먼저 보존하고,
+ * reviewStatus로 후기 작성 여부를 분리한다.
  *
  * rating/comment/next_time_note 는 사용자 입력분(그룹 A).
- * structured_feedback(JSONB)는 리뷰를 AI가 구조화한 산출물이라 내부 구조는
- * AI 파트 확정 대상(그룹 B). 여기서는 opaque Map 으로만 매핑한다.
+ * structured_feedback(JSONB)는 AI 파트 확정 대상(그룹 B)이라 여기서는
+ * opaque Map 으로만 매핑한다.
  */
 @Entity
 @Table(name = "post_cook_reviews")
@@ -56,6 +59,20 @@ public class PostCookReviewEntity {
 
 	@Column(name = "target_servings")
 	private BigDecimal targetServings;
+
+	@Column(name = "cooking_result_schema_version", updatable = false)
+	private Short cookingResultSchemaVersion;
+
+	@JdbcTypeCode(SqlTypes.JSON)
+	@Column(name = "cooking_result_payload", columnDefinition = "jsonb", updatable = false)
+	private CookingResultPayload cookingResultPayload;
+
+	@Column(name = "cooking_result_fingerprint", updatable = false)
+	private String cookingResultFingerprint;
+
+	@Enumerated(EnumType.STRING)
+	@Column(name = "review_status", nullable = false)
+	private ReviewLifecycleStatus reviewStatus = ReviewLifecycleStatus.FINALIZED;
 
 	// DB의 CHECK (rating BETWEEN 1 AND 5)와 짝을 이룬다. null(무평점)은 허용, 값이 있으면 1~5.
 	@Min(1)
@@ -95,7 +112,39 @@ public class PostCookReviewEntity {
 		this.nextTimeNote = nextTimeNote;
 	}
 
-	/** 테스트·기존 내부 호출 호환용. 새 API 저장은 clientSessionId를 포함한 생성자를 사용한다. */
+	/**
+	 * 완료 결과만 먼저 저장할 엔티티를 만든다.
+	 *
+	 * <p>관계형 식별 필드와 JSONB payload를 한 payload에서 복사해 서로 어긋날
+	 * 수 없게 한다. 개인 레시피 diff나 후기는 이 단계에서 만들지 않는다.</p>
+	 */
+	public static PostCookReviewEntity pendingCookingResult(
+			UUID userId, UUID clientSessionId, CookingResultPayload payload) {
+		if (userId == null || clientSessionId == null || payload == null) {
+			throw new IllegalArgumentException(
+					"userId, clientSessionId, payload는 필수입니다.");
+		}
+
+		PostCookReviewEntity entity = new PostCookReviewEntity(
+				userId,
+				payload.recipeId(),
+				clientSessionId,
+				payload.cookedAt(),
+				payload.sourcePersonalVersionId(),
+				payload.targetServings(),
+				null,
+				null,
+				null);
+		entity.cookingResultSchemaVersion =
+				CookingResultFingerprint.SCHEMA_VERSION;
+		entity.cookingResultPayload = payload;
+		entity.cookingResultFingerprint =
+				CookingResultFingerprint.sha256(payload);
+		entity.reviewStatus = ReviewLifecycleStatus.PENDING_REVIEW;
+		return entity;
+	}
+
+	/** 테스트·기존 POST 내부 호출 호환용. */
 	public PostCookReviewEntity(UUID userId, UUID recipeId, Integer rating,
 			String comment, String nextTimeNote) {
 		this(userId, recipeId, null, Instant.now(), null, null, rating, comment, nextTimeNote);

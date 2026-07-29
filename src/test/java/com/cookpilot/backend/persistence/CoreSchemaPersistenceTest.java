@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.math.BigDecimal;
+import java.time.Instant;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -32,8 +33,12 @@ import com.cookpilot.backend.recipe.RecipeIngredientRepository;
 import com.cookpilot.backend.recipe.RecipeRepository;
 import com.cookpilot.backend.recipe.RecipeStepEntity;
 import com.cookpilot.backend.recipe.RecipeStepRepository;
+import com.cookpilot.backend.review.CookingResultPayload;
+import com.cookpilot.backend.review.CookingResultPayload.IngredientSnapshot;
+import com.cookpilot.backend.review.CookingResultPayload.StepSnapshot;
 import com.cookpilot.backend.review.PostCookReviewEntity;
 import com.cookpilot.backend.review.PostCookReviewRepository;
+import com.cookpilot.backend.review.ReviewLifecycleStatus;
 import com.cookpilot.backend.user.UserEntity;
 import com.cookpilot.backend.user.UserRepository;
 
@@ -228,6 +233,47 @@ class CoreSchemaPersistenceTest {
 
 		assertThat(reviewRepository.findById(reviewId).orElseThrow().getStructuredFeedback())
 				.containsEntry("salt", "-20%");
+	}
+
+	@Test
+	void 완료_payload의_typed_JSONB와_lifecycle을_왕복한다() {
+		UserEntity user = userRepository.save(
+				new UserEntity("cooking-result@test.com", "완료결과"));
+		RecipeEntity recipe = recipeRepository.save(
+				new RecipeEntity("완료결과 JSONB", null, null));
+		UUID clientSessionId = UUID.randomUUID();
+		CookingResultPayload payload = new CookingResultPayload(
+				recipe.getId(),
+				Instant.parse("2026-07-29T01:02:03.123456789Z"),
+				null,
+				new BigDecimal("2.00"),
+				List.of(new IngredientSnapshot(
+						null, "밥", new BigDecimal("1.50"),
+						"공기", true, false, 0)),
+				List.of(new StepSnapshot(
+						null, "볶는다", 60, "화상 주의", 0)));
+		PostCookReviewEntity pending =
+				PostCookReviewEntity.pendingCookingResult(
+						user.getId(), clientSessionId, payload);
+		String fingerprint = pending.getCookingResultFingerprint();
+		UUID reviewId = reviewRepository.save(pending).getId();
+		flushAndClear();
+
+		PostCookReviewEntity found =
+				reviewRepository.findById(reviewId).orElseThrow();
+		assertThat(found.getCookingResultSchemaVersion()).isEqualTo((short) 1);
+		assertThat(found.getCookingResultPayload()).isEqualTo(payload);
+		assertThat(found.getCookingResultFingerprint())
+				.isEqualTo(fingerprint)
+				.matches("^[0-9a-f]{64}$");
+		assertThat(found.getClientSessionId()).isEqualTo(clientSessionId);
+		assertThat(found.getRecipeId()).isEqualTo(payload.recipeId());
+		assertThat(found.getCookedAt()).isEqualTo(payload.cookedAt());
+		assertThat(found.getTargetServings())
+				.isEqualByComparingTo(payload.targetServings());
+		assertThat(found.getReviewStatus())
+				.isEqualTo(ReviewLifecycleStatus.PENDING_REVIEW);
+		assertThat(found.getRating()).isNull();
 	}
 
 	@Test
