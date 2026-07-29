@@ -46,7 +46,7 @@ class CookingResultStorageMigrationUpgradeTest {
 			assertLegacyReviewPreserved(connection);
 			assertValidStatesAccepted(connection);
 			assertInvalidRowsRejected(connection);
-			assertNonFinalizedReviewFieldsRejected(connection);
+			assertNonFinalizedReviewDataRejected(connection);
 			assertConstraintValidationState(connection, false);
 			assertMigrationSucceeded(connection, "10");
 		}
@@ -229,7 +229,8 @@ class CookingResultStorageMigrationUpgradeTest {
 		}
 	}
 
-	private void assertNonFinalizedReviewFieldsRejected(Connection connection) {
+	private void assertNonFinalizedReviewDataRejected(Connection connection)
+			throws SQLException {
 		List<ReviewFields> invalidReviewFields = List.of(
 				new ReviewFields(5, null, null),
 				new ReviewFields(null, "완료 전 후기", null),
@@ -251,9 +252,37 @@ class CookingResultStorageMigrationUpgradeTest {
 							assertThat(exception.getSQLState()).isEqualTo("23514");
 							assertThat(exception.getMessage())
 									.contains(
-											"ck_reviews_non_finalized_review_fields_null");
+											"ck_reviews_non_finalized_review_data_empty");
 						});
 			}
+
+			UUID id = UUID.randomUUID();
+			insertResult(
+					connection,
+					id,
+					status,
+					(short) 1,
+					"{}",
+					VALID_FINGERPRINT);
+			assertThatThrownBy(() -> updateStructuredFeedback(connection, id))
+					.isInstanceOfSatisfying(SQLException.class, exception -> {
+						assertThat(exception.getSQLState()).isEqualTo("23514");
+						assertThat(exception.getMessage())
+								.contains(
+										"ck_reviews_non_finalized_review_data_empty");
+					});
+		}
+	}
+
+	private void updateStructuredFeedback(Connection connection, UUID id)
+			throws SQLException {
+		try (PreparedStatement statement = connection.prepareStatement("""
+				UPDATE post_cook_reviews
+				SET structured_feedback = '{"summary":"완료 전 결과"}'::jsonb
+				WHERE id = ?
+				""")) {
+			statement.setObject(1, id);
+			statement.executeUpdate();
 		}
 	}
 
@@ -333,7 +362,7 @@ class CookingResultStorageMigrationUpgradeTest {
 				    'ck_reviews_cooking_result_bundle',
 				    'ck_reviews_review_status',
 				    'ck_reviews_pending_or_skipped_requires_result',
-				    'ck_reviews_non_finalized_review_fields_null'
+				    'ck_reviews_non_finalized_review_data_empty'
 				  )
 				""");
 					ResultSet constraints = statement.executeQuery()) {

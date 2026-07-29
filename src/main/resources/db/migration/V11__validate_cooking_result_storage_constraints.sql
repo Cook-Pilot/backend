@@ -6,4 +6,4 @@ ALTER TABLE post_cook_reviews
   VALIDATE CONSTRAINT ck_reviews_cooking_result_bundle,
   VALIDATE CONSTRAINT ck_reviews_review_status,
   VALIDATE CONSTRAINT ck_reviews_pending_or_skipped_requires_result,
-  VALIDATE CONSTRAINT ck_reviews_non_finalized_review_fields_null;
+  VALIDATE CONSTRAINT ck_reviews_non_finalized_review_data_empty;
