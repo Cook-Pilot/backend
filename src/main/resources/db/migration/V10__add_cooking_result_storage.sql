@@ -59,3 +59,18 @@ ALTER TABLE post_cook_reviews
       AND cooking_result_fingerprint IS NOT NULL
     )
   ) NOT VALID;
+
+-- 후기 내용은 FINALIZED 전에는 존재할 수 없다. 특히 SKIPPED는 후기 없이 종료한
+-- 상태이므로 후기 필드가 남아 있으면 안 되고, PENDING_REVIEW 역시 완료 사실만
+-- 먼저 저장하는 단계다. FINALIZED의 후기 필드는 모두 선택 사항이라 NULL을 허용한다.
+ALTER TABLE post_cook_reviews
+  ADD CONSTRAINT ck_reviews_non_finalized_review_fields_null
+  CHECK (
+    review_status = 'FINALIZED'
+    OR
+    (
+      rating IS NULL
+      AND comment IS NULL
+      AND next_time_note IS NULL
+    )
+  ) NOT VALID;

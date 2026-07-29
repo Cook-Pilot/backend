@@ -46,6 +46,7 @@ class CookingResultStorageMigrationUpgradeTest {
 			assertLegacyReviewPreserved(connection);
 			assertValidStatesAccepted(connection);
 			assertInvalidRowsRejected(connection);
+			assertNonFinalizedReviewFieldsRejected(connection);
 			assertConstraintValidationState(connection, false);
 			assertMigrationSucceeded(connection, "10");
 		}
@@ -228,6 +229,34 @@ class CookingResultStorageMigrationUpgradeTest {
 		}
 	}
 
+	private void assertNonFinalizedReviewFieldsRejected(Connection connection) {
+		List<ReviewFields> invalidReviewFields = List.of(
+				new ReviewFields(5, null, null),
+				new ReviewFields(null, "완료 전 후기", null),
+				new ReviewFields(null, null, "완료 전 메모"));
+
+		for (String status : List.of("PENDING_REVIEW", "SKIPPED")) {
+			for (ReviewFields reviewFields : invalidReviewFields) {
+				assertThatThrownBy(() -> insertResultWithReview(
+						connection,
+						UUID.randomUUID(),
+						status,
+						(short) 1,
+						"{}",
+						VALID_FINGERPRINT,
+						reviewFields.rating(),
+						reviewFields.comment(),
+						reviewFields.nextTimeNote()))
+						.isInstanceOfSatisfying(SQLException.class, exception -> {
+							assertThat(exception.getSQLState()).isEqualTo("23514");
+							assertThat(exception.getMessage())
+									.contains(
+											"ck_reviews_non_finalized_review_fields_null");
+						});
+			}
+		}
+	}
+
 	private void insertResult(
 			Connection connection,
 			UUID id,
@@ -235,11 +264,36 @@ class CookingResultStorageMigrationUpgradeTest {
 			Short schemaVersion,
 			String payload,
 			String fingerprint) throws SQLException {
+		insertResultWithReview(
+				connection,
+				id,
+				status,
+				schemaVersion,
+				payload,
+				fingerprint,
+				null,
+				null,
+				null);
+	}
+
+	private void insertResultWithReview(
+			Connection connection,
+			UUID id,
+			String status,
+			Short schemaVersion,
+			String payload,
+			String fingerprint,
+			Integer rating,
+			String comment,
+			String nextTimeNote) throws SQLException {
 		try (PreparedStatement statement = connection.prepareStatement("""
 				INSERT INTO post_cook_reviews (
 				  id,
 				  user_id,
 				  recipe_id,
+				  rating,
+				  comment,
+				  next_time_note,
 				  structured_feedback,
 				  client_session_id,
 				  cooked_at,
@@ -248,16 +302,21 @@ class CookingResultStorageMigrationUpgradeTest {
 				  cooking_result_schema_version,
 				  cooking_result_payload,
 				  cooking_result_fingerprint
-				) VALUES (?, ?, ?, '{}'::jsonb, ?, NOW(), 2, ?, ?, ?::jsonb, ?)
+				) VALUES (
+				  ?, ?, ?, ?, ?, ?, '{}'::jsonb, ?, NOW(), 2, ?, ?, ?::jsonb, ?
+				)
 				""")) {
 			statement.setObject(1, id);
 			statement.setObject(2, USER_ID);
 			statement.setObject(3, RECIPE_ID);
-			statement.setObject(4, UUID.randomUUID());
-			statement.setString(5, status);
-			statement.setObject(6, schemaVersion);
-			statement.setString(7, payload);
-			statement.setString(8, fingerprint);
+			statement.setObject(4, rating);
+			statement.setString(5, comment);
+			statement.setString(6, nextTimeNote);
+			statement.setObject(7, UUID.randomUUID());
+			statement.setString(8, status);
+			statement.setObject(9, schemaVersion);
+			statement.setString(10, payload);
+			statement.setString(11, fingerprint);
 			statement.executeUpdate();
 		}
 	}
@@ -273,14 +332,15 @@ class CookingResultStorageMigrationUpgradeTest {
 				  AND conname IN (
 				    'ck_reviews_cooking_result_bundle',
 				    'ck_reviews_review_status',
-				    'ck_reviews_pending_or_skipped_requires_result'
+				    'ck_reviews_pending_or_skipped_requires_result',
+				    'ck_reviews_non_finalized_review_fields_null'
 				  )
 				""");
 					ResultSet constraints = statement.executeQuery()) {
 			assertThat(constraints.next()).isTrue();
-			assertThat(constraints.getInt("total_checks")).isEqualTo(3);
+			assertThat(constraints.getInt("total_checks")).isEqualTo(4);
 			assertThat(constraints.getInt("validated_checks"))
-					.isEqualTo(expected ? 3 : 0);
+					.isEqualTo(expected ? 4 : 0);
 		}
 	}
 
@@ -305,6 +365,13 @@ class CookingResultStorageMigrationUpgradeTest {
 			String payload,
 			String fingerprint,
 			String constraintName
+	) {
+	}
+
+	private record ReviewFields(
+			Integer rating,
+			String comment,
+			String nextTimeNote
 	) {
 	}
 }
