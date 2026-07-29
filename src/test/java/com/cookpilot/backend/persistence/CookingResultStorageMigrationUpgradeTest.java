@@ -29,6 +29,10 @@ class CookingResultStorageMigrationUpgradeTest {
 	private static final UUID LEGACY_SESSION_ID = UUID.randomUUID();
 	private static final Instant LEGACY_COOKED_AT =
 			Instant.parse("2026-07-01T01:02:03.123456Z");
+	private static final UUID OLD_BINARY_REVIEW_ID = UUID.randomUUID();
+	private static final UUID OLD_BINARY_SESSION_ID = UUID.randomUUID();
+	private static final Instant OLD_BINARY_COOKED_AT =
+			Instant.parse("2026-07-02T04:05:06.123456Z");
 	private static final String VALID_FINGERPRINT = "a".repeat(64);
 
 	@Container
@@ -39,11 +43,28 @@ class CookingResultStorageMigrationUpgradeTest {
 	void V9_레거시_행을_보존하고_완료결과_bundle_제약을_검증한다()
 			throws SQLException {
 		flywayTo("9").migrate();
-		insertLegacyReview();
+		insertLegacyReview(
+				LEGACY_REVIEW_ID,
+				LEGACY_SESSION_ID,
+				LEGACY_COOKED_AT);
 
 		flywayTo("10").migrate();
+		// V10 배포 중 구버전 서버는 새 컬럼을 모른 채 기존 INSERT를 계속한다.
+		insertLegacyReview(
+				OLD_BINARY_REVIEW_ID,
+				OLD_BINARY_SESSION_ID,
+				OLD_BINARY_COOKED_AT);
 		try (Connection connection = POSTGRES.createConnection("")) {
-			assertLegacyReviewPreserved(connection);
+			assertLegacyReviewPreserved(
+					connection,
+					LEGACY_REVIEW_ID,
+					LEGACY_SESSION_ID,
+					LEGACY_COOKED_AT);
+			assertLegacyReviewPreserved(
+					connection,
+					OLD_BINARY_REVIEW_ID,
+					OLD_BINARY_SESSION_ID,
+					OLD_BINARY_COOKED_AT);
 			assertValidStatesAccepted(connection);
 			assertInvalidRowsRejected(connection);
 			assertNonFinalizedReviewDataRejected(connection);
@@ -53,7 +74,16 @@ class CookingResultStorageMigrationUpgradeTest {
 
 		flywayTo("11").migrate();
 		try (Connection connection = POSTGRES.createConnection("")) {
-			assertLegacyReviewPreserved(connection);
+			assertLegacyReviewPreserved(
+					connection,
+					LEGACY_REVIEW_ID,
+					LEGACY_SESSION_ID,
+					LEGACY_COOKED_AT);
+			assertLegacyReviewPreserved(
+					connection,
+					OLD_BINARY_REVIEW_ID,
+					OLD_BINARY_SESSION_ID,
+					OLD_BINARY_COOKED_AT);
 			assertConstraintValidationState(connection, true);
 			assertMigrationSucceeded(connection, "11");
 		}
@@ -71,7 +101,10 @@ class CookingResultStorageMigrationUpgradeTest {
 		return configuration.load();
 	}
 
-	private void insertLegacyReview() throws SQLException {
+	private void insertLegacyReview(
+			UUID reviewId,
+			UUID clientSessionId,
+			Instant cookedAt) throws SQLException {
 		try (Connection connection = POSTGRES.createConnection("");
 				PreparedStatement statement = connection.prepareStatement("""
 						INSERT INTO post_cook_reviews (
@@ -89,17 +122,21 @@ class CookingResultStorageMigrationUpgradeTest {
 						  target_servings
 						) VALUES (?, ?, ?, 5, '기존 후기', '기존 메모', '{}'::jsonb, ?, ?, ?, NULL, 2)
 						""")) {
-			statement.setObject(1, LEGACY_REVIEW_ID);
+			statement.setObject(1, reviewId);
 			statement.setObject(2, USER_ID);
 			statement.setObject(3, RECIPE_ID);
-			statement.setTimestamp(4, Timestamp.from(LEGACY_COOKED_AT));
-			statement.setObject(5, LEGACY_SESSION_ID);
-			statement.setTimestamp(6, Timestamp.from(LEGACY_COOKED_AT));
+			statement.setTimestamp(4, Timestamp.from(cookedAt));
+			statement.setObject(5, clientSessionId);
+			statement.setTimestamp(6, Timestamp.from(cookedAt));
 			statement.executeUpdate();
 		}
 	}
 
-	private void assertLegacyReviewPreserved(Connection connection)
+	private void assertLegacyReviewPreserved(
+			Connection connection,
+			UUID reviewId,
+			UUID clientSessionId,
+			Instant cookedAt)
 			throws SQLException {
 		try (PreparedStatement statement = connection.prepareStatement("""
 				SELECT
@@ -118,7 +155,7 @@ class CookingResultStorageMigrationUpgradeTest {
 				FROM post_cook_reviews
 				WHERE id = ?
 				""")) {
-			statement.setObject(1, LEGACY_REVIEW_ID);
+			statement.setObject(1, reviewId);
 			try (ResultSet row = statement.executeQuery()) {
 				assertThat(row.next()).isTrue();
 				assertThat(row.getInt("rating")).isEqualTo(5);
@@ -126,11 +163,11 @@ class CookingResultStorageMigrationUpgradeTest {
 				assertThat(row.getString("next_time_note")).isEqualTo("기존 메모");
 				assertThat(row.getString("structured_feedback")).isEqualTo("{}");
 				assertThat(row.getTimestamp("created_at").toInstant())
-						.isEqualTo(LEGACY_COOKED_AT);
+						.isEqualTo(cookedAt);
 				assertThat(row.getObject("client_session_id"))
-						.isEqualTo(LEGACY_SESSION_ID);
+						.isEqualTo(clientSessionId);
 				assertThat(row.getTimestamp("cooked_at").toInstant())
-						.isEqualTo(LEGACY_COOKED_AT);
+						.isEqualTo(cookedAt);
 				assertThat(row.getBigDecimal("target_servings"))
 						.isEqualByComparingTo("2");
 				assertThat(row.getString("review_status")).isEqualTo("FINALIZED");
