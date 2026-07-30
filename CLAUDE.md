@@ -34,7 +34,7 @@ Package-by-feature under `com.cookpilot.backend`, each feature a thin `Controlle
 - **recipe** — original recipes/ingredients/steps. Read-only; originals are immutable seed data.
 - **review** — post-cook reviews (JPA). Saved first; a personal version back-references it via `source_review_id`.
 - **personalrecipe** — the heart of the app (see below).
-- **ai** — `AiFeedbackService` returns **fixed mock data**. STT/TTS/LLM is unconfirmed; no real LLM call, no server-side cook session (the client owns session/timer state and posts only the result). Look for `TODO(AI 확정 후)`.
+- **ai** — `AiFeedbackService` answers cooking exceptions through deterministic safety rules, Gemini structured JSON, then a conservative fallback. There is still no server-side cook session: the client owns the execution snapshot and sends its current instruction/timer context.
 - **user** — `UserService.getCurrentUser()` returns **one hardcoded mock user** (`00000000-0000-0000-0000-000000000001`). No auth yet.
 - **common** — `GlobalExceptionHandler` maps exceptions to RFC-7807 `ProblemDetail`: `NotFoundException`→404, `IllegalArgumentException`→400, `IllegalStateException`→409. Throw these; don't build error responses by hand.
 

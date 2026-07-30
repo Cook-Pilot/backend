@@ -1,0 +1,97 @@
+# F-08 Gemini 조리 중 예외 피드백
+
+## 범위
+
+조리 세션·단계 이동·타이머 상태는 계속 프론트가 관리한다. F-08 백엔드는 현재
+실행 맥락을 받아 짧은 안내를 생성할 뿐이며 DB나 조리 세션 테이블을 추가하지 않는다.
+
+처리 순서는 다음과 같다.
+
+1. `X-CookPilot-User-Id`로 폐쇄 베타 사용자를 확인한다.
+2. `recipeId`가 실제 레시피인지 확인한다.
+3. 화재·알레르기·부패·덜 익은 육류 등은 서버 안전 규칙으로 즉시 답한다.
+4. 그 외 요청은 사용자별 분당 한도를 확인한 뒤 Gemini를 호출한다.
+5. Gemini 호출 또는 응답 검증이 실패하면 보수적인 서버 fallback을 반환한다.
+
+안전 규칙은 Gemini 호출 한도가 소진되어도 계속 응답한다.
+
+## API 계약
+
+기존 엔드포인트와 필드를 유지한다.
+
+```http
+POST /api/v1/ai-feedback
+X-CookPilot-User-Id: <beta-user-uuid>
+Content-Type: application/json
+```
+
+```json
+{
+  "recipeId": "10000000-0000-0000-0000-000000000001",
+  "stepIndex": 2,
+  "userSpeech": "물이 안 끓어요",
+  "instruction": "뚜껑을 덮고 물을 끓인다.",
+  "remainingSeconds": 20
+}
+```
+
+- `recipeId`, `stepIndex`, `userSpeech`: 기존 필수 필드
+- `instruction`: 선택 필드, 최대 1,000자
+- `remainingSeconds`: 선택 필드, `0..86400`
+- `userSpeech`: 최대 500자
+
+개인 레시피 버전은 단계를 추가·제거한 뒤 실행 순서로 다시 인덱싱할 수 있다.
+따라서 `instruction`이 있으면 프론트 실행 스냅샷을 현재 단계의 정본으로 사용하고
+원본 레시피의 같은 `stepIndex`를 강제하지 않는다. 구버전 요청처럼 `instruction`이
+없을 때만 원본 단계 설명으로 보완하며, 이 경우 없는 단계는 404다.
+
+응답 형태도 기존 계약을 유지한다.
+
+```json
+{
+  "mock": false,
+  "speechText": "화력을 한 단계 높이고 1분 더 기다려보세요.",
+  "screenText": "원하면 타이머를 1분 연장할 수 있어요.",
+  "suggestedAction": {
+    "type": "EXTEND_TIMER",
+    "seconds": 60
+  },
+  "eventPayload": {
+    "problem": "WATER_NOT_BOILING",
+    "source": "GEMINI",
+    "currentStepIndex": 2
+  }
+}
+```
+
+`suggestedAction`은 없을 수 있다. 허용 값은 `EXTEND_TIMER`와 30초 또는 60초뿐이며,
+서버는 실제 타이머를 변경하지 않는다. 프론트가 사용자 승인을 받은 뒤 적용한다.
+
+`eventPayload.source`는 `SAFETY_RULE`, `GEMINI`, `FALLBACK` 중 하나다. 원문
+`userSpeech`는 event payload, DB, 서버 로그에 남기지 않는다.
+
+## Gemini 신뢰 경계
+
+- 키는 `x-goog-api-key` 요청 헤더로만 보내고 URL·프론트·로그에 넣지 않는다.
+- `responseMimeType=application/json`과 `responseJsonSchema`로 출력 형식을 제한한다.
+- 서버가 문구 길이, 문제 코드, 행동 종류와 초를 다시 검증한다.
+- 잘못된 JSON, 빈 후보, timeout, 429, 5xx는 모두 fallback으로 흡수한다.
+- 화재·알레르기 등 안전 답변은 Gemini보다 먼저 결정한다.
+
+## 설정
+
+| 환경변수 | 기본값 | 설명 |
+|---|---:|---|
+| `GEMINI_ENABLED` | `false` | Gemini 호출 활성화 |
+| `GEMINI_API_KEY` | 없음 | Google AI Studio 서버 키 |
+| `GEMINI_MODEL` | `gemini-3.5-flash` | 호출 모델 |
+| `GEMINI_CONNECT_TIMEOUT` | `2s` | 연결 제한 시간 |
+| `GEMINI_READ_TIMEOUT` | `4s` | 응답 제한 시간 |
+| `AI_FEEDBACK_REQUESTS_PER_MINUTE` | `20` | 사용자별 F-08 분당 요청 수 |
+
+현재 rate limiter는 단일 서버 메모리 기준이다. 서버가 여러 인스턴스로 확장되면
+Redis 등 공유 저장소 기반 제한으로 교체해야 한다.
+
+Google의 무료(unpaid) Gemini 서비스에서는 프롬프트와 응답이 제품 개선이나 사람의
+검토에 사용될 수 있다. 데모에서는 개인 식별 정보와 민감한 의료·알레르기 정보를
+Gemini로 보내지 말고, 운영 전 사용자 안내·동의 및 유료 티어 사용 여부를 검토한다.

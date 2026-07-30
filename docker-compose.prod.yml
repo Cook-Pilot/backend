@@ -21,6 +21,13 @@ services:
       DB_URL: jdbc:postgresql://db:5432/${POSTGRES_DB}
       DB_USERNAME: ${POSTGRES_USER}
       DB_PASSWORD: ${POSTGRES_PASSWORD}
+      GEMINI_ENABLED: ${GEMINI_ENABLED:-false}
+      GEMINI_API_KEY: ${GEMINI_API_KEY:-}
+      GEMINI_MODEL: ${GEMINI_MODEL:-gemini-3.5-flash}
+      GEMINI_BASE_URL: ${GEMINI_BASE_URL:-https://generativelanguage.googleapis.com}
+      GEMINI_CONNECT_TIMEOUT: ${GEMINI_CONNECT_TIMEOUT:-2s}
+      GEMINI_READ_TIMEOUT: ${GEMINI_READ_TIMEOUT:-4s}
+      AI_FEEDBACK_REQUESTS_PER_MINUTE: ${AI_FEEDBACK_REQUESTS_PER_MINUTE:-20}
     depends_on:
       db:
         condition: service_healthy

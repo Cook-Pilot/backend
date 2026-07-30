@@ -3,7 +3,8 @@ package com.cookpilot.backend.ai;
 import java.util.Map;
 
 /**
- * docs/06_tech_stack_and_architecture.md §9 LLM 응답 구조 + mock 여부 플래그.
+ * F-08 조리 도움 응답. mock 필드는 기존 클라이언트 호환을 위해 유지하며 실제
+ * 안전 규칙·Gemini·fallback 응답은 모두 false다.
  */
 public record AiFeedbackResponse(
 		boolean mock,
