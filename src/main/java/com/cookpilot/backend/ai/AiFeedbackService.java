@@ -98,9 +98,19 @@ public class AiFeedbackService {
 	private AiFeedbackResponse generatedOrFallback(
 			UUID userId, AiFeedbackContext context) {
 		rateLimiter.acquire(userId);
-		return aiFeedbackClient.advise(context)
-				.map(advice -> response(advice, context, "GEMINI"))
-				.orElseGet(() -> response(fallback(context), context, "FALLBACK"));
+		var generated = aiFeedbackClient.advise(context);
+		if (generated.isEmpty()) {
+			return response(fallback(context), context, "FALLBACK");
+		}
+
+		AiFeedbackAdvice modelAdvice = generated.orElseThrow();
+		var serverSafetyAdvice =
+				safetyRuleCoach.answerClassifiedProblem(modelAdvice.problem());
+		if (serverSafetyAdvice.isPresent()) {
+			return response(
+					serverSafetyAdvice.orElseThrow(), context, "SAFETY_RULE");
+		}
+		return response(modelAdvice, context, "GEMINI");
 	}
 
 	private AiFeedbackAdvice fallback(AiFeedbackContext context) {

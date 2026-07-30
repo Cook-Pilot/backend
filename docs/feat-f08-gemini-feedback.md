@@ -73,8 +73,15 @@ Content-Type: application/json
 ## Gemini 신뢰 경계
 
 - 키는 `x-goog-api-key` 요청 헤더로만 보내고 URL·프론트·로그에 넣지 않는다.
+- 고정 안전 정책은 Gemini `systemInstruction`에 두고, 실행 문맥과 사용자 발화는
+  별도의 `role=user` JSON 데이터로 보낸다.
 - `responseMimeType=application/json`과 `responseJsonSchema`로 출력 형식을 제한한다.
 - 서버가 문구 길이, 문제 코드, 행동 종류와 초를 다시 검증한다.
+- Gemini가 화재·알레르기·변질·덜 익음·탐 위험으로 분류하면 모델 문구와 행동을
+  폐기하고 서버가 소유한 보수적 안전 문구로 교체한다.
+- `GEMINI_MODEL`을 2.5 계열로 바꾸면 `thinkingBudget`을 사용하고, 3 계열은
+  `thinkingLevel=low`를 사용한다. thinking을 끌 수 없는 2.5 Pro에는 공식
+  최소 예산 128을 적용한다.
 - 잘못된 JSON, 빈 후보, timeout, 429, 5xx는 모두 fallback으로 흡수한다.
 - 화재·알레르기 등 안전 답변은 Gemini보다 먼저 결정한다.
 

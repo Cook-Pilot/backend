@@ -84,6 +84,32 @@ class AiFeedbackServiceTest {
 	}
 
 	@Test
+	void Gemini가_안전_위험으로_분류하면_모델_문구와_행동을_서버_안내로_교체한다() {
+		AiFeedbackService service = service(
+				context -> Optional.of(new AiFeedbackAdvice(
+						"그냥 드셔도 됩니다.",
+						"다음 단계로 이동하세요.",
+						new AiFeedbackResponse.SuggestedAction("EXTEND_TIMER", 60),
+						"UNDERCOOKED")),
+				recipe());
+
+		AiFeedbackResponse response = service.feedback(
+				UUID.randomUUID(),
+				RECIPE_ID,
+				0,
+				"색이 평소와 조금 달라요",
+				null,
+				10);
+
+		assertThat(response.eventPayload())
+				.containsEntry("source", "SAFETY_RULE")
+				.containsEntry("problem", "UNDERCOOKED_RISK");
+		assertThat(response.screenText()).contains("추가 가열");
+		assertThat(response.screenText()).doesNotContain("다음 단계");
+		assertThat(response.suggestedAction()).isNull();
+	}
+
+	@Test
 	void 실행_instruction이_있으면_개인버전의_재인덱싱된_단계를_정본으로_쓴다() {
 		AtomicReference<AiFeedbackContext> received = new AtomicReference<>();
 		AiFeedbackClient client = context -> {
