@@ -5,9 +5,11 @@ import java.math.RoundingMode;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
 
 import org.springframework.stereotype.Service;
@@ -73,6 +75,8 @@ public class PersonalRecipeService {
 	 * 층을 통과하며 바뀌는 것은 diff 뿐이다. 마지막에 남은 diff 를 저장한다.
 	 *
 	 * 멱등: 리뷰 하나가 만드는 버전은 최대 하나다(uq_personal_versions_source_review).
+	 * 멱등 게이트는 소유자 확인 뒤에 둔다 — 앞에 두면 이미 버전이 있는 남의 reviewId 로
+	 * 404 대신 그 사람의 버전이 나간다.
 	 * 리뷰가 clientSessionId 로 멱등해서 재시도해도 reviewId 가 같으므로, 이 게이트가 순차
 	 * 재전송을 막는다. 동시 재전송은 lockCurrentUser 의 사용자 행 락이 직렬화한다 —
 	 * 그게 없으면 두 요청이 같은 version_number 를 읽고 UNIQUE 위반으로 500 이 된다.
@@ -88,14 +92,14 @@ public class PersonalRecipeService {
 	public Optional<PersonalRecipeVersion> createFromEdits(UUID reviewId, RecipeEditRequest request) {
 		UUID userId = userService.lockCurrentUser().id();
 
+		PostCookReviewEntity review = reviewRepository.findByIdAndUserId(reviewId, userId)
+				.orElseThrow(() -> new NotFoundException("조리 기록을 찾을 수 없습니다: " + reviewId));
+
 		Optional<PersonalRecipeVersionEntity> alreadyCreated =
 				versionRepository.findFirstBySourceReviewId(reviewId);
 		if (alreadyCreated.isPresent()) {
 			return alreadyCreated.map(PersonalRecipeVersion::from);
 		}
-
-		PostCookReviewEntity review = reviewRepository.findByIdAndUserId(reviewId, userId)
-				.orElseThrow(() -> new NotFoundException("조리 기록을 찾을 수 없습니다: " + reviewId));
 
 		UUID recipeId = review.getRecipeId();
 		RecipeEntity recipe = recipeRepository.findById(recipeId)
@@ -140,6 +144,10 @@ public class PersonalRecipeService {
 	 * amount 는 조리 인분 기준으로 오므로 1인분 기준으로 되돌린 뒤, 되돌린 결과가 원본과
 	 * 같아진 MODIFY 를 버린다 — 인분만 바꾼 조리가 여기서 빈 diff 가 된다.
 	 *
+	 * 검증은 되돌리기 전에 한다 — normalize 는 요청 본문을 그대로 훑으므로 검증이 뒤면
+	 * 깨진 입력(리스트 안의 null 등)이 검증 전에 NPE 로 터져 400 대신 500 이 된다.
+	 * 되돌리기는 부호와 null 여부를 바꾸지 않아 검증 결과도 달라지지 않는다.
+	 *
 	 * 재료를 건드리면 리뷰에 targetServings 가 있어야 한다. 없으면 조리 인분 기준 양이 1인분
 	 * 기준으로 그대로 저장돼 조용히 배수만큼 어긋난다 — 에러 없이 틀리느니 400 이 낫다.
 	 * 단계만 고치는 수정(타이머 등)은 양과 무관하므로 요구하지 않는다.
@@ -154,11 +162,10 @@ public class PersonalRecipeService {
 			throw new IllegalArgumentException(
 					"재료를 수정하려면 조리 기록에 targetServings(0보다 큰 값)가 있어야 합니다.");
 		}
-		Diff diff = new Diff(
-				normalizeAmounts(ingredients, baseServings, targetServings),
-				setup.stepAdjustmentsOrEmpty());
+		Diff diff = new Diff(ingredients, setup.stepAdjustmentsOrEmpty());
 		validate(originals, diff);
-		return dropNoOpModifies(originals, diff);
+		return dropNoOpModifies(originals, new Diff(
+				normalizeAmounts(diff.ingredients(), baseServings, targetServings), diff.steps()));
 	}
 
 	/**
@@ -410,8 +417,10 @@ public class PersonalRecipeService {
 	 * 층 출력이 저장 가능한 diff 인지. 층마다 출력 타입이 같으므로 층마다 이걸 통과시킨다.
 	 *
 	 * DB CHECK 와 겹치는 검사가 있지만 여기서 잡아야 400 이 된다 — DB 가 잡으면
-	 * DataIntegrityViolationException 이라 500 이다. 겹치지 않는 검사는 "원본 참조가
-	 * 이 레시피 것인지" 하나뿐이고, FK 는 존재만 보므로 그건 여기서만 잡힌다.
+	 * DataIntegrityViolationException 이라 500 이다. DB 가 아예 모르는 검사도 있다 —
+	 * "원본 참조가 이 레시피 것인지"(FK 는 존재만 본다), 값의 범위(음수 amount/timer,
+	 * 공백 문자열), 한 원본 행에 조정이 둘 이상인지(UNIQUE 가 없고, 있어도 합성 결과가
+	 * 어느 쪽인지 정해지지 않는다). 이것들은 여기서만 잡힌다.
 	 */
 	private void validate(Originals originals, Diff diff) {
 		validateIngredientAdjustments(originals.ingredients(), diff.ingredients());
@@ -421,15 +430,25 @@ public class PersonalRecipeService {
 	private void validateIngredientAdjustments(
 			Map<UUID, DiffComposer.OriginalIngredient> originals,
 			List<IngredientAdjustment> adjustments) {
+		Set<UUID> referenced = new HashSet<>();
 		for (IngredientAdjustment adj : adjustments) {
+			if (adj == null) {
+				throw new IllegalArgumentException("재료 조정에 빈 항목이 있습니다.");
+			}
 			if (adj.type() == null) {
 				throw new IllegalArgumentException("재료 조정에 type은 필수입니다.");
+			}
+			if (adj.name() != null && adj.name().isBlank()) {
+				throw new IllegalArgumentException("재료 조정의 name은 공백일 수 없습니다.");
+			}
+			if (adj.amount() != null && adj.amount().signum() < 0) {
+				throw new IllegalArgumentException("재료 조정의 amount는 0 이상이어야 합니다.");
 			}
 			if (adj.type() == AdjustmentType.ADD) {
 				if (adj.originalIngredientId() != null) {
 					throw new IllegalArgumentException("ADD 재료 조정은 원본 재료를 참조할 수 없습니다.");
 				}
-				if (adj.name() == null || adj.name().isBlank()) {
+				if (adj.name() == null) {
 					throw new IllegalArgumentException("ADD 재료 조정에 name은 필수입니다.");
 				}
 			} else {
@@ -440,21 +459,35 @@ public class PersonalRecipeService {
 					throw new IllegalArgumentException(
 							"이 레시피의 재료가 아닙니다: " + adj.originalIngredientId());
 				}
+				if (!referenced.add(adj.originalIngredientId())) {
+					throw new IllegalArgumentException(
+							"같은 원본 재료를 두 번 조정할 수 없습니다: " + adj.originalIngredientId());
+				}
 			}
 		}
 	}
 
 	private void validateStepAdjustments(
 			Map<UUID, DiffComposer.OriginalStep> originals, List<StepAdjustment> adjustments) {
+		Set<UUID> referenced = new HashSet<>();
 		for (StepAdjustment adj : adjustments) {
+			if (adj == null) {
+				throw new IllegalArgumentException("단계 조정에 빈 항목이 있습니다.");
+			}
 			if (adj.type() == null) {
 				throw new IllegalArgumentException("단계 조정에 type은 필수입니다.");
+			}
+			if (adj.instruction() != null && adj.instruction().isBlank()) {
+				throw new IllegalArgumentException("단계 조정의 instruction은 공백일 수 없습니다.");
+			}
+			if (adj.timerSeconds() != null && adj.timerSeconds() < 0) {
+				throw new IllegalArgumentException("단계 조정의 timerSeconds는 0 이상이어야 합니다.");
 			}
 			if (adj.type() == AdjustmentType.ADD) {
 				if (adj.originalStepId() != null) {
 					throw new IllegalArgumentException("ADD 단계 조정은 원본 단계를 참조할 수 없습니다.");
 				}
-				if (adj.instruction() == null || adj.instruction().isBlank()) {
+				if (adj.instruction() == null) {
 					throw new IllegalArgumentException("ADD 단계 조정에 instruction은 필수입니다.");
 				}
 				if (adj.insertAfterStepIndex() == null || adj.insertAfterStepIndex() < -1) {
@@ -466,6 +499,10 @@ public class PersonalRecipeService {
 				}
 				if (!originals.containsKey(adj.originalStepId())) {
 					throw new IllegalArgumentException("이 레시피의 단계가 아닙니다: " + adj.originalStepId());
+				}
+				if (!referenced.add(adj.originalStepId())) {
+					throw new IllegalArgumentException(
+							"같은 원본 단계를 두 번 조정할 수 없습니다: " + adj.originalStepId());
 				}
 				// 앵커는 ADD 전용이다. 비ADD 는 원본 위치를 그대로 쓰므로 DB CHECK 도 NULL 을 요구한다.
 				if (adj.insertAfterStepIndex() != null) {

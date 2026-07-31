@@ -111,6 +111,28 @@ V2 CHECK 가 비ADD 에는 NULL 을 요구하는데 `validateStepAdjustments` �
 null 이면 조용히 원본을 반환해서, 4인분 2000ml 가 1인분 레시피의 2000ml 가 됐다 — 에러 없이 4배 오염.
 재료 조정이 하나라도 있으면 인분 필수(400). 단계만 고치는 수정은 양과 무관하므로 요구하지 않는다.
 
+## 2차 리뷰(Codex)에서 잡은 것 (수정 완료)
+
+**4. 멱등 게이트가 소유자 확인보다 앞에 있었다.** `findFirstBySourceReviewId` 는 userId 스코프가
+아니다. 남의 reviewId 를 지목하면 소유자 조회(`findByIdAndUserId`)의 404 가 나기 전에 그 사람의
+버전 DTO(userId·recipeId·계보 포함)가 그대로 나갔다. 두 조회의 순서를 바꿔 소유자 확인을 먼저 한다 —
+사용자 행 락은 여전히 맨 앞이라 동시 재전송 직렬화는 그대로다.
+
+**5. 값 불변식 검증이 스냅샷 경로와 함께 삭제됐다.** 지운 `createFromExecution` 안에 있던
+`amount >= 0`, `name/instruction 비공백` 검사가 새 경로에는 없었다. 공백 문자열은 non-null 이라
+합성기가 원본을 덮어써서 이름 없는 재료가 렌더되고, 음수 amount 는 컬럼에 CHECK 가 없어 그대로 저장된다.
+`validate()` 로 옮겼다(음수 amount / 음수 timerSeconds / 공백 name·instruction → 400).
+
+**6. 한 원본 행에 조정을 둘 이상 보낼 수 있었다.** `DiffComposer` 는 원본 id 를 키로 맵에 담으므로
+둘 중 하나가 조용히 사라지고, sort_order 가 같으면 어느 쪽이 남는지도 정해지지 않는다.
+`(version, original_id)` UNIQUE 는 없고, 있더라도 "어느 쪽이 이기는가"는 DB 가 답할 수 없는 질문이다.
+검증에서 중복 참조를 거절한다(400).
+
+**7. 조정 목록 안의 JSON `null` 이 500 이었다.** `[null]` 이 그대로 역직렬화돼 `adj.type()` 에서 NPE.
+빈 항목을 명시적으로 거절하고, 동시에 `applySetup` 에서 **검증을 정규화보다 앞으로** 옮겼다 —
+`normalizeAmounts` 가 요청 본문을 먼저 훑기 때문에 순서가 반대면 검증 전에 NPE 로 터진다.
+되돌리기는 부호도 null 여부도 바꾸지 않아 검증 결과는 순서와 무관하다.
+
 ### 함께 바뀐 것
 
 - **`RecipeEditPipelineApiTest` 에서 `@Transactional` 제거.** 붙어 있으면 서비스 트랜잭션이

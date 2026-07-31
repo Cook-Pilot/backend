@@ -14,6 +14,7 @@ import tools.jackson.databind.ObjectMapper;
 
 import com.cookpilot.backend.PostgresApiTestBase;
 import com.cookpilot.backend.TestRecipeIds;
+import com.cookpilot.backend.user.UserService;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -228,6 +229,81 @@ class RecipeEditPipelineApiTest extends PostgresApiTestBase {
 	}
 
 	@Test
+	void 남의_reviewId로_버전을_만들려_하면_이미_버전이_있어도_404() throws Exception {
+		// 멱등 게이트가 소유자 확인보다 앞에 있으면 여기서 404 대신 남의 버전이 그대로 나간다.
+		UUID reviewId = submitReview(RAMEN_ID, 1);
+		createVersion(reviewId, editBody("400"));
+
+		mockMvc.perform(postEdits(reviewId, editBody("400"))
+						.header(UserService.USER_ID_HEADER, createAnonymousUser()))
+				.andExpect(status().isNotFound());
+	}
+
+	@Test
+	void 음수_amount나_공백_문자열은_400() throws Exception {
+		// DB CHECK 는 ADD/비ADD 조합만 본다 — 값의 범위는 여기서만 잡힌다.
+		mockMvc.perform(postEdits(submitReview(RAMEN_ID, 1), editBody("-100")))
+				.andExpect(status().isBadRequest());
+
+		mockMvc.perform(postEdits(submitReview(RAMEN_ID, 1), """
+						{
+						  "setup": {
+						    "ingredientAdjustments": [
+						      {"originalIngredientId": "%s", "type": "MODIFY",
+						       "name": "  ", "sortOrder": 0}
+						    ],
+						    "stepAdjustments": []
+						  }
+						}
+						""".formatted(ING_WATER)))
+				.andExpect(status().isBadRequest());
+
+		mockMvc.perform(postEdits(submitReview(RAMEN_ID, 1), """
+						{
+						  "setup": {
+						    "ingredientAdjustments": [],
+						    "stepAdjustments": [
+						      {"originalStepId": "%s", "type": "MODIFY",
+						       "timerSeconds": -1, "sortOrder": 0}
+						    ]
+						  }
+						}
+						""".formatted(STEP_BOIL)))
+				.andExpect(status().isBadRequest());
+	}
+
+	@Test
+	void 같은_원본_행에_조정이_둘이면_400() throws Exception {
+		// 합성은 원본 하나당 조정 하나만 읽는다 — 둘을 받으면 하나가 조용히 사라진다.
+		mockMvc.perform(postEdits(submitReview(RAMEN_ID, 1), """
+						{
+						  "setup": {
+						    "ingredientAdjustments": [
+						      {"originalIngredientId": "%s", "type": "MODIFY",
+						       "amount": 400, "sortOrder": 0},
+						      {"originalIngredientId": "%s", "type": "REMOVE", "sortOrder": 1}
+						    ],
+						    "stepAdjustments": []
+						  }
+						}
+						""".formatted(ING_WATER, ING_WATER)))
+				.andExpect(status().isBadRequest());
+	}
+
+	@Test
+	void 조정_목록에_null_항목이_있으면_500이_아니라_400() throws Exception {
+		mockMvc.perform(postEdits(submitReview(RAMEN_ID, 2), """
+						{
+						  "setup": {
+						    "ingredientAdjustments": [null],
+						    "stepAdjustments": []
+						  }
+						}
+						"""))
+				.andExpect(status().isBadRequest());
+	}
+
+	@Test
 	void 다른_레시피의_개인_버전으로_조리했다는_리뷰는_저장_단계에서_400() throws Exception {
 		// 계보 부모가 리뷰에서 오므로 게이트도 리뷰 저장으로 올라갔다. 통과시키면 남의 레시피
 		// 버전이 라면 버전의 부모로 박힌 채 리뷰만 남는다.
@@ -299,6 +375,14 @@ class RecipeEditPipelineApiTest extends PostgresApiTestBase {
 				""".formatted(STEP_BOIL));
 
 		assertThat(getDetail(version.get("id").asString()).get("stepAdjustments")).hasSize(1);
+	}
+
+	/** 소유자 스코프를 확인하려면 데모 사용자가 아닌 진짜 다른 사용자 행이 있어야 한다. */
+	private String createAnonymousUser() throws Exception {
+		String response = mockMvc.perform(post("/api/v1/users/anonymous"))
+				.andExpect(status().isCreated())
+				.andReturn().getResponse().getContentAsString(StandardCharsets.UTF_8);
+		return objectMapper.readTree(response).get("id").asString();
 	}
 
 	/** 조리 기록을 먼저 남긴다 — 그 reviewId 가 버전 생성의 멱등키이자 조리 사실의 출처다. */
