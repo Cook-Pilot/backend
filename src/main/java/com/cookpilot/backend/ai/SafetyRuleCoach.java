@@ -68,7 +68,12 @@ class SafetyRuleCoach {
 					+ "(?:아닙니다|아니에요|아니야|아니고|아니지만|틀렸(?:습니다|어요))"
 					+ "|[,，]\\s*(?:아니|정정하면|사실은)\\s*"
 					+ "(?:(?:연기|불)(?:이|가)?\\s*아니라\\s*)?"
-					+ "(?:수증기|김|안개)(?:입니다|이에요|예요))");
+					+ "(?:수증기|김|안개)(?:입니다|이에요|예요)"
+					+ "|[,，]\\s*(?:아니|정정하면|사실은)\\s*"
+					+ "(?:지금은\\s*)?(?:(?:불|연기)(?:은|는|이|가)?\\s*)?"
+					+ "(?:꺼졌(?:어(?:요)?|습니다)"
+					+ "|꺼져\\s*있(?:어(?:요)?|습니다)"
+					+ "|멈췄(?:어(?:요)?|습니다)))");
 	private static final String STEP_REFERENCE =
 			"(?:(?:다음|그\\s*다음|차기|후속)\\s*(?:번\\s*)?(?:조리\\s*)?단계"
 					+ "|(?:다음|그\\s*다음|차기|후속)\\s*(?:순서|과정)"
@@ -103,7 +108,7 @@ class SafetyRuleCoach {
 			"(?:(?:이제|벌써|이미)\\s*)?(?:(?:모두|전부)\\s*)?다\\s*";
 	private static final String POLITE_REQUEST_ENDING =
 			"(?:주세요|주십시오|줘(?:요)?|주시기\\s*바랍니다|주시면\\s*됩니다"
-					+ "|주셨으면\\s*합니다)";
+					+ "|주셨으면\\s*합니다|주시겠(?:어요|습니까))";
 	private static final String VERB_REQUEST_SUFFIX =
 			"\\s*" + POLITE_REQUEST_ENDING;
 	private static final String VERB_PERMISSION_SUFFIX =
@@ -112,10 +117,14 @@ class SafetyRuleCoach {
 			"(?:해|하여)" + VERB_REQUEST_SUFFIX;
 	private static final String NOMINAL_ACTION_PERMISSION =
 			"(?:해도|하셔도|하면|하시면)\\s*" + TRANSITION_PERMISSION;
+	private static final String ACTION_RECOMMENDATION_SUFFIX =
+			"\\s*(?:을|를)?\\s*(?:권해\\s*드립니다|권장(?:합니다|드립니다)"
+					+ "|추천(?:합니다|드립니다)|제안(?:합니다|드립니다))";
 	private static final String NOMINAL_ACTION_DIRECTIVE =
 			"(?:하세요|하십시오|합니다|" + NOMINAL_ACTION_REQUEST
 					+ "|" + NOMINAL_ACTION_PERMISSION
-					+ "|\\s*부탁드(?:립니다|릴게요|려요))";
+					+ "|\\s*부탁드(?:립니다|릴게요|려요)"
+					+ "|" + ACTION_RECOMMENDATION_SUFFIX + ")";
 	private static final String TRANSITION_ACTION_DIRECTIVE =
 			"(?:(?:넘어가|가)(?:세요|십시오|" + VERB_REQUEST_SUFFIX
 					+ "|" + VERB_PERMISSION_SUFFIX + ")"
