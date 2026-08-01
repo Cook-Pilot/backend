@@ -203,6 +203,83 @@ class GeminiAiFeedbackClientTest {
 
 	@ParameterizedTest
 	@ValueSource(strings = {
+			"닭고기가 익지 않았어요",
+			"돼지고기가 아직 익지 않아요",
+			"생선이 속까지 익지 않은 것 같아요"
+	})
+	void 익지_않_형태의_육류_보고도_모델_전에_차단한다(String speech) {
+		StubChatModel model = StubChatModel.returning(otherPayload("모델 문구"));
+
+		Optional<AiFeedbackAdvice> result =
+				client(enabledProperties(), model).advise(context(speech));
+
+		assertThat(model.calls).hasValue(0);
+		assertThat(result).isPresent();
+		assertThat(result.orElseThrow().problem()).isEqualTo("UNDERCOOKED_RISK");
+	}
+
+	@ParameterizedTest
+	@ValueSource(strings = {
+			"알레르기가 있어요",
+			"알레르기 반응이 나타났어요",
+			"알레르기 반응이 나요",
+			"알러지가 올라왔어요",
+			"두드러기가 났어요",
+			"두드러기가 나기 시작했어요",
+			"입술이 부었어요",
+			"목이 붓기 시작했어요",
+			"목이 부은 것 같아요",
+			"숨이 안 쉬어져요",
+			"숨이 안 쉬",
+			"호흡하기 힘들어요",
+			"호흡이 힘겨워요",
+			"어제 먹은 소스 때문에 알레르기 반응이 나타났어요",
+			"오늘은 어제 얘기 말고 알레르기 반응이 나타났어요",
+			"예전에는 없었지만 지금 알레르기 반응이 나타났어요",
+			"예전에 두드러기가 났지만 지금 입술이 부었어요"
+	})
+	void 현재_알레르기_반응이나_증상은_모델_전에_차단한다(String speech) {
+		StubChatModel model = StubChatModel.returning(otherPayload("모델 문구"));
+
+		Optional<AiFeedbackAdvice> result =
+				client(enabledProperties(), model).advise(context(speech));
+
+		assertThat(model.calls).hasValue(0);
+		assertThat(result).isPresent();
+		assertThat(result.orElseThrow().problem()).isEqualTo("ALLERGY_RISK");
+	}
+
+	@ParameterizedTest
+	@ValueSource(strings = {
+			"알레르기는 없어요, 소스가 너무 짜요",
+			"알레르기 반응은 없어요",
+			"알레르기 반응이 나타나지 않았어요",
+			"알레르기가 있는지 확인해 주세요",
+			"알레르기 유발 성분을 알려 주세요",
+			"이 레시피의 알러지 정보를 알려 주세요",
+			"예전에 알레르기 반응이 나타났어요",
+			"저는 예전에 심하게 알레르기 반응이 나타났어요",
+			"어제 두드러기가 났어요",
+			"두드러기가 나지 않아요",
+			"입술이 붓지 않았어요",
+			"호흡이 힘들지 않아요",
+			"알레르기 반응이 나타났어요, 지금은 괜찮아요",
+			"두드러기는 없고 간이 너무 세요"
+	})
+	void 부정_과거_정보성_알레르기_언급은_응급_규칙으로_과잉_차단하지_않는다(
+			String speech) {
+		StubChatModel model = StubChatModel.returning(otherPayload("모델 문구"));
+
+		Optional<AiFeedbackAdvice> result =
+				client(enabledProperties(), model).advise(context(speech));
+
+		assertThat(model.calls).hasValue(1);
+		assertThat(result).isPresent();
+		assertThat(result.orElseThrow().problem()).isEqualTo("OTHER");
+	}
+
+	@ParameterizedTest
+	@ValueSource(strings = {
 			"연기가 많이 나요",
 			"연기가 지금 많이 나요",
 			"연기가 좀 많이 나요",

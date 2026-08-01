@@ -81,6 +81,73 @@ class SafetyRuleCoach {
 					+ "|발생했(?:어(?:요)?|습니다|네(?:요)?)"
 					+ "|발생하고\\s*있(?:어(?:요)?|습니다))"
 					+ HAZARD_REPORT_BOUNDARY);
+	private static final String ALLERGY_LABEL =
+			"(?:알레르기|알러지)\\s*"
+					+ "(?:(?:반응|증상)\\s*)?"
+					+ "(?:(?:이|가|은|는|도)\\s*)?";
+	private static final String ACTIVE_ALLERGY_STATE =
+			"(?:있(?:어(?:요)?|습니다|네요|는데(?:요)?|어서(?:요)?|지만)"
+					+ "|(?:생겼|났|나타났|올라왔|왔|발생했|심해졌)"
+					+ "(?:어(?:요)?|습니다|네요|는데(?:요)?|지만)?"
+					+ "|(?:생겨|나|나타나|올라와|와|발생해|심해)"
+					+ "(?:요|서(?:요)?)?"
+					+ "|나기\\s*시작(?:했(?:어(?:요)?|습니다)|해(?:요)?)"
+					+ "|(?:생기|나|나타나|올라오|오|발생하|심해지)고\\s*"
+					+ "있(?:어(?:요)?|습니다)"
+					+ "|(?:입니다|이에요|예요)"
+					+ "|(?:인\\s*)?것\\s*같(?:아(?:요)?|습니다))";
+	private static final String ACTIVE_SWELLING_STATE =
+			"(?:부었(?:어(?:요)?|습니다|네요|는데(?:요)?|지만)?"
+					+ "|부어(?:요|서(?:요)?|\\s*있(?:어(?:요)?|습니다))?"
+					+ "|부은\\s*(?:것\\s*같(?:아(?:요)?|습니다)"
+					+ "|상태(?:입니다|이에요|예요))"
+					+ "|붓(?:습니다|네요|는데(?:요)?"
+					+ "|고\\s*있(?:어(?:요)?|습니다)"
+					+ "|기\\s*시작(?:했(?:어(?:요)?|습니다)|해(?:요)?)))";
+	private static final String ACTIVE_BREATHING_STATE =
+			"(?:(?:안|잘\\s*안|전혀\\s*못|못)\\s*"
+					+ "쉬(?:어(?:져(?:요)?|요)?"
+					+ "|어지(?:지\\s*않고|않(?:아(?:요)?|습니다))"
+					+ "|기\\s*힘들(?:어(?:요)?|습니다))?"
+					+ "|(?:하기|쉬기)?\\s*"
+					+ "(?:힘들(?:어(?:요)?|습니다|네요|고(?:요)?)"
+					+ "|힘겨워(?:요)?"
+					+ "|어렵(?:습니다|네요)|어려워(?:요)?"
+					+ "|곤란(?:합니다|해요)|가빠(?:요)?))";
+	private static final Pattern ACTIVE_ALLERGY_RISK = Pattern.compile(
+			"(?<![\\p{L}\\p{N}])(?:"
+					+ ALLERGY_LABEL + ACTIVE_ALLERGY_STATE
+					+ "|두드러기\\s*(?:(?:이|가|은|는|도)\\s*)?"
+					+ ACTIVE_ALLERGY_STATE
+					+ "|(?:입술|목)\\s*(?:(?:이|가|은|는|도)\\s*)?"
+					+ HAZARD_MODIFIERS + ACTIVE_SWELLING_STATE
+					+ "|(?:숨|호흡)\\s*(?:(?:이|가|은|는|을|를|도)\\s*)?"
+					+ HAZARD_MODIFIERS + ACTIVE_BREATHING_STATE
+					+ ")" + HAZARD_REPORT_BOUNDARY);
+	private static final Pattern HISTORICAL_ALLERGY_CONTEXT = Pattern.compile(
+			"(?<![\\p{L}\\p{N}])"
+					+ "(?:예전|과거|한때|지난번|어제|지난주|지난달|이전)"
+					+ "(?:에는|에|엔|은|는|도)?"
+					+ "(?![\\p{L}\\p{N}]|\\s*부터)");
+	private static final Pattern CURRENT_ALLERGY_CONTEXT = Pattern.compile(
+			"(?<![\\p{L}\\p{N}])"
+					+ "(?:(?:지금|현재)(?:부터|은|는|도)?|방금|오늘|다시|막)"
+					+ "(?![\\p{L}\\p{N}])");
+	private static final Pattern HISTORICAL_ALLERGY_MODIFIER_GAP = Pattern.compile(
+			"\\s*(?:(?:당시|한번|자주|가끔|종종|심하게|심한|크게|가볍게|가벼운)"
+					+ "\\s*){0,3}");
+	private static final Pattern ALLERGY_RESOLUTION_PREFIX = Pattern.compile(
+			"^\\s*(?:(?:[,，]|하지만|그런데)\\s*)*"
+					+ "(?:(?:이제|지금|현재)(?:은|는|도)?\\s*)?"
+					+ "(?:(?:알레르기|알러지|반응|증상|두드러기)"
+					+ "(?:이|가|은|는|도)?\\s*)?"
+					+ "(?:없(?:어(?:요)?|습니다|네요|어졌(?:어(?:요)?|습니다))"
+					+ "|괜찮(?:아(?:요|졌(?:어(?:요)?|습니다))|습니다)"
+					+ "|사라졌(?:어(?:요)?|습니다)"
+					+ "|가라앉았(?:어(?:요)?|습니다)"
+					+ "|나았(?:어(?:요)?|습니다)"
+					+ "|회복됐(?:어(?:요)?|습니다))"
+					+ HAZARD_REPORT_BOUNDARY);
 	private static final String STEP_REFERENCE =
 			"(?:(?:다음|그\\s*다음|차기|후속)\\s*(?:번\\s*)?(?:조리\\s*)?단계"
 					+ "|(?:다음|그\\s*다음|차기|후속)\\s*(?:순서|과정)"
@@ -193,8 +260,7 @@ class SafetyRuleCoach {
 			return Optional.of(fireRisk());
 		}
 
-		if (containsAny(speech,
-				"알레르기", "알러지", "두드러기", "입술이 부", "목이 부", "숨이 안 쉬", "호흡이 힘")) {
+		if (reportsActiveAllergyRisk(speech)) {
 			return Optional.of(allergyRisk());
 		}
 
@@ -204,7 +270,7 @@ class SafetyRuleCoach {
 		}
 
 		boolean undercooked = containsAny(speech,
-				"안 익", "덜 익", "설익", "핏물", "속이 생", "속이 빨", "분홍색", "핑크색");
+				"안 익", "덜 익", "익지 않", "설익", "핏물", "속이 생", "속이 빨", "분홍색", "핑크색");
 		boolean meat = containsAny(cookingContext,
 				"닭", "돼지", "소고기", "쇠고기", "고기", "육류", "생선", "해산물", "계란");
 		if (undercooked && meat) {
@@ -216,6 +282,49 @@ class SafetyRuleCoach {
 		}
 
 		return Optional.empty();
+	}
+
+	private boolean reportsActiveAllergyRisk(String speech) {
+		for (String clause : CLAUSE_BOUNDARY.split(speech)) {
+			var matcher = ACTIVE_ALLERGY_RISK.matcher(clause);
+			while (matcher.find()) {
+				String prefix = clause.substring(0, matcher.start());
+				if (isHistoricalAllergyContext(prefix)) {
+					continue;
+				}
+				String suffix = clause.substring(matcher.end());
+				if (!ALLERGY_RESOLUTION_PREFIX.matcher(suffix).find()) {
+					return true;
+				}
+			}
+		}
+		return false;
+	}
+
+	private boolean isHistoricalAllergyContext(String prefix) {
+		var historicalMatcher = HISTORICAL_ALLERGY_CONTEXT.matcher(prefix);
+		int historicalStart = -1;
+		int historicalEnd = -1;
+		while (historicalMatcher.find()) {
+			historicalStart = historicalMatcher.start();
+			historicalEnd = historicalMatcher.end();
+		}
+		if (historicalStart < 0
+				|| lastMatchStart(CURRENT_ALLERGY_CONTEXT, prefix) > historicalStart) {
+			return false;
+		}
+		return HISTORICAL_ALLERGY_MODIFIER_GAP
+				.matcher(prefix.substring(historicalEnd))
+				.matches();
+	}
+
+	private int lastMatchStart(Pattern pattern, String value) {
+		int lastStart = -1;
+		var matcher = pattern.matcher(value);
+		while (matcher.find()) {
+			lastStart = matcher.start();
+		}
+		return lastStart;
 	}
 
 	private boolean reportsActiveFireRisk(String speech) {

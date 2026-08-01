@@ -46,6 +46,33 @@ class AiFeedbackServiceTest {
 	}
 
 	@Test
+	void 익지_않은_닭고기_보고는_결정적인_안전_응답을_반환한다() {
+		AiFeedbackService service = service(context -> Optional.empty(), recipe());
+
+		AiFeedbackResponse response = service.feedback(
+				UUID.randomUUID(),
+				RECIPE_ID, 0, "닭고기가 익지 않았어요", null, 20);
+
+		assertThat(response.eventPayload())
+				.containsEntry("source", "SAFETY_RULE")
+				.containsEntry("problem", "UNDERCOOKED_RISK");
+		assertThat(response.screenText()).contains("추가 가열");
+	}
+
+	@Test
+	void 부정된_알레르기_언급은_짠맛_fallback을_가로채지_않는다() {
+		AiFeedbackService service = service(context -> Optional.empty(), recipe());
+
+		AiFeedbackResponse response = service.feedback(
+				UUID.randomUUID(),
+				RECIPE_ID, 0, "알레르기는 없어요, 소스가 너무 짜요", null, 20);
+
+		assertThat(response.eventPayload())
+				.containsEntry("source", "FALLBACK")
+				.containsEntry("problem", "TOO_SALTY");
+	}
+
+	@Test
 	void 안전_규칙은_사용자_Gemini_호출_한도가_소진돼도_응답한다() {
 		RecipeService recipeService = mock(RecipeService.class);
 		when(recipeService.findById(RECIPE_ID)).thenReturn(recipe());
