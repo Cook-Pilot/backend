@@ -174,7 +174,8 @@ class SafetyRuleCoach {
 					+ "|^\\s*" + ALL_DONE_PREFIX + COMPLETED_STATE + ")");
 	private static final Pattern DIRECTIVE_RETRACTION_PREFIX = Pattern.compile(
 			"^\\s*(?:[\\\"'”’」』]?\\s*(?:라는|라고|이라고)\\s*"
-					+ "(?:(?:문구|안내|말)(?:은|는|을|를|도)?\\s*)?"
+					+ "(?:(?:(?:문구|안내|말|표현)"
+					+ "|[가-힣]{1,12}(?:은|는|을|를|이|가|도))\\s*)?"
 					+ "(?:(?:따르지|따라가지|사용하지|말하지|하지)"
 					+ "\\s*(?:마세요|말고|않(?:습니다|아요))"
 					+ "|무시(?:하세요|하십시오|합니다|하고))(?=\\s|$)\\s*"
