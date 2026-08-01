@@ -72,13 +72,26 @@ Content-Type: application/json
 
 ## Gemini 신뢰 경계
 
-- 키는 `x-goog-api-key` 요청 헤더로만 보내고 URL·프론트·로그에 넣지 않는다.
+- F-08 생성 경로는 Spring AI 2.0의 `ChatClient`와 `GoogleGenAiChatModel`을
+  사용한다. 기존 추천 설명 생성 경로는 이번 변경 범위에 포함하지 않는다.
+- 키는 Google GenAI SDK의 `apiKey` 설정으로만 전달하고 URL·프롬프트·프론트·
+  로그에 넣지 않는다.
 - 고정 안전 정책은 Gemini `systemInstruction`에 두고, 실행 문맥과 사용자 발화는
   별도의 `role=user` JSON 데이터로 보낸다.
-- `responseMimeType=application/json`과 `responseJsonSchema`로 출력 형식을 제한한다.
-- 서버가 문구 길이, 문제 코드, 행동 종류와 초를 다시 검증한다.
+- Spring AI provider-native structured output으로 `AiFeedbackModelOutput` 스키마를
+  Gemini에 전달한다. 그 뒤에도 `SafetyAdvisor`가 정확한 필드 집합, 문구 길이,
+  문제 코드, 행동 종류와 초를 다시 검증한다.
+- 모델 문구가 다음 단계 이동이나 조리 완료를 지시·선언하면 응답 전체를 버리고
+  결정적인 서버 fallback을 사용한다. 완료 여부를 묻거나 이동을 금지하는 문구는
+  허용한다.
 - Gemini가 화재·알레르기·변질·덜 익음·탐 위험으로 분류하면 모델 문구와 행동을
   폐기하고 서버가 소유한 보수적 안전 문구로 교체한다.
+- `SafetyAdvisor`는 호출 전 서버 안전 규칙과 호출 후 응답 검증을 담당하고,
+  `FallbackAdvisor`는 전송·모델·구조화 변환 실패를 fallback 신호로 바꾼다.
+- tool calling과 Google Search를 등록하지 않는다. SDK와 Spring AI 재시도뿐 아니라
+  transport의 연결 재시도·redirect·즉시 503 follow-up도 끈다. HTTP/2 421 follow-up을
+  피하려고 F-08 transport는 HTTP/1.1만 사용하므로, 한도 검사를 통과한 요청 하나는
+  외부 모델 HTTP exchange를 최대 한 번 만든다.
 - `GEMINI_MODEL`을 2.5 계열로 바꾸면 `thinkingBudget`을 사용하고, 3 계열은
   `thinkingLevel=low`를 사용한다. thinking을 끌 수 없는 2.5 Pro에는 공식
   최소 예산 128을 적용한다.
@@ -93,8 +106,12 @@ Content-Type: application/json
 | `GEMINI_API_KEY` | 없음 | Google AI Studio 서버 키 |
 | `GEMINI_MODEL` | `gemini-3.5-flash` | 호출 모델 |
 | `GEMINI_CONNECT_TIMEOUT` | `2s` | 연결 제한 시간 |
-| `GEMINI_READ_TIMEOUT` | `4s` | 응답 제한 시간 |
+| `GEMINI_READ_TIMEOUT` | `4s` | F-08 모델 요청 전체 제한 시간 |
 | `AI_FEEDBACK_REQUESTS_PER_MINUTE` | `20` | 사용자별 F-08 분당 요청 수 |
+
+`GEMINI_CONNECT_TIMEOUT`은 같은 설정을 공유하는 기존 추천 설명 생성 경로에서
+계속 사용한다. Google GenAI SDK 기반 F-08 경로는 `GEMINI_READ_TIMEOUT`을 HTTP
+요청 전체 제한 시간으로 적용한다.
 
 현재 rate limiter는 단일 서버 메모리 기준이다. 서버가 여러 인스턴스로 확장되면
 Redis 등 공유 저장소 기반 제한으로 교체해야 한다.

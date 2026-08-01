@@ -23,17 +23,17 @@ import com.cookpilot.backend.recipe.RecipeStep;
 public class AiFeedbackService {
 
 	private final RecipeService recipeService;
-	private final SafetyRuleCoach safetyRuleCoach;
+	private final AiFeedbackSafetyAdvisor safetyAdvisor;
 	private final AiFeedbackClient aiFeedbackClient;
 	private final AiFeedbackRateLimiter rateLimiter;
 
 	public AiFeedbackService(
 			RecipeService recipeService,
-			SafetyRuleCoach safetyRuleCoach,
+			AiFeedbackSafetyAdvisor safetyAdvisor,
 			AiFeedbackClient aiFeedbackClient,
 			AiFeedbackRateLimiter rateLimiter) {
 		this.recipeService = recipeService;
-		this.safetyRuleCoach = safetyRuleCoach;
+		this.safetyAdvisor = safetyAdvisor;
 		this.aiFeedbackClient = aiFeedbackClient;
 		this.rateLimiter = rateLimiter;
 	}
@@ -64,7 +64,7 @@ public class AiFeedbackService {
 				remainingSeconds,
 				userSpeech.strip());
 
-		return safetyRuleCoach.answer(context)
+		return safetyAdvisor.answerBeforeModel(context)
 				.map(advice -> response(advice, context, "SAFETY_RULE"))
 				.orElseGet(() -> generatedOrFallback(userId, context));
 	}
@@ -105,7 +105,7 @@ public class AiFeedbackService {
 
 		AiFeedbackAdvice modelAdvice = generated.orElseThrow();
 		var serverSafetyAdvice =
-				safetyRuleCoach.answerClassifiedProblem(modelAdvice.problem());
+				safetyAdvisor.answerClassifiedProblem(modelAdvice.problem());
 		if (serverSafetyAdvice.isPresent()) {
 			return response(
 					serverSafetyAdvice.orElseThrow(), context, "SAFETY_RULE");

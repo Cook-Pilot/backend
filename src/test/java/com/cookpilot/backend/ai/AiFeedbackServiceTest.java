@@ -13,6 +13,8 @@ import com.cookpilot.backend.recipe.Recipe;
 import com.cookpilot.backend.recipe.RecipeService;
 import com.cookpilot.backend.recipe.RecipeStep;
 
+import tools.jackson.databind.json.JsonMapper;
+
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -52,7 +54,7 @@ class AiFeedbackServiceTest {
 				Clock.systemUTC());
 		AiFeedbackService service = new AiFeedbackService(
 				recipeService,
-				new SafetyRuleCoach(),
+				safetyAdvisor(),
 				context -> Optional.empty(),
 				limiter);
 		UUID userId = UUID.randomUUID();
@@ -140,11 +142,16 @@ class AiFeedbackServiceTest {
 		when(recipeService.findById(RECIPE_ID)).thenReturn(recipe);
 		return new AiFeedbackService(
 				recipeService,
-				new SafetyRuleCoach(),
+				safetyAdvisor(),
 				client,
 				new AiFeedbackRateLimiter(
 						new AiFeedbackRateLimitProperties(20),
 						Clock.systemUTC()));
+	}
+
+	private AiFeedbackSafetyAdvisor safetyAdvisor() {
+		return new AiFeedbackSafetyAdvisor(
+				new SafetyRuleCoach(), JsonMapper.builder().build());
 	}
 
 	private Recipe recipe() {

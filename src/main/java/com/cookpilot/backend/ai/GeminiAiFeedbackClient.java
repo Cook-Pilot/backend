@@ -2,31 +2,38 @@ package com.cookpilot.backend.ai;
 
 import java.util.List;
 import java.util.Optional;
-import java.util.Set;
 
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import com.google.genai.Client;
+import com.google.genai.types.ClientOptions;
+import com.google.genai.types.HttpOptions;
+import com.google.genai.types.HttpRetryOptions;
+import io.micrometer.observation.ObservationRegistry;
+import jakarta.annotation.PreDestroy;
+import okhttp3.OkHttpClient;
+import okhttp3.Protocol;
+import okhttp3.Response;
+import org.springframework.ai.chat.client.ChatClient;
+import org.springframework.ai.chat.model.ChatModel;
+import org.springframework.ai.google.genai.GoogleGenAiChatModel;
+import org.springframework.ai.google.genai.GoogleGenAiChatOptions;
+import org.springframework.ai.google.genai.common.GoogleGenAiThinkingLevel;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.http.client.SimpleClientHttpRequestFactory;
+import org.springframework.core.retry.RetryPolicy;
+import org.springframework.core.retry.RetryTemplate;
 import org.springframework.stereotype.Component;
-import org.springframework.web.client.RestClient;
 
 import com.cookpilot.backend.recommendation.explanation.GeminiProperties;
 
-import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
 
 /**
- * Gemini Developer API를 사용하는 F-08 조리 예외 답변 생성기.
+ * Spring AI ChatClient/ChatModel을 사용하는 F-08 Gemini 답변 생성기.
  *
- * API 키는 URL이나 프론트에 넣지 않고 x-goog-api-key 헤더로만 전달한다. 호출·파싱·
- * 의미 검증 중 하나라도 실패하면 empty를 반환해 서비스의 보수적인 fallback을 사용한다.
+ * API 키는 Google GenAI SDK의 apiKey 설정으로만 전달하며 URL·프롬프트·로그에
+ * 포함하지 않는다. tool calling과 자동 재시도는 사용하지 않는다.
  */
 @Component
 class GeminiAiFeedbackClient implements AiFeedbackClient {
-
-	private static final Logger log =
-			LoggerFactory.getLogger(GeminiAiFeedbackClient.class);
 
 	private static final String SYSTEM_INSTRUCTION = """
 			당신은 CookPilot의 조리 중 예외 상황 안내 도우미입니다.
@@ -42,207 +49,192 @@ class GeminiAiFeedbackClient implements AiFeedbackClient {
 			""";
 
 	private static final int MAX_OUTPUT_TOKENS = 512;
-	private static final int MAX_SPEECH_LENGTH = 240;
-	private static final int MAX_SCREEN_LENGTH = 400;
-	private static final Set<String> ALLOWED_PROBLEMS = Set.of(
-			"WATER_NOT_BOILING",
-			"TOO_SALTY",
-			"TOO_BLAND",
-			"BURNING",
-			"UNDERCOOKED",
-			"MISSING_INGREDIENT",
-			"FIRE_RISK",
-			"ALLERGY_RISK",
-			"SPOILAGE_RISK",
-			"OTHER");
-
-	/**
-	 * Gemini가 반환할 수 있는 필드와 행동을 API 단계에서부터 제한한다.
-	 * 최종 신뢰 경계는 {@link #parseAdvice(GenerateContentResponse)}의 의미 검증이다.
-	 */
-	static final String ADVICE_SCHEMA = """
-			{
-			  "type": "object",
-			  "properties": {
-			    "speechText": {
-			      "type": "string",
-			      "description": "한 줄짜리 짧은 한국어 음성 안내"
-			    },
-			    "screenText": {
-			      "type": "string",
-			      "description": "한 줄짜리 구체적인 한국어 화면 안내"
-			    },
-			    "problem": {
-			      "type": "string",
-			      "enum": [
-			        "WATER_NOT_BOILING",
-			        "TOO_SALTY",
-			        "TOO_BLAND",
-			        "BURNING",
-			        "UNDERCOOKED",
-			        "MISSING_INGREDIENT",
-			        "FIRE_RISK",
-			        "ALLERGY_RISK",
-			        "SPOILAGE_RISK",
-			        "OTHER"
-			      ]
-			    },
-			    "suggestedAction": {
-			      "anyOf": [
-			        { "type": "null" },
-			        {
-			          "type": "object",
-			          "properties": {
-			            "type": { "type": "string", "enum": ["EXTEND_TIMER"] },
-			            "seconds": { "type": "integer", "enum": [30, 60] }
-			          },
-			          "required": ["type", "seconds"]
-			        }
-			      ]
-			    }
-			  },
-			  "required": ["speechText", "screenText", "problem", "suggestedAction"]
-			}
-			""";
+	private static final String RETRY_AFTER = "Retry-After";
 
 	private final GeminiProperties properties;
 	private final ObjectMapper objectMapper;
 	private final SafetyRuleCoach safetyRuleCoach;
-	private final RestClient restClient;
-	private final GenerationConfig generationConfig;
+	private final AiFeedbackSafetyAdvisor safetyAdvisor;
+	private final AiFeedbackFallbackAdvisor fallbackAdvisor;
+	private final Client genAiClient;
+	private final ChatClient chatClient;
 
 	@Autowired
 	GeminiAiFeedbackClient(
 			GeminiProperties properties,
 			ObjectMapper objectMapper,
-			SafetyRuleCoach safetyRuleCoach) {
-		this(properties, objectMapper, safetyRuleCoach, restClient(properties));
+			SafetyRuleCoach safetyRuleCoach,
+			AiFeedbackSafetyAdvisor safetyAdvisor,
+			AiFeedbackFallbackAdvisor fallbackAdvisor,
+			ObservationRegistry observationRegistry) {
+		this(
+				properties,
+				objectMapper,
+				safetyRuleCoach,
+				safetyAdvisor,
+				fallbackAdvisor,
+				createModelResources(properties, observationRegistry));
+	}
+
+	private GeminiAiFeedbackClient(
+			GeminiProperties properties,
+			ObjectMapper objectMapper,
+			SafetyRuleCoach safetyRuleCoach,
+			AiFeedbackSafetyAdvisor safetyAdvisor,
+			AiFeedbackFallbackAdvisor fallbackAdvisor,
+			ModelResources resources) {
+		this(
+				properties,
+				objectMapper,
+				safetyRuleCoach,
+				safetyAdvisor,
+				fallbackAdvisor,
+				resources.chatModel(),
+				resources.client());
 	}
 
 	GeminiAiFeedbackClient(
 			GeminiProperties properties,
 			ObjectMapper objectMapper,
 			SafetyRuleCoach safetyRuleCoach,
-			RestClient restClient) {
+			AiFeedbackSafetyAdvisor safetyAdvisor,
+			AiFeedbackFallbackAdvisor fallbackAdvisor,
+			ChatModel chatModel) {
+		this(
+				properties,
+				objectMapper,
+				safetyRuleCoach,
+				safetyAdvisor,
+				fallbackAdvisor,
+				chatModel,
+				null);
+	}
+
+	private GeminiAiFeedbackClient(
+			GeminiProperties properties,
+			ObjectMapper objectMapper,
+			SafetyRuleCoach safetyRuleCoach,
+			AiFeedbackSafetyAdvisor safetyAdvisor,
+			AiFeedbackFallbackAdvisor fallbackAdvisor,
+			ChatModel chatModel,
+			Client genAiClient) {
 		this.properties = properties;
 		this.objectMapper = objectMapper;
 		this.safetyRuleCoach = safetyRuleCoach;
-		this.restClient = restClient;
-		JsonNode schema = objectMapper.readTree(ADVICE_SCHEMA);
-		this.generationConfig = new GenerationConfig(
-				MAX_OUTPUT_TOKENS,
-				"application/json",
-				schema,
-				thinkingConfigFor(properties.model()));
-	}
-
-	static ThinkingConfig thinkingConfigFor(String model) {
-		if (model != null && model.startsWith("gemini-2.5-pro")) {
-			// 2.5 Pro는 thinking을 끌 수 없으며 공식 최소 예산이 128이다.
-			return new ThinkingBudgetConfig(128);
-		}
-		if (model != null && model.startsWith("gemini-2.5")) {
-			return new ThinkingBudgetConfig(0);
-		}
-		return new ThinkingLevelConfig("low");
+		this.safetyAdvisor = safetyAdvisor;
+		this.fallbackAdvisor = fallbackAdvisor;
+		this.genAiClient = genAiClient;
+		this.chatClient = chatModel == null
+				? null
+				: ChatClient.builder(chatModel)
+						.defaultAdvisors(fallbackAdvisor, safetyAdvisor)
+						.build();
 	}
 
 	@Override
 	public Optional<AiFeedbackAdvice> advise(AiFeedbackContext context) {
+		if (!properties.callable() || chatClient == null) {
+			return Optional.empty();
+		}
+
+		try {
+			return fallbackAdvisor.execute(() -> chatClient.prompt()
+					.system(SYSTEM_INSTRUCTION)
+					.user(contextJson(context))
+					.advisors(spec -> spec.param(
+							AiFeedbackSafetyAdvisor.CONTEXT_KEY, context))
+					.call()
+					// Gemini native schema로 제한한 뒤 advisor가 동일 응답을 fail-closed로 재검증한다.
+					.entity(
+							AiFeedbackModelOutput.class,
+							spec -> spec.useProviderStructuredOutput())
+					.toValidatedAdvice(safetyRuleCoach));
+		} catch (AiFeedbackSafetyDecisionException exception) {
+			return Optional.of(exception.advice());
+		}
+	}
+
+	@PreDestroy
+	void close() {
+		if (genAiClient != null) {
+			genAiClient.close();
+		}
+	}
+
+	static GoogleGenAiChatOptions optionsFor(String model) {
+		GoogleGenAiChatOptions.Builder builder = GoogleGenAiChatOptions.builder()
+				.model(model)
+				.maxOutputTokens(MAX_OUTPUT_TOKENS)
+				.responseMimeType("application/json")
+				.toolCallbacks(List.of())
+				.googleSearchRetrieval(false)
+				.includeServerSideToolInvocations(false);
+		if (model != null && model.startsWith("gemini-2.5-pro")) {
+			return builder.thinkingBudget(128).build();
+		}
+		if (model != null && model.startsWith("gemini-2.5")) {
+			return builder.thinkingBudget(0).build();
+		}
+		return builder.thinkingLevel(GoogleGenAiThinkingLevel.LOW).build();
+	}
+
+	static OkHttpClient singleAttemptHttpClient() {
+		return new OkHttpClient.Builder()
+				.retryOnConnectionFailure(false)
+				.followRedirects(false)
+				.followSslRedirects(false)
+				// HTTP/2 connection coalescing의 421 follow-up 경로를 만들지 않는다.
+				.protocols(List.of(Protocol.HTTP_1_1))
+				// OkHttp는 503 + Retry-After: 0을 별도 설정 없이 재전송한다.
+				.addNetworkInterceptor(chain -> suppressImmediate503Retry(
+						chain.proceed(chain.request())))
+				.build();
+	}
+
+	private static Response suppressImmediate503Retry(Response response) {
+		String retryAfter = response.header(RETRY_AFTER);
+		if (response.code() == 503
+				&& retryAfter != null
+				&& !retryAfter.isEmpty()
+				&& retryAfter.chars().allMatch(character -> character == '0')) {
+			return response.newBuilder().removeHeader(RETRY_AFTER).build();
+		}
+		return response;
+	}
+
+	private static ModelResources createModelResources(
+			GeminiProperties properties, ObservationRegistry observationRegistry) {
 		if (!properties.callable()) {
-			return Optional.empty();
+			return new ModelResources(null, null);
 		}
 
+		int timeoutMillis = (int) Math.min(
+				Integer.MAX_VALUE, properties.readTimeout().toMillis());
+		HttpOptions httpOptions = HttpOptions.builder()
+				.baseUrl(properties.baseUrl())
+				.timeout(timeoutMillis)
+				// 사용자별 한도는 논리 요청 한 번을 센다. SDK 재시도로 외부 호출을 늘리지 않는다.
+				.retryOptions(HttpRetryOptions.builder().attempts(1).build())
+				.build();
+		Client genAiClient = Client.builder()
+				.apiKey(properties.apiKey())
+				.httpOptions(httpOptions)
+				.clientOptions(ClientOptions.builder()
+						.customHttpClient(singleAttemptHttpClient())
+						.build())
+				.build();
 		try {
-			GenerateContentRequest request =
-					GenerateContentRequest.ofSystemAndUserText(
-							SYSTEM_INSTRUCTION, contextJson(context), generationConfig);
-			GenerateContentResponse response = restClient.post()
-					.uri("/v1beta/models/{model}:generateContent", properties.model())
-					.header("x-goog-api-key", properties.apiKey())
-					.body(request)
-					.retrieve()
-					.body(GenerateContentResponse.class);
-			return parseAdvice(response);
+			ChatModel chatModel = GoogleGenAiChatModel.builder()
+					.genAiClient(genAiClient)
+					.options(optionsFor(properties.model()))
+					.retryTemplate(new RetryTemplate(RetryPolicy.withMaxRetries(0)))
+					.observationRegistry(observationRegistry)
+					.build();
+			return new ModelResources(genAiClient, chatModel);
 		} catch (RuntimeException exception) {
-			// 사용자 발화·프롬프트·키는 로그에 남기지 않는다.
-			log.warn("Gemini 조리 도움 생성에 실패해 F-08 fallback을 사용합니다 ({})",
-					exception.getClass().getSimpleName());
-			return Optional.empty();
+			genAiClient.close();
+			throw exception;
 		}
-	}
-
-	Optional<AiFeedbackAdvice> parseAdvice(GenerateContentResponse response) {
-		if (response == null) {
-			return Optional.empty();
-		}
-		Optional<String> firstText = response.firstText();
-		if (firstText.isEmpty()) {
-			return Optional.empty();
-		}
-
-		try {
-			JsonNode root = objectMapper.readTree(firstText.get().trim());
-			if (!hasExactStructure(root)) {
-				return Optional.empty();
-			}
-			GeminiAdvicePayload payload =
-					objectMapper.readValue(firstText.get().trim(), GeminiAdvicePayload.class);
-			String speechText = validatedText(payload.speechText(), MAX_SPEECH_LENGTH);
-			String screenText = validatedText(payload.screenText(), MAX_SCREEN_LENGTH);
-			String problem = payload.problem() == null ? "" : payload.problem().trim();
-			if (speechText == null
-					|| screenText == null
-					|| !ALLOWED_PROBLEMS.contains(problem)
-					|| safetyRuleCoach.directsStepTransitionOrCompletion(
-							speechText, screenText)) {
-				return Optional.empty();
-			}
-
-			AiFeedbackResponse.SuggestedAction action = null;
-			if (payload.suggestedAction() != null) {
-				SuggestedActionPayload proposed = payload.suggestedAction();
-				if (!"EXTEND_TIMER".equals(proposed.type())
-						|| proposed.seconds() == null
-						|| (proposed.seconds() != 30 && proposed.seconds() != 60)) {
-					return Optional.empty();
-				}
-				action = new AiFeedbackResponse.SuggestedAction(
-						proposed.type(), proposed.seconds());
-			}
-
-			return Optional.of(new AiFeedbackAdvice(
-					speechText, screenText, action, problem));
-		} catch (RuntimeException exception) {
-			log.warn("Gemini 조리 도움 응답 검증에 실패해 F-08 fallback을 사용합니다 ({})",
-					exception.getClass().getSimpleName());
-			return Optional.empty();
-		}
-	}
-
-	private boolean hasExactStructure(JsonNode root) {
-		if (root == null
-				|| !root.isObject()
-				|| root.size() != 4
-				|| !isText(root.get("speechText"))
-				|| !isText(root.get("screenText"))
-				|| !isText(root.get("problem"))) {
-			return false;
-		}
-
-		JsonNode action = root.get("suggestedAction");
-		if (action == null || action.isNull()) {
-			return action != null;
-		}
-		return action.isObject()
-				&& action.size() == 2
-				&& isText(action.get("type"))
-				&& action.get("seconds") != null
-				&& action.get("seconds").isIntegralNumber();
-	}
-
-	private boolean isText(JsonNode value) {
-		return value != null && value.isTextual();
 	}
 
 	private String contextJson(AiFeedbackContext context) {
@@ -255,31 +247,6 @@ class GeminiAiFeedbackClient implements AiFeedbackClient {
 		return objectMapper.writeValueAsString(input);
 	}
 
-	private String validatedText(String value, int maxLength) {
-		if (value == null) {
-			return null;
-		}
-		String trimmed = value.trim();
-		if (trimmed.isBlank()
-				|| trimmed.length() > maxLength
-				|| trimmed.contains("\n")
-				|| trimmed.contains("\r")) {
-			return null;
-		}
-		return trimmed;
-	}
-
-	private static RestClient restClient(GeminiProperties properties) {
-		SimpleClientHttpRequestFactory requestFactory =
-				new SimpleClientHttpRequestFactory();
-		requestFactory.setConnectTimeout(properties.connectTimeout());
-		requestFactory.setReadTimeout(properties.readTimeout());
-		return RestClient.builder()
-				.baseUrl(properties.baseUrl())
-				.requestFactory(requestFactory)
-				.build();
-	}
-
 	private record PromptInput(
 			String recipeTitle,
 			int stepIndex,
@@ -289,79 +256,6 @@ class GeminiAiFeedbackClient implements AiFeedbackClient {
 	) {
 	}
 
-	record GenerateContentRequest(
-			SystemInstruction systemInstruction,
-			List<Content> contents,
-			GenerationConfig generationConfig
-	) {
-		static GenerateContentRequest ofSystemAndUserText(
-				String systemText,
-				String userText,
-				GenerationConfig generationConfig) {
-			return new GenerateContentRequest(
-					new SystemInstruction(List.of(new Part(systemText))),
-					List.of(new Content("user", List.of(new Part(userText)))),
-					generationConfig);
-		}
-	}
-
-	record SystemInstruction(List<Part> parts) {
-	}
-
-	record Content(String role, List<Part> parts) {
-	}
-
-	record Part(String text) {
-	}
-
-	record GenerationConfig(
-			int maxOutputTokens,
-			String responseMimeType,
-			JsonNode responseJsonSchema,
-			ThinkingConfig thinkingConfig
-	) {
-	}
-
-	sealed interface ThinkingConfig
-			permits ThinkingLevelConfig, ThinkingBudgetConfig {
-	}
-
-	record ThinkingLevelConfig(String thinkingLevel) implements ThinkingConfig {
-	}
-
-	record ThinkingBudgetConfig(int thinkingBudget) implements ThinkingConfig {
-	}
-
-	record GenerateContentResponse(List<Candidate> candidates) {
-
-		Optional<String> firstText() {
-			if (candidates == null || candidates.isEmpty()) {
-				return Optional.empty();
-			}
-			Candidate first = candidates.getFirst();
-			if (first == null || first.content() == null) {
-				return Optional.empty();
-			}
-			List<Part> parts = first.content().parts();
-			if (parts == null || parts.isEmpty() || parts.getFirst() == null) {
-				return Optional.empty();
-			}
-			return Optional.ofNullable(parts.getFirst().text())
-					.filter(text -> !text.isBlank());
-		}
-	}
-
-	record Candidate(Content content) {
-	}
-
-	private record GeminiAdvicePayload(
-			String speechText,
-			String screenText,
-			String problem,
-			SuggestedActionPayload suggestedAction
-	) {
-	}
-
-	private record SuggestedActionPayload(String type, Integer seconds) {
+	private record ModelResources(Client client, ChatModel chatModel) {
 	}
 }
