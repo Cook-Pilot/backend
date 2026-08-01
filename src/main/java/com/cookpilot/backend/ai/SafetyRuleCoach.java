@@ -19,7 +19,7 @@ class SafetyRuleCoach {
 	private static final String HAZARD_SUBJECT_PARTICLE =
 			"(?:이|가|은|는|도|만|조차|마저|까지(?:는|도|만)?)";
 	private static final String HAZARD_MODIFIER =
-			"(?:갑자기|방금|지금|아까부터|계속|자꾸|점점|조금|약간|매우"
+			"(?:갑자기|방금|지금|아까부터|다시|또|계속|자꾸|점점|조금|약간|매우"
 					+ "|좀|너무|아주|정말|엄청|많이|확|막"
 					+ "|[가-힣]{1,16}(?:게|히|보다(?:도)?))";
 	private static final String HAZARD_MODIFIERS =
@@ -116,9 +116,9 @@ class SafetyRuleCoach {
 					+ "|곤란(?:합니다|해요)|가빠(?:요)?))";
 	private static final Pattern ACTIVE_ALLERGY_RISK = Pattern.compile(
 			"(?<![\\p{L}\\p{N}])(?:"
-					+ ALLERGY_LABEL + ACTIVE_ALLERGY_STATE
+					+ ALLERGY_LABEL + HAZARD_MODIFIERS + ACTIVE_ALLERGY_STATE
 					+ "|두드러기\\s*(?:(?:이|가|은|는|도)\\s*)?"
-					+ ACTIVE_ALLERGY_STATE
+					+ HAZARD_MODIFIERS + ACTIVE_ALLERGY_STATE
 					+ "|(?:입술|목)\\s*(?:(?:이|가|은|는|도)\\s*)?"
 					+ HAZARD_MODIFIERS + ACTIVE_SWELLING_STATE
 					+ "|(?:숨|호흡)\\s*(?:(?:이|가|은|는|을|를|도)\\s*)?"
@@ -136,6 +136,8 @@ class SafetyRuleCoach {
 	private static final Pattern HISTORICAL_ALLERGY_MODIFIER_GAP = Pattern.compile(
 			"\\s*(?:(?:당시|한번|자주|가끔|종종|심하게|심한|크게|가볍게|가벼운)"
 					+ "\\s*){0,3}");
+	private static final Pattern HISTORICAL_ALLERGY_EVENT_GAP = Pattern.compile(
+			"\\s*(?:[\\p{L}\\p{N}]+\\s*){1,8}(?:때|당시)\\s*");
 	private static final Pattern ALLERGY_RESOLUTION_PREFIX = Pattern.compile(
 			"^\\s*(?:(?:[,，]|하지만|그런데)\\s*)*"
 					+ "(?:(?:이제|지금|현재)(?:은|는|도)?\\s*)?"
@@ -147,6 +149,56 @@ class SafetyRuleCoach {
 					+ "|가라앉았(?:어(?:요)?|습니다)"
 					+ "|나았(?:어(?:요)?|습니다)"
 					+ "|회복됐(?:어(?:요)?|습니다))"
+					+ HAZARD_REPORT_BOUNDARY);
+	private static final String ALLERGY_REACTIVATION_MODIFIER =
+			"(?:지금(?:은|는|도)?|현재(?:는|도)?|방금|다시|또|계속|자꾸|점점|막)";
+	private static final String SUBJECT_ELIDED_ACTIVE_ALLERGY_STATE =
+			"(?:(?:생겼|났|나타났|올라왔|발생했|심해졌)"
+					+ "(?:어(?:요)?|습니다|네요|는데(?:요)?|지만)?"
+					+ "|(?:생겨|나타나|올라와|발생해|심해)(?:요|서(?:요)?)?"
+					+ "|(?:생기|나타나|올라오|발생하|심해지)고\\s*"
+					+ "있(?:어(?:요)?|습니다))";
+	private static final Pattern SUBJECT_ELIDED_ACTIVE_ALLERGY_EVENT = Pattern.compile(
+			"^\\s*(?:[,，]\\s*)?"
+					+ "(?:(?:(?:그런데|그런데도|하지만|그러나|그러다|그랬는데)\\s*)+"
+					+ "(?:(?:" + ALLERGY_REACTIVATION_MODIFIER + ")\\s+)*"
+					+ "|(?:(?:" + ALLERGY_REACTIVATION_MODIFIER + ")\\s+)+)"
+					+ SUBJECT_ELIDED_ACTIVE_ALLERGY_STATE
+					+ HAZARD_REPORT_BOUNDARY);
+	private static final String UNDERCOOKED_POSITIVE_ENDING =
+			"(?:었(?:어(?:요)?|습니다|네요|는데(?:요)?|지만)?"
+					+ "|어(?:요)?|은(?:\\s*(?:것\\s*같(?:아(?:요)?|습니다)"
+					+ "|상태(?:입니다|이에요|예요)))?)?";
+	private static final String UNDERCOOKED_NEGATIVE_ENDING =
+			"(?:았(?:어(?:요)?|습니다|네요|는데(?:요)?|지만)?"
+					+ "|아(?:요)?|은(?:\\s*(?:것\\s*같(?:아(?:요)?|습니다)"
+					+ "|상태(?:입니다|이에요|예요)))?)";
+	private static final Pattern UNDERCOOKED_REPORT = Pattern.compile(
+			"(?<![\\p{L}\\p{N}])(?:"
+					+ "(?:안\\s*익|덜\\s*익|설익)" + UNDERCOOKED_POSITIVE_ENDING
+					+ "|(?<!안\\s)(?<!덜\\s)익지\\s*않" + UNDERCOOKED_NEGATIVE_ENDING
+					+ "|핏물(?:이|은|는|도)?"
+					+ "|속(?:이|은|는)?\\s*(?:생|빨)"
+					+ "|(?:분홍색|핑크색)(?:이|은|는|도)?"
+					+ ")" + HAZARD_REPORT_BOUNDARY);
+	private static final Pattern UNDERCOOKED_RETRACTION_PREFIX = Pattern.compile(
+			"^\\s*(?:"
+					+ "(?:은|는|았(?:다는|던)?|었(?:다는|던)?|다는)?\\s*"
+					+ "(?:(?:건|게|것은|뜻은|말은)\\s*)?"
+					+ "(?:아니(?:에요|야|고|지만)|아닙니다)"
+					+ "|(?:이|가)?\\s*아니(?:에요|야|고|지만)"
+					+ "|(?:이\\s*)?(?:(?:전혀|더는)\\s*)?"
+					+ "(?:(?:(?:나오|보이|남아\\s*있|갛|붉)?지)\\s*)?"
+					+ "않(?:아(?:요)?|았습니다|았어요))"
+					+ HAZARD_REPORT_BOUNDARY);
+	private static final Pattern UNDERCOOKED_RESOLUTION_PREFIX = Pattern.compile(
+			"^\\s*(?:(?:았|었|은|는)?\\s*(?:지만|으나|는데|다가|고)\\s*)?"
+					+ "(?:(?:이제|지금|현재)(?:은|는|도)?\\s*)?"
+					+ "(?:(?:닭고기|돼지고기|소고기|쇠고기|고기|육류|생선|해산물|계란|속)"
+					+ "(?:이|가|은|는|도)?\\s*)?"
+					+ "(?:(?:다|완전히|충분히|속까지|잘|제대로)\\s*){0,4}"
+					+ "익(?:었(?:어(?:요)?|습니다|네요)|었습니다|은\\s*상태"
+					+ "(?:입니다|이에요|예요))"
 					+ HAZARD_REPORT_BOUNDARY);
 	private static final String STEP_REFERENCE =
 			"(?:(?:다음|그\\s*다음|차기|후속)\\s*(?:번\\s*)?(?:조리\\s*)?단계"
@@ -269,11 +321,7 @@ class SafetyRuleCoach {
 			return Optional.of(spoilageRisk());
 		}
 
-		boolean undercooked = containsAny(speech,
-				"안 익", "덜 익", "익지 않", "설익", "핏물", "속이 생", "속이 빨", "분홍색", "핑크색");
-		boolean meat = containsAny(cookingContext,
-				"닭", "돼지", "소고기", "쇠고기", "고기", "육류", "생선", "해산물", "계란");
-		if (undercooked && meat) {
+		if (reportsActiveUndercookedRisk(speech, cookingContext)) {
 			return Optional.of(undercookedRisk());
 		}
 
@@ -285,20 +333,71 @@ class SafetyRuleCoach {
 	}
 
 	private boolean reportsActiveAllergyRisk(String speech) {
-		for (String clause : CLAUSE_BOUNDARY.split(speech)) {
-			var matcher = ACTIVE_ALLERGY_RISK.matcher(clause);
-			while (matcher.find()) {
-				String prefix = clause.substring(0, matcher.start());
-				if (isHistoricalAllergyContext(prefix)) {
-					continue;
-				}
-				String suffix = clause.substring(matcher.end());
-				if (!ALLERGY_RESOLUTION_PREFIX.matcher(suffix).find()) {
-					return true;
+		String[] clauses = CLAUSE_BOUNDARY.split(speech);
+		boolean hasAllergyContext = false;
+		boolean subjectElidedEligible = false;
+		boolean active = false;
+		for (String clause : clauses) {
+			boolean contextEvent = false;
+			if (hasAllergyContext) {
+				var resolution = ALLERGY_RESOLUTION_PREFIX.matcher(clause);
+				if (resolution.find()) {
+					active = false;
+					subjectElidedEligible = true;
+					contextEvent = true;
+					if (reportsSubjectElidedAllergyReactivation(
+							clause.substring(resolution.end()))) {
+						active = true;
+						subjectElidedEligible = false;
+					}
+				} else if (subjectElidedEligible
+						&& reportsSubjectElidedAllergyReactivation(clause)) {
+					active = true;
+					subjectElidedEligible = false;
+					contextEvent = true;
 				}
 			}
+
+			var matcher = ACTIVE_ALLERGY_RISK.matcher(clause);
+			while (matcher.find()) {
+				hasAllergyContext = true;
+				contextEvent = true;
+				String prefix = clause.substring(0, matcher.start());
+				String suffix = clause.substring(matcher.end());
+				boolean historical = isHistoricalAllergyContext(prefix);
+				if (!historical) {
+					active = true;
+					subjectElidedEligible = false;
+				} else {
+					subjectElidedEligible = true;
+				}
+
+				var resolution = ALLERGY_RESOLUTION_PREFIX.matcher(suffix);
+				if (resolution.find()) {
+					active = false;
+					subjectElidedEligible = true;
+					if (reportsSubjectElidedAllergyReactivation(
+							suffix.substring(resolution.end()))) {
+						active = true;
+						subjectElidedEligible = false;
+					}
+				} else if (historical) {
+					if (reportsSubjectElidedAllergyReactivation(suffix)) {
+						active = true;
+						subjectElidedEligible = false;
+					}
+				}
+			}
+
+			if (!contextEvent) {
+				subjectElidedEligible = false;
+			}
 		}
-		return false;
+		return active;
+	}
+
+	private boolean reportsSubjectElidedAllergyReactivation(String text) {
+		return SUBJECT_ELIDED_ACTIVE_ALLERGY_EVENT.matcher(text).find();
 	}
 
 	private boolean isHistoricalAllergyContext(String prefix) {
@@ -313,9 +412,38 @@ class SafetyRuleCoach {
 				|| lastMatchStart(CURRENT_ALLERGY_CONTEXT, prefix) > historicalStart) {
 			return false;
 		}
-		return HISTORICAL_ALLERGY_MODIFIER_GAP
-				.matcher(prefix.substring(historicalEnd))
-				.matches();
+		String historicalGap = prefix.substring(historicalEnd);
+		return HISTORICAL_ALLERGY_MODIFIER_GAP.matcher(historicalGap).matches()
+				|| HISTORICAL_ALLERGY_EVENT_GAP.matcher(historicalGap).matches();
+	}
+
+	private boolean reportsActiveUndercookedRisk(String speech, String cookingContext) {
+		if (!containsAny(cookingContext,
+				"닭", "돼지", "소고기", "쇠고기", "고기", "육류", "생선", "해산물", "계란")) {
+			return false;
+		}
+
+		String[] clauses = CLAUSE_BOUNDARY.split(speech);
+		boolean hasUndercookedContext = false;
+		boolean active = false;
+		for (String clause : clauses) {
+			if (hasUndercookedContext
+					&& UNDERCOOKED_RESOLUTION_PREFIX.matcher(clause).find()) {
+				active = false;
+			}
+
+			var matcher = UNDERCOOKED_REPORT.matcher(clause);
+			while (matcher.find()) {
+				hasUndercookedContext = true;
+				active = true;
+				String suffix = clause.substring(matcher.end());
+				if (UNDERCOOKED_RETRACTION_PREFIX.matcher(suffix).find()
+						|| UNDERCOOKED_RESOLUTION_PREFIX.matcher(suffix).find()) {
+					active = false;
+				}
+			}
+		}
+		return active;
 	}
 
 	private int lastMatchStart(Pattern pattern, String value) {

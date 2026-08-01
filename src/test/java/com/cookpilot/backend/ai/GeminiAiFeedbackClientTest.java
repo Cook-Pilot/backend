@@ -205,7 +205,9 @@ class GeminiAiFeedbackClientTest {
 	@ValueSource(strings = {
 			"닭고기가 익지 않았어요",
 			"돼지고기가 아직 익지 않아요",
-			"생선이 속까지 익지 않은 것 같아요"
+			"생선이 속까지 익지 않은 것 같아요",
+			"닭고기가 익지 않았지만 아직 속은 덜 익었어요",
+			"닭이 익지 않았어요. 지금은 속까지 충분히 익었어요. 그런데 가운데는 아직 덜 익었어요"
 	})
 	void 익지_않_형태의_육류_보고도_모델_전에_차단한다(String speech) {
 		StubChatModel model = StubChatModel.returning(otherPayload("모델 문구"));
@@ -220,11 +222,38 @@ class GeminiAiFeedbackClientTest {
 
 	@ParameterizedTest
 	@ValueSource(strings = {
+			"닭고기가 익지 않은 건 아니에요",
+			"돼지고기는 덜 익은 게 아니에요",
+			"닭고기가 덜 익지 않았어요",
+			"생선이 설익지 않았어요",
+			"닭고기가 익지 않았지만 지금은 다 익었어요",
+			"닭고기가 익지 않았어요. 지금은 속까지 충분히 익었어요",
+			"닭고기가 익지 않았어요; 지금은 속까지 충분히 익었어요",
+			"닭고기가 익지 않았어요\n지금은 속까지 충분히 익었어요"
+	})
+	void 부정되거나_해소된_덜_익음은_응급_규칙으로_과잉_차단하지_않는다(
+			String speech) {
+		StubChatModel model = StubChatModel.returning(otherPayload("모델 문구"));
+
+		Optional<AiFeedbackAdvice> result =
+				client(enabledProperties(), model).advise(context(speech));
+
+		assertThat(model.calls).hasValue(1);
+		assertThat(result).isPresent();
+		assertThat(result.orElseThrow().problem()).isEqualTo("OTHER");
+	}
+
+	@ParameterizedTest
+	@ValueSource(strings = {
 			"알레르기가 있어요",
 			"알레르기 반응이 나타났어요",
+			"알레르기 반응이 다시 나타났어요",
+			"알레르기 증상이 또 심해졌어요",
 			"알레르기 반응이 나요",
 			"알러지가 올라왔어요",
 			"두드러기가 났어요",
+			"두드러기가 계속 올라오고 있어요",
+			"두드러기가 점점 심하게 올라오고 있어요",
 			"두드러기가 나기 시작했어요",
 			"입술이 부었어요",
 			"목이 붓기 시작했어요",
@@ -236,7 +265,13 @@ class GeminiAiFeedbackClientTest {
 			"어제 먹은 소스 때문에 알레르기 반응이 나타났어요",
 			"오늘은 어제 얘기 말고 알레르기 반응이 나타났어요",
 			"예전에는 없었지만 지금 알레르기 반응이 나타났어요",
-			"예전에 두드러기가 났지만 지금 입술이 부었어요"
+			"예전에 두드러기가 났지만 지금 입술이 부었어요",
+			"알레르기 반응이 나타났어요, 지금은 괜찮아요, 그런데 다시 올라왔어요",
+			"알레르기 반응이 나타났지만 지금은 괜찮아요. 그런데 다시 올라왔어요",
+			"예전에 알레르기 반응이 나타났지만 지금은 괜찮아요. 그런데 다시 올라왔어요",
+			"어제 견과류를 먹었을 때 두드러기가 났어요. 지금은 괜찮아요. 그런데 또 올라왔어요",
+			"알레르기 반응이 나타났어요; 지금은 괜찮아요; 그런데 다시 올라왔어요",
+			"알레르기 반응이 나타났어요\n지금은 괜찮아요\n그런데 또 나타났어요"
 	})
 	void 현재_알레르기_반응이나_증상은_모델_전에_차단한다(String speech) {
 		StubChatModel model = StubChatModel.returning(otherPayload("모델 문구"));
@@ -254,16 +289,25 @@ class GeminiAiFeedbackClientTest {
 			"알레르기는 없어요, 소스가 너무 짜요",
 			"알레르기 반응은 없어요",
 			"알레르기 반응이 나타나지 않았어요",
+			"알레르기 반응이 다시 나타나지 않았어요",
 			"알레르기가 있는지 확인해 주세요",
 			"알레르기 유발 성분을 알려 주세요",
 			"이 레시피의 알러지 정보를 알려 주세요",
 			"예전에 알레르기 반응이 나타났어요",
 			"저는 예전에 심하게 알레르기 반응이 나타났어요",
+			"지난번 땅콩을 먹었을 때 입술이 부었어요",
+			"어제 견과류를 먹었을 때 두드러기가 났어요",
 			"어제 두드러기가 났어요",
 			"두드러기가 나지 않아요",
 			"입술이 붓지 않았어요",
 			"호흡이 힘들지 않아요",
 			"알레르기 반응이 나타났어요, 지금은 괜찮아요",
+			"알레르기 반응이 나타났어요. 지금은 괜찮아요",
+			"알레르기 반응이 나타났어요; 지금은 괜찮아요",
+			"알레르기 반응이 나타났어요\n지금은 괜찮아요",
+			"예전에 알레르기 반응이 나타났어요. 다시 나타난 적은 없어요",
+			"예전에 알레르기 반응이 나타났어요. 지금은 괜찮아요. 그런데 다시 왔어요",
+			"예전에 알레르기 반응이 나타났어요. 지금은 괜찮아요. 그런데 다시 있어요",
 			"두드러기는 없고 간이 너무 세요"
 	})
 	void 부정_과거_정보성_알레르기_언급은_응급_규칙으로_과잉_차단하지_않는다(
@@ -276,6 +320,22 @@ class GeminiAiFeedbackClientTest {
 		assertThat(model.calls).hasValue(1);
 		assertThat(result).isPresent();
 		assertThat(result.orElseThrow().problem()).isEqualTo("OTHER");
+	}
+
+	@ParameterizedTest
+	@ValueSource(strings = {
+			"지난번 땅콩을 먹었을 때 입술이 부었어요. 그런데 이 재료는 상한 것 같아요",
+			"어제 견과류를 먹었을 때 두드러기가 났어요; 지금 재료에서 쉰내가 나요"
+	})
+	void 과거_알레르기_사건은_후속_현재_변질_위험을_가리지_않는다(String speech) {
+		StubChatModel model = StubChatModel.returning(otherPayload("모델 문구"));
+
+		Optional<AiFeedbackAdvice> result =
+				client(enabledProperties(), model).advise(context(speech));
+
+		assertThat(model.calls).hasValue(0);
+		assertThat(result).isPresent();
+		assertThat(result.orElseThrow().problem()).isEqualTo("SPOILAGE_RISK");
 	}
 
 	@ParameterizedTest
