@@ -16,20 +16,54 @@ import org.springframework.stereotype.Component;
 class SafetyRuleCoach {
 
 	private static final Pattern CLAUSE_BOUNDARY = Pattern.compile("[.!?。！？;；\\n\\r]+");
-	private static final Pattern STEP_TARGET = Pattern.compile(
-			"(?:다음|그\\s*다음|차기|후속)\\s*(?:번\\s*)?(?:조리\\s*)?단계"
-					+ "|(?:[2-9]|[1-9][0-9]+)\\s*번?\\s*(?:조리\\s*)?단계"
-					+ "|(?:다음|그\\s*다음)\\s*(?:순서|과정|단계)?");
+	private static final String STEP_REFERENCE =
+			"(?:(?:다음|그\\s*다음|차기|후속)\\s*(?:번\\s*)?(?:조리\\s*)?단계"
+					+ "|(?:다음|그\\s*다음|차기|후속)\\s*(?:순서|과정)"
+					+ "|(?:다음|그\\s*다음)(?=\\s*(?:로|으로))"
+					+ "|[1-9][0-9]*\\s*(?:(?:번|번째)\\s*)?(?:조리\\s*)?단계)";
+	private static final String TRANSITION_PERMISSION =
+			"(?:됩니다|돼요|좋(?:습니다|아요)|괜찮(?:습니다|아요))";
+	private static final String TRANSITION_PARTICLE =
+			"(?:에선|(?:로|으로|를|을|에|에서|까지|부터)(?:는|만|도)?"
+					+ "|(?:은|는|만|도))";
+	private static final String TRANSITION_ADVERB =
+			"(?:꼭|반드시|무조건|즉시|바로|곧|곧장|먼저|이제|한\\s*번"
+					+ "|천천히|서서히|[가-힣]{1,12}게)";
+	private static final String TRANSITION_ADVERBS =
+			"(?:(?:" + TRANSITION_ADVERB + ")\\s*){0,2}";
+	private static final String TRANSITION_COOKING_OBJECT =
+			"(?:(?:조리|요리)\\s*(?:(?:를|을)\\s*)?)?";
+	private static final String COOKING_SUBJECT_PARTICLE =
+			"(?:(?:를|을|가|이|까지|부터)(?:는|도|만)?"
+					+ "|(?:은|는|도|만|조차|마저))";
+	private static final String COOKING_SUBJECT =
+			"(?:조리|요리|레시피|음식)\\s*"
+					+ "(?:(?:" + COOKING_SUBJECT_PARTICLE + ")\\s*)?";
+	private static final String COMPLETION_ENDING =
+			"(?:습니다|어요|네요|군요|지만|으니|으므로|으니까|고(?:요)?)";
+	private static final String COMPLETED_STATE =
+			"(?:(?:됐|되었|끝났)" + COMPLETION_ENDING
+					+ "|되어\\s*(?:있(?:습니다|어요|네요|군요|지만)"
+					+ "|있으(?:니|므로|니까))"
+					+ "|된\\s*상태(?:입니다|이에요|예요|네요|지만))";
+	private static final String ALL_DONE_PREFIX =
+			"(?:(?:이제|벌써|이미)\\s*)?(?:(?:모두|전부)\\s*)?다\\s*";
 	private static final Pattern POSITIVE_STEP_TRANSITION = Pattern.compile(
-			"(?:넘어가(?:\\s*주세요|세요|십시오|도\\s*됩니다"
-					+ "|면\\s*(?:됩니다|좋(?:습니다|아요))|겠습니다|자|는\\s*게\\s*좋)"
-					+ "|넘어갑니다|이동(?:하세요|하십시오|합니다|해도\\s*됩니다|하면\\s*됩니다)"
-					+ "|진행(?:하세요|하십시오|합니다|해도\\s*됩니다|하면\\s*됩니다)"
-					+ "|전환(?:하세요|하십시오|합니다|해도\\s*됩니다|하면\\s*됩니다)"
-					+ "|시작(?:하세요|하십시오|합니다|해도\\s*됩니다|하면\\s*됩니다)"
-					+ "|(?<![가-힣])가(?:\\s*주세요|세요|십시오|도\\s*됩니다|면\\s*됩니다))");
+			STEP_REFERENCE
+					+ "\\s*(?:" + TRANSITION_PARTICLE + "\\s*)?"
+					+ TRANSITION_ADVERBS
+					+ TRANSITION_COOKING_OBJECT
+					+ TRANSITION_ADVERBS
+					+ "(?:넘어가(?:\\s*주세요|세요|십시오"
+					+ "|(?:도|셔도|면|시면)\\s*" + TRANSITION_PERMISSION
+					+ "|겠습니다|자|는\\s*게\\s*(?:좋(?:습니다|아요)|낫(?:습니다|아요)))"
+					+ "|넘어갑니다|넘어가겠습니다|넘어갈게요|넘어갑시다"
+					+ "|(?:이동|진행|전환|시작)(?:하세요|하십시오|합니다"
+					+ "|(?:해도|하셔도|하면|하시면)\\s*" + TRANSITION_PERMISSION + ")"
+					+ "|가(?:\\s*주세요|세요|십시오"
+					+ "|(?:도|셔도|면|시면)\\s*" + TRANSITION_PERMISSION + "))");
 	private static final Pattern POSITIVE_COMPLETION = Pattern.compile(
-			"(?:조리|요리|레시피|음식)\\s*(?:를|을|가|이|는)?\\s*"
+			"(?:" + COOKING_SUBJECT
 					+ "(?:완료(?:하세요|하십시오|합니다|해도\\s*됩니다|하면\\s*됩니다"
 					+ "|됐(?:습니다|어요|으니|으므로|으니까)|되었(?:습니다|어요|으니|으므로|으니까)"
 					+ "|입니다|예요|\\s*$)"
@@ -40,10 +74,9 @@ class SafetyRuleCoach {
 					+ "|입니다|이에요|\\s*$)"
 					+ "|종료(?:하세요|하십시오|합니다|됐(?:습니다|어요)|되었습니다|\\s*$)"
 					+ "|마무리(?:하세요|하십시오|합니다|하시면\\s*됩니다)"
-					+ "|마치(?:세요|십시오|면\\s*됩니다)|마쳤(?:습니다|어요|으니|으므로|으니까))"
-					+ "|이제\\s*(?:모두\\s*)?다\\s*"
-					+ "(?:됐(?:습니다|어요|으니|으므로|으니까)|되었습니다"
-					+ "|끝났(?:습니다|어요|으니|으므로|으니까))");
+					+ "|마치(?:세요|십시오|면\\s*됩니다)|마쳤(?:습니다|어요|으니|으므로|으니까)"
+					+ "|" + ALL_DONE_PREFIX + COMPLETED_STATE + ")"
+					+ "|^\\s*" + ALL_DONE_PREFIX + COMPLETED_STATE + ")");
 
 	Optional<AiFeedbackAdvice> answer(AiFeedbackContext context) {
 		String speech = normalize(context.userSpeech());
@@ -91,8 +124,7 @@ class SafetyRuleCoach {
 				continue;
 			}
 			for (String clause : CLAUSE_BOUNDARY.split(normalize(text))) {
-				if ((STEP_TARGET.matcher(clause).find()
-						&& POSITIVE_STEP_TRANSITION.matcher(clause).find())
+				if (POSITIVE_STEP_TRANSITION.matcher(clause).find()
 						|| POSITIVE_COMPLETION.matcher(clause).find()) {
 					return true;
 				}

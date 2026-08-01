@@ -6,6 +6,7 @@ import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.stream.Stream;
 
 import okhttp3.Interceptor;
 import okhttp3.OkHttpClient;
@@ -13,6 +14,9 @@ import okhttp3.Protocol;
 import okhttp3.Request;
 import okhttp3.Response;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.MethodSource;
 import org.springframework.ai.chat.messages.AssistantMessage;
 import org.springframework.ai.chat.model.ChatModel;
 import org.springframework.ai.chat.model.ChatResponse;
@@ -29,6 +33,7 @@ import tools.jackson.databind.ObjectMapper;
 import tools.jackson.databind.json.JsonMapper;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.junit.jupiter.params.provider.Arguments.arguments;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -91,7 +96,14 @@ class GeminiAiFeedbackClientTest {
 	@Test
 	void HTTP_transport도_연결_redirect_503_421_follow_up을_만들지_않는다()
 			throws Exception {
-		OkHttpClient httpClient = GeminiAiFeedbackClient.singleAttemptHttpClient();
+		Duration connectTimeout = Duration.ofMillis(37);
+		Duration readTimeout = Duration.ofMillis(113);
+		OkHttpClient httpClient = GeminiAiFeedbackClient.singleAttemptHttpClient(
+				connectTimeout, readTimeout);
+		assertThat(httpClient.callTimeoutMillis()).isEqualTo(113);
+		assertThat(httpClient.connectTimeoutMillis()).isEqualTo(37);
+		assertThat(httpClient.readTimeoutMillis()).isEqualTo(113);
+		assertThat(httpClient.writeTimeoutMillis()).isEqualTo(113);
 		assertThat(httpClient.retryOnConnectionFailure()).isFalse();
 		assertThat(httpClient.followRedirects()).isFalse();
 		assertThat(httpClient.followSslRedirects()).isFalse();
@@ -145,59 +157,34 @@ class GeminiAiFeedbackClientTest {
 		assertThat(noActionModel.calls).hasValue(1);
 	}
 
-	@Test
-	void 단계_이동이나_조리_완료를_지시하거나_선언한_문구는_한번만_호출하고_버린다() {
-		for (String forbidden : List.of(
-				"다음 단계로 넘어가세요.",
-				"다음 단계로 가세요.",
-				"다음 단계로 넘어가 주세요.",
-				"다음 단계로 넘어가면 좋아요.",
-				"이제 그 다음 단계로 이동합니다.",
-				"2단계로 진행해도 됩니다.",
-				"다음 조리 단계를 시작하십시오.",
-				"조리를 완료하세요.",
-				"요리가 끝났습니다.",
-				"조리를 끝내도 됩니다.",
-				"요리를 마쳤습니다.",
-				"조리 완료입니다.",
-				"음식이 완성됐어요.",
-				"이제 모두 다 됐으니 드세요.",
-				"조리를 마무리하시면 됩니다.")) {
-			StubChatModel model = StubChatModel.returning(otherPayload(forbidden));
-			assertThat(client(enabledProperties(), model).advise(context("질문")))
-					.as(forbidden)
-					.isEmpty();
-			assertThat(model.calls).as(forbidden).hasValue(1);
-		}
+	@ParameterizedTest(name = "{0}: {1}")
+	@MethodSource("forbiddenProgressionOutputs")
+	void 단계_이동이나_조리_완료를_지시하거나_선언한_문구는_한번만_호출하고_버린다(
+			String outputField, String forbidden) {
+		StubChatModel model = StubChatModel.returning(
+				otherPayloadFor(outputField, forbidden));
 
-		StubChatModel screenDirective = StubChatModel.returning("""
-				{
-				  "speechText": "불을 낮추고 상태를 확인하세요.",
-				  "screenText": "다음 단계로 넘어가세요.",
-				  "problem": "OTHER",
-				  "suggestedAction": null
-				}
-				""");
-		assertThat(client(enabledProperties(), screenDirective).advise(context("질문")))
+		assertThat(client(enabledProperties(), model).advise(context("질문")))
+				.as("%s: %s", outputField, forbidden)
 				.isEmpty();
-		assertThat(screenDirective.calls).hasValue(1);
+		assertThat(model.calls)
+				.as("%s: %s", outputField, forbidden)
+				.hasValue(1);
 	}
 
-	@Test
-	void 부정형이나_완료_여부_확인_문구는_과잉_차단하지_않는다() {
-		for (String allowed : List.of(
-				"다음 단계로 넘어가지 마세요.",
-				"아직 조리가 완료되지 않았어요.",
-				"조리가 완료됐는지 확인하세요.",
-				"요리가 끝났는지 중심 온도를 확인하세요.",
-				"현재 단계 안내를 확인하세요.",
-				"다음 단계 안내를 눈으로 따라가세요.",
-				"완성된 소스를 천천히 섞으세요.")) {
-			StubChatModel model = StubChatModel.returning(otherPayload(allowed));
-			assertThat(client(enabledProperties(), model).advise(context("질문")))
-					.as(allowed)
-					.isPresent();
-		}
+	@ParameterizedTest(name = "{0}: {1}")
+	@MethodSource("allowedProgressionOutputs")
+	void 부정형이나_완료_여부_확인_문구는_과잉_차단하지_않는다(
+			String outputField, String allowed) {
+		StubChatModel model = StubChatModel.returning(
+				otherPayloadFor(outputField, allowed));
+
+		assertThat(client(enabledProperties(), model).advise(context("질문")))
+				.as("%s: %s", outputField, allowed)
+				.isPresent();
+		assertThat(model.calls)
+				.as("%s: %s", outputField, allowed)
+				.hasValue(1);
 	}
 
 	@Test
@@ -296,6 +283,90 @@ class GeminiAiFeedbackClientTest {
 		assertThat(model.calls).hasValue(0);
 	}
 
+	private static Stream<Arguments> forbiddenProgressionOutputs() {
+		return outputFieldCases(List.of(
+				"다음 단계로 넘어가세요.",
+				"다음 단계로 가세요.",
+				"다음 단계로 넘어가 주세요.",
+				"다음 단계로 넘어가면 좋아요.",
+				"이제 그 다음 단계로 이동합니다.",
+				"2단계로 진행해도 됩니다.",
+				"다음 조리 단계를 시작하십시오.",
+				"조리를 완료하세요.",
+				"요리가 끝났습니다.",
+				"조리를 끝내도 됩니다.",
+				"요리를 마쳤습니다.",
+				"조리 완료입니다.",
+				"음식이 완성됐어요.",
+				"이제 모두 다 됐으니 드세요.",
+				"조리를 마무리하시면 됩니다.",
+				"다음 단계로 넘어가도 좋아요.",
+				"이제 다음 단계로 넘어가셔도 됩니다.",
+				"3번째 단계로 넘어가세요.",
+				"요리가 다 됐어요.",
+				"다음 순서로 이동하세요.",
+				"다음 과정으로 진행하세요.",
+				"다음으로 넘어가세요.",
+				"다음 단계로는 넘어가세요.",
+				"다음 단계로만 넘어가세요.",
+				"다음 단계는 시작하세요.",
+				"다음 단계에는 넘어가세요.",
+				"다음 단계에도 넘어가세요.",
+				"다음 단계에선 시작하세요.",
+				"다음 단계로 꼭 넘어가세요.",
+				"다음 단계로 반드시 넘어가세요.",
+				"다음 단계에서만 시작하세요.",
+				"다음 단계로 이제 넘어가세요.",
+				"다음 단계로 곧장 넘어가세요.",
+				"다음 단계로 안전하게 넘어가세요.",
+				"다음 단계에서는 조리를 시작하세요.",
+				"다음 단계에서는 조리를 안전하게 진행하세요.",
+				"음식은 다 됐어요.",
+				"요리도 다 됐어요.",
+				"조리까지 다 됐어요.",
+				"요리가 다 되었어요.",
+				"요리가 다 됐네요.",
+				"요리가 다 됐지만 더 익히세요.",
+				"요리가 다 되었네요.",
+				"요리가 다 되어 있어요.",
+				"요리가 다 된 상태예요.",
+				"벌써 다 됐어요.",
+				"다 되었네요."));
+	}
+
+	private static Stream<Arguments> allowedProgressionOutputs() {
+		return outputFieldCases(List.of(
+				"다음 단계로 넘어가지 마세요.",
+				"아직 조리가 완료되지 않았어요.",
+				"조리가 완료됐는지 확인하세요.",
+				"요리가 끝났는지 중심 온도를 확인하세요.",
+				"현재 단계 안내를 확인하세요.",
+				"다음 단계 안내를 눈으로 따라가세요.",
+				"다음 단계로는 넘어가지 마세요.",
+				"완성된 소스를 천천히 섞으세요.",
+				"다음 확인을 진행하세요.",
+				"다음에는 물을 적게 넣어 조리를 진행하세요.",
+				"다음 단계에 쓸 채소 손질을 진행하세요.",
+				"다음 단계에는 쓸 채소 손질을 진행하세요.",
+				"다음 단계 안내를 먼저 읽고 현재 상태 확인을 진행하세요.",
+				"다음 단계는 안내를 먼저 읽고 현재 상태 확인을 진행하세요.",
+				"다음 단계에서는 조리를 시작하기 전에 현재 상태 확인을 진행하세요.",
+				"다음 단계로 어떻게 진행할지 확인하세요.",
+				"양파 손질은 다 됐어요.",
+				"양파 손질은 벌써 다 됐어요.",
+				"양파 손질은 다 된 상태예요.",
+				"요리가 다 되었는지 확인하세요.",
+				"요리가 다 되어 있는지 확인하세요.",
+				"요리가 다 된 상태인지 확인하세요.",
+				"요리가 아직 다 되지 않았어요."));
+	}
+
+	private static Stream<Arguments> outputFieldCases(List<String> texts) {
+		return texts.stream().flatMap(text -> Stream.of(
+				arguments("speechText", text),
+				arguments("screenText", text)));
+	}
+
 	private GeminiAiFeedbackClient client(
 			GeminiProperties properties, ChatModel chatModel) {
 		SafetyRuleCoach safetyRuleCoach = new SafetyRuleCoach();
@@ -352,14 +423,25 @@ class GeminiAiFeedbackClientTest {
 	}
 
 	private String otherPayload(String text) {
+		return otherPayload(text, "불을 낮추고 상태를 확인하세요.");
+	}
+
+	private String otherPayloadFor(String outputField, String text) {
+		String safeText = "불을 낮추고 상태를 확인하세요.";
+		return "speechText".equals(outputField)
+				? otherPayload(text, safeText)
+				: otherPayload(safeText, text);
+	}
+
+	private String otherPayload(String speechText, String screenText) {
 		return """
 				{
 				  "speechText": "%s",
-				  "screenText": "불을 낮추고 상태를 확인하세요.",
+				  "screenText": "%s",
 				  "problem": "OTHER",
 				  "suggestedAction": null
 				}
-				""".formatted(text);
+				""".formatted(speechText, screenText);
 	}
 
 	private static final class StubChatModel implements ChatModel {

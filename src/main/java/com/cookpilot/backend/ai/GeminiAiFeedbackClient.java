@@ -1,5 +1,6 @@
 package com.cookpilot.backend.ai;
 
+import java.time.Duration;
 import java.util.List;
 import java.util.Optional;
 
@@ -178,8 +179,13 @@ class GeminiAiFeedbackClient implements AiFeedbackClient {
 		return builder.thinkingLevel(GoogleGenAiThinkingLevel.LOW).build();
 	}
 
-	static OkHttpClient singleAttemptHttpClient() {
+	static OkHttpClient singleAttemptHttpClient(
+			Duration connectTimeout, Duration readTimeout) {
 		return new OkHttpClient.Builder()
+				.callTimeout(readTimeout)
+				.connectTimeout(connectTimeout)
+				.readTimeout(readTimeout)
+				.writeTimeout(readTimeout)
 				.retryOnConnectionFailure(false)
 				.followRedirects(false)
 				.followSslRedirects(false)
@@ -220,7 +226,8 @@ class GeminiAiFeedbackClient implements AiFeedbackClient {
 				.apiKey(properties.apiKey())
 				.httpOptions(httpOptions)
 				.clientOptions(ClientOptions.builder()
-						.customHttpClient(singleAttemptHttpClient())
+						.customHttpClient(singleAttemptHttpClient(
+								properties.connectTimeout(), properties.readTimeout()))
 						.build())
 				.build();
 		try {
