@@ -164,11 +164,49 @@ class GeminiAiFeedbackClientTest {
 	}
 
 	@Test
+	void 단계_이동이나_조리_완료를_지시하거나_선언한_모델_문구는_버린다() {
+		GeminiAiFeedbackClient client = client(disabledProperties());
+
+		for (String forbidden : List.of(
+				"다음 단계로 넘어가세요.",
+				"이제 그 다음 단계로 이동합니다.",
+				"2단계로 진행해도 됩니다.",
+				"다음 조리 단계를 시작하십시오.",
+				"조리를 완료하세요.",
+				"요리가 끝났습니다.",
+				"조리 완료입니다.",
+				"음식이 완성됐어요.",
+				"이제 모두 다 됐으니 드세요.",
+				"조리를 마무리하시면 됩니다.")) {
+			assertThat(client.parseAdvice(responseWithText(modelPayload(forbidden))))
+					.as(forbidden)
+					.isEmpty();
+		}
+	}
+
+	@Test
+	void 단계_이동과_완료를_부정하는_안전_문구는_과잉_차단하지_않는다() {
+		GeminiAiFeedbackClient client = client(disabledProperties());
+
+		for (String allowed : List.of(
+				"다음 단계로 넘어가지 마세요.",
+				"아직 조리가 완료되지 않았어요.",
+				"조리가 완료됐는지 확인하세요.",
+				"요리가 끝났는지 중심 온도를 확인하세요.",
+				"현재 단계 안내를 확인하세요.",
+				"완성된 소스를 천천히 섞으세요.")) {
+			assertThat(client.parseAdvice(responseWithText(modelPayload(allowed))))
+					.as(allowed)
+					.isPresent();
+		}
+	}
+
+	@Test
 	void 키가_없으면_HTTP를_호출하지_않고_fallback_신호를_반환한다() {
 		RestClient.Builder builder = RestClient.builder().baseUrl("http://localhost");
 		MockRestServiceServer server = MockRestServiceServer.bindTo(builder).build();
 		GeminiAiFeedbackClient client = new GeminiAiFeedbackClient(
-				disabledProperties(), objectMapper, builder.build());
+				disabledProperties(), objectMapper, new SafetyRuleCoach(), builder.build());
 
 		assertThat(client.advise(context())).isEmpty();
 		server.verify();
@@ -179,7 +217,7 @@ class GeminiAiFeedbackClientTest {
 		RestClient.Builder builder = RestClient.builder().baseUrl("http://localhost");
 		MockRestServiceServer server = MockRestServiceServer.bindTo(builder).build();
 		GeminiAiFeedbackClient client = new GeminiAiFeedbackClient(
-				enabledProperties(), objectMapper, builder.build());
+				enabledProperties(), objectMapper, new SafetyRuleCoach(), builder.build());
 		server.expect(once(),
 						requestTo("http://localhost/v1beta/models/test-model:generateContent"))
 				.andExpect(method(HttpMethod.POST))
@@ -195,7 +233,7 @@ class GeminiAiFeedbackClientTest {
 		RestClient.Builder builder = RestClient.builder().baseUrl("http://localhost");
 		MockRestServiceServer server = MockRestServiceServer.bindTo(builder).build();
 		GeminiAiFeedbackClient client = new GeminiAiFeedbackClient(
-				enabledProperties(), objectMapper, builder.build());
+				enabledProperties(), objectMapper, new SafetyRuleCoach(), builder.build());
 		server.expect(once(),
 						requestTo("http://localhost/v1beta/models/test-model:generateContent"))
 				.andExpect(method(HttpMethod.POST))
@@ -224,7 +262,19 @@ class GeminiAiFeedbackClientTest {
 	}
 
 	private GeminiAiFeedbackClient client(GeminiProperties properties) {
-		return new GeminiAiFeedbackClient(properties, objectMapper);
+		return new GeminiAiFeedbackClient(
+				properties, objectMapper, new SafetyRuleCoach());
+	}
+
+	private String modelPayload(String text) {
+		return """
+				{
+				  "speechText": "%s",
+				  "screenText": "불을 낮추고 상태를 확인하세요.",
+				  "problem": "OTHER",
+				  "suggestedAction": null
+				}
+				""".formatted(text);
 	}
 
 	private GeminiProperties disabledProperties() {

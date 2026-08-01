@@ -107,20 +107,26 @@ class GeminiAiFeedbackClient implements AiFeedbackClient {
 
 	private final GeminiProperties properties;
 	private final ObjectMapper objectMapper;
+	private final SafetyRuleCoach safetyRuleCoach;
 	private final RestClient restClient;
 	private final GenerationConfig generationConfig;
 
 	@Autowired
-	GeminiAiFeedbackClient(GeminiProperties properties, ObjectMapper objectMapper) {
-		this(properties, objectMapper, restClient(properties));
+	GeminiAiFeedbackClient(
+			GeminiProperties properties,
+			ObjectMapper objectMapper,
+			SafetyRuleCoach safetyRuleCoach) {
+		this(properties, objectMapper, safetyRuleCoach, restClient(properties));
 	}
 
 	GeminiAiFeedbackClient(
 			GeminiProperties properties,
 			ObjectMapper objectMapper,
+			SafetyRuleCoach safetyRuleCoach,
 			RestClient restClient) {
 		this.properties = properties;
 		this.objectMapper = objectMapper;
+		this.safetyRuleCoach = safetyRuleCoach;
 		this.restClient = restClient;
 		JsonNode schema = objectMapper.readTree(ADVICE_SCHEMA);
 		this.generationConfig = new GenerationConfig(
@@ -187,7 +193,9 @@ class GeminiAiFeedbackClient implements AiFeedbackClient {
 			String problem = payload.problem() == null ? "" : payload.problem().trim();
 			if (speechText == null
 					|| screenText == null
-					|| !ALLOWED_PROBLEMS.contains(problem)) {
+					|| !ALLOWED_PROBLEMS.contains(problem)
+					|| safetyRuleCoach.directsStepTransitionOrCompletion(
+							speechText, screenText)) {
 				return Optional.empty();
 			}
 

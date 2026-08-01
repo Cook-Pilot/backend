@@ -2,6 +2,7 @@ package com.cookpilot.backend.ai;
 
 import java.util.Locale;
 import java.util.Optional;
+import java.util.regex.Pattern;
 
 import org.springframework.stereotype.Component;
 
@@ -13,6 +14,32 @@ import org.springframework.stereotype.Component;
  */
 @Component
 class SafetyRuleCoach {
+
+	private static final Pattern CLAUSE_BOUNDARY = Pattern.compile("[.!?。！？;；\\n\\r]+");
+	private static final Pattern STEP_TARGET = Pattern.compile(
+			"(?:다음|그\\s*다음|차기|후속)\\s*(?:번\\s*)?(?:조리\\s*)?단계"
+					+ "|(?:[2-9]|[1-9][0-9]+)\\s*번?\\s*(?:조리\\s*)?단계"
+					+ "|(?:다음|그\\s*다음)\\s*(?:순서|과정|단계)?");
+	private static final Pattern POSITIVE_STEP_TRANSITION = Pattern.compile(
+			"(?:넘어가(?:세요|십시오|도\\s*됩니다|면\\s*됩니다|겠습니다|자|는\\s*게\\s*좋)"
+					+ "|넘어갑니다|이동(?:하세요|하십시오|합니다|해도\\s*됩니다|하면\\s*됩니다)"
+					+ "|진행(?:하세요|하십시오|합니다|해도\\s*됩니다|하면\\s*됩니다)"
+					+ "|전환(?:하세요|하십시오|합니다|해도\\s*됩니다|하면\\s*됩니다)"
+					+ "|시작(?:하세요|하십시오|합니다|해도\\s*됩니다|하면\\s*됩니다))");
+	private static final Pattern POSITIVE_COMPLETION = Pattern.compile(
+			"(?:조리|요리|레시피|음식)\\s*(?:를|을|가|이|는)?\\s*"
+					+ "(?:완료(?:하세요|하십시오|합니다|해도\\s*됩니다|하면\\s*됩니다"
+					+ "|됐(?:습니다|어요|으니|으므로|으니까)|되었(?:습니다|어요|으니|으므로|으니까)"
+					+ "|입니다|예요|\\s*$)"
+					+ "|완성(?:하세요|하십시오|합니다|됐(?:습니다|어요|으니|으므로|으니까)"
+					+ "|되었(?:습니다|어요|으니|으므로|으니까)|입니다|예요|\\s*$)"
+					+ "|끝(?:내세요|내십시오|냅니다|났(?:습니다|어요|으니|으므로|으니까)"
+					+ "|입니다|이에요|\\s*$)"
+					+ "|종료(?:하세요|하십시오|합니다|됐(?:습니다|어요)|되었습니다|\\s*$)"
+					+ "|마무리(?:하세요|하십시오|합니다|하시면\\s*됩니다))"
+					+ "|이제\\s*(?:모두\\s*)?다\\s*"
+					+ "(?:됐(?:습니다|어요|으니|으므로|으니까)|되었습니다"
+					+ "|끝났(?:습니다|어요|으니|으므로|으니까))");
 
 	Optional<AiFeedbackAdvice> answer(AiFeedbackContext context) {
 		String speech = normalize(context.userSpeech());
@@ -46,6 +73,28 @@ class SafetyRuleCoach {
 		}
 
 		return Optional.empty();
+	}
+
+	/**
+	 * 모델은 조리 진행 상태를 소유하지 않는다. 따라서 구조화 응답이 유효하더라도
+	 * 단계 이동이나 조리 완료를 긍정형으로 지시·선언한 문구는 신뢰하지 않는다.
+	 * 부정형 경고(예: "넘어가지 마세요", "완료되지 않았어요")는 긍정형 어미와
+	 * 일치하지 않으므로 허용한다.
+	 */
+	boolean directsStepTransitionOrCompletion(String... texts) {
+		for (String text : texts) {
+			if (text == null) {
+				continue;
+			}
+			for (String clause : CLAUSE_BOUNDARY.split(normalize(text))) {
+				if ((STEP_TARGET.matcher(clause).find()
+						&& POSITIVE_STEP_TRANSITION.matcher(clause).find())
+						|| POSITIVE_COMPLETION.matcher(clause).find()) {
+					return true;
+				}
+			}
+		}
+		return false;
 	}
 
 	/**
