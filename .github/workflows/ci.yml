@@ -32,6 +32,17 @@ jobs:
       - name: Run tests
         run: ./gradlew test --no-daemon
 
+      # OpenApiDocsTest 가 build/openapi.json 을 떨군다(키 정렬·들여쓰기 정규화 = 바이트 안정).
+      # 커밋된 정본과 어긋나면 스펙이 낡은 것이므로 실패시킨다 — 프론트 클라이언트 생성이
+      # 이 파일을 소비하므로, 코드만 바뀌고 스펙이 안 따라오는 상태를 막는다.
+      - name: Check OpenAPI spec is up to date
+        run: |
+          if ! diff -u docs/openapi.json build/openapi.json; then
+            echo "::error::docs/openapi.json 이 코드와 다릅니다. 로컬에서 아래를 실행하고 커밋하세요:"
+            echo "::error::./gradlew test --tests '*OpenApiDocsTest' && cp build/openapi.json docs/openapi.json"
+            exit 1
+          fi
+
       - name: Upload test report on failure
         if: failure()
         uses: actions/upload-artifact@v4
