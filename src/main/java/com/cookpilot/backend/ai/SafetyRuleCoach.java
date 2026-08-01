@@ -75,7 +75,9 @@ class SafetyRuleCoach {
 					+ "|꺼져\\s*있(?:어(?:요)?|습니다)"
 					+ "|멈췄(?:어(?:요)?|습니다)))");
 	private static final Pattern SUBJECT_ELIDED_ACTIVE_FIRE_EVENT = Pattern.compile(
-			"(?<![\\p{L}\\p{N}])(?:" + ACTIVE_FIRE_SPREAD_REPORT
+			"(?:^\\s*|[,，]\\s*)"
+					+ "(?:(?:그런데|하지만|그러나|실제로|다시)\\s*){1,3}"
+					+ "(?:" + ACTIVE_FIRE_SPREAD_REPORT
 					+ "|발생했(?:어(?:요)?|습니다|네(?:요)?)"
 					+ "|발생하고\\s*있(?:어(?:요)?|습니다))"
 					+ HAZARD_REPORT_BOUNDARY);
@@ -150,14 +152,12 @@ class SafetyRuleCoach {
 					+ "|마쳐(?:" + VERB_REQUEST_SUFFIX
 					+ "|도\\s*" + TRANSITION_PERMISSION + "))";
 	private static final Pattern POSITIVE_STEP_TRANSITION = Pattern.compile(
-			"(?:" + STEP_REFERENCE
+			STEP_REFERENCE
 					+ "\\s*(?:" + TRANSITION_PARTICLE + "\\s*)?"
 					+ TRANSITION_ADVERBS
 					+ TRANSITION_COOKING_OBJECT
 					+ TRANSITION_ADVERBS
-					+ TRANSITION_ACTION_DIRECTIVE
-					+ "|(?<![\\p{L}\\p{N}])(?:이동|진행|전환|시작)\\s*"
-					+ ACTION_DEONTIC_SUFFIX + ")");
+					+ TRANSITION_ACTION_DIRECTIVE);
 	private static final String COMPLETION_DECLARATION =
 			"(?:완료\\s*(?:됐(?:습니다|어요|으니|으므로|으니까)"
 					+ "|되었(?:습니다|어요|으니|으므로|으니까)|입니다|예요|(?=\\s*$))"
@@ -171,12 +171,10 @@ class SafetyRuleCoach {
 			"(?:" + COOKING_SUBJECT
 					+ "(?:" + COMPLETION_ACTION_DIRECTIVE
 					+ "|" + COMPLETION_DECLARATION + ")"
-					+ "|^\\s*" + ALL_DONE_PREFIX + COMPLETED_STATE
-					+ "|(?<![\\p{L}\\p{N}])(?:완료|완성|종료|마무리)\\s*"
-					+ ACTION_DEONTIC_SUFFIX + ")");
+					+ "|^\\s*" + ALL_DONE_PREFIX + COMPLETED_STATE + ")");
 	private static final Pattern DIRECTIVE_RETRACTION_PREFIX = Pattern.compile(
 			"^\\s*(?:[\\\"'”’」』]?\\s*(?:라는|라고|이라고)\\s*"
-					+ "(?:(?:문구|안내|말)(?:은|는|을|를)?\\s*)?"
+					+ "(?:(?:문구|안내|말)(?:은|는|을|를|도)?\\s*)?"
 					+ "(?:(?:따르지|따라가지|사용하지|말하지|하지)"
 					+ "\\s*(?:마세요|말고|않(?:습니다|아요))"
 					+ "|무시(?:하세요|하십시오|합니다|하고))(?=\\s|$)\\s*"
@@ -282,7 +280,19 @@ class SafetyRuleCoach {
 				return true;
 			}
 			String remainder = suffix.substring(retraction.end());
-			if (replacement.matcher(remainder).find()) {
+			if (containsUnretractedReplacementDirective(replacement, remainder)) {
+				return true;
+			}
+		}
+		return false;
+	}
+
+	private boolean containsUnretractedReplacementDirective(
+			Pattern replacement, String remainder) {
+		var matcher = replacement.matcher(remainder);
+		while (matcher.find()) {
+			String suffix = remainder.substring(matcher.end());
+			if (!DIRECTIVE_RETRACTION_PREFIX.matcher(suffix).find()) {
 				return true;
 			}
 		}
