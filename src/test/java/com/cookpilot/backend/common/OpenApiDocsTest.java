@@ -1,10 +1,17 @@
 package com.cookpilot.backend.common;
 
+import java.nio.file.Files;
+import java.nio.file.Path;
+
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.test.web.servlet.MockMvc;
+
+import tools.jackson.databind.ObjectMapper;
+import tools.jackson.databind.SerializationFeature;
+import tools.jackson.databind.json.JsonMapper;
 
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -38,5 +45,30 @@ class OpenApiDocsTest {
 		mockMvc.perform(get("/swagger-ui.html"))
 				.andExpect(status().is3xxRedirection())
 				.andExpect(redirectedUrl("/swagger-ui/index.html"));
+	}
+
+	/**
+	 * 스펙을 파일로 떨군다. 단언이 아니라 산출물 생성이 목적이다.
+	 * springdoc 스펙은 런타임에만 존재하는데, 프론트 클라이언트 생성과 CI 의 스펙 최신성 검사에는
+	 * 파일이 필요하다. gradle 플러그인은 앱을 실제 기동해야 해서 DB(=Docker)를 끌고 오는 반면,
+	 * 여기 MockMvc 컨텍스트는 기본 프로파일 + h2 라 Docker 없이 같은 스펙을 얻는다.
+	 * 정본은 {@code docs/openapi.json}. 갱신 방법은 docs/feat-swagger-ui-#31.md 참고.
+	 */
+	@Test
+	void 스펙을_파일로_덤프한다() throws Exception {
+		String spec = mockMvc.perform(get("/v3/api-docs"))
+				.andExpect(status().isOk())
+				.andReturn().getResponse().getContentAsString();
+
+		// 키 정렬 + 들여쓰기로 정규화해서 쓴다. 스캔 순서가 흔들려도 바이트가 같아야
+		// CI 의 diff 가 헛실패하지 않고, 커밋된 파일도 사람이 읽을 수 있다.
+		ObjectMapper mapper = JsonMapper.builder()
+				.enable(SerializationFeature.ORDER_MAP_ENTRIES_BY_KEYS)
+				.enable(SerializationFeature.INDENT_OUTPUT)
+				.build();
+
+		Path out = Path.of("build", "openapi.json");
+		Files.createDirectories(out.getParent());
+		Files.writeString(out, mapper.writeValueAsString(mapper.readValue(spec, Object.class)) + "\n");
 	}
 }

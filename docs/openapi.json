@@ -1,0 +1,1279 @@
+{
+  "components" : {
+    "schemas" : {
+      "AiFeedbackRequest" : {
+        "properties" : {
+          "recipeId" : {
+            "format" : "uuid",
+            "type" : "string"
+          },
+          "stepIndex" : {
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "userSpeech" : {
+            "type" : "string"
+          }
+        },
+        "type" : "object"
+      },
+      "AiFeedbackResponse" : {
+        "properties" : {
+          "eventPayload" : {
+            "additionalProperties" : { },
+            "type" : "object"
+          },
+          "mock" : {
+            "type" : "boolean"
+          },
+          "screenText" : {
+            "type" : "string"
+          },
+          "speechText" : {
+            "type" : "string"
+          },
+          "suggestedAction" : {
+            "$ref" : "#/components/schemas/SuggestedAction"
+          }
+        },
+        "type" : "object"
+      },
+      "ComposedIngredient" : {
+        "properties" : {
+          "amount" : {
+            "type" : "number"
+          },
+          "name" : {
+            "type" : "string"
+          },
+          "origin" : {
+            "enum" : [ "ORIGINAL", "MODIFIED", "ADDED" ],
+            "type" : "string"
+          },
+          "originalIngredientId" : {
+            "format" : "uuid",
+            "type" : "string"
+          },
+          "required" : {
+            "type" : "boolean"
+          },
+          "unit" : {
+            "type" : "string"
+          }
+        },
+        "type" : "object"
+      },
+      "ComposedStep" : {
+        "properties" : {
+          "cautionNote" : {
+            "type" : "string"
+          },
+          "instruction" : {
+            "type" : "string"
+          },
+          "origin" : {
+            "enum" : [ "ORIGINAL", "MODIFIED", "ADDED" ],
+            "type" : "string"
+          },
+          "originalStepId" : {
+            "format" : "uuid",
+            "type" : "string"
+          },
+          "stepIndex" : {
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "timerSeconds" : {
+            "format" : "int32",
+            "type" : "integer"
+          }
+        },
+        "type" : "object"
+      },
+      "CookingHistoryItem" : {
+        "properties" : {
+          "comment" : {
+            "type" : "string"
+          },
+          "cookedAt" : {
+            "format" : "date-time",
+            "type" : "string"
+          },
+          "createdPersonalVersionId" : {
+            "format" : "uuid",
+            "type" : "string"
+          },
+          "createdPersonalVersionNumber" : {
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "createdPersonalVersionSummary" : {
+            "type" : "string"
+          },
+          "nextTimeNote" : {
+            "type" : "string"
+          },
+          "rating" : {
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "recipeId" : {
+            "format" : "uuid",
+            "type" : "string"
+          },
+          "recipeImageUrl" : {
+            "type" : "string"
+          },
+          "recipeTitle" : {
+            "type" : "string"
+          },
+          "reviewId" : {
+            "format" : "uuid",
+            "type" : "string"
+          },
+          "sourcePersonalVersionId" : {
+            "format" : "uuid",
+            "type" : "string"
+          }
+        },
+        "type" : "object"
+      },
+      "ExecutedIngredientRequest" : {
+        "properties" : {
+          "amount" : {
+            "type" : "number"
+          },
+          "name" : {
+            "type" : "string"
+          },
+          "omitted" : {
+            "type" : "boolean"
+          },
+          "originalIngredientId" : {
+            "format" : "uuid",
+            "type" : "string"
+          },
+          "required" : {
+            "type" : "boolean"
+          },
+          "sortOrder" : {
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "unit" : {
+            "type" : "string"
+          }
+        },
+        "type" : "object"
+      },
+      "ExecutedStepRequest" : {
+        "properties" : {
+          "cautionNote" : {
+            "type" : "string"
+          },
+          "instruction" : {
+            "type" : "string"
+          },
+          "omitted" : {
+            "type" : "boolean"
+          },
+          "originalStepId" : {
+            "format" : "uuid",
+            "type" : "string"
+          },
+          "sortOrder" : {
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "timerSeconds" : {
+            "format" : "int32",
+            "type" : "integer"
+          }
+        },
+        "type" : "object"
+      },
+      "FavoriteRecipeResponse" : {
+        "properties" : {
+          "description" : {
+            "type" : "string"
+          },
+          "favoritedAt" : {
+            "format" : "date-time",
+            "type" : "string"
+          },
+          "hasPersonalVersion" : {
+            "type" : "boolean"
+          },
+          "id" : {
+            "format" : "uuid",
+            "type" : "string"
+          },
+          "imageUrl" : {
+            "type" : "string"
+          },
+          "latestPersonalVersionId" : {
+            "format" : "uuid",
+            "type" : "string"
+          },
+          "title" : {
+            "type" : "string"
+          }
+        },
+        "type" : "object"
+      },
+      "IngredientAdjustment" : {
+        "properties" : {
+          "amount" : {
+            "type" : "number"
+          },
+          "name" : {
+            "type" : "string"
+          },
+          "originalIngredientId" : {
+            "format" : "uuid",
+            "type" : "string"
+          },
+          "required" : {
+            "type" : "boolean"
+          },
+          "sortOrder" : {
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "type" : {
+            "enum" : [ "ADD", "MODIFY", "REMOVE" ],
+            "type" : "string"
+          },
+          "unit" : {
+            "type" : "string"
+          }
+        },
+        "type" : "object"
+      },
+      "NextCookRecommendation" : {
+        "properties" : {
+          "changePercent" : {
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "confidence" : {
+            "type" : "number"
+          },
+          "evidence" : {
+            "items" : {
+              "$ref" : "#/components/schemas/RecommendationEvidence"
+            },
+            "type" : "array"
+          },
+          "explanationSource" : {
+            "type" : "string"
+          },
+          "ingredientName" : {
+            "type" : "string"
+          },
+          "model" : {
+            "type" : "string"
+          },
+          "originalAmount" : {
+            "type" : "number"
+          },
+          "originalIngredientId" : {
+            "format" : "uuid",
+            "type" : "string"
+          },
+          "promptVersion" : {
+            "type" : "string"
+          },
+          "reason" : {
+            "type" : "string"
+          },
+          "recommendationId" : {
+            "format" : "uuid",
+            "type" : "string"
+          },
+          "suggestedAmount" : {
+            "type" : "number"
+          },
+          "type" : {
+            "type" : "string"
+          },
+          "unit" : {
+            "type" : "string"
+          }
+        },
+        "type" : "object"
+      },
+      "NextCookRecommendationResponse" : {
+        "properties" : {
+          "generatedAt" : {
+            "format" : "date-time",
+            "type" : "string"
+          },
+          "recipeId" : {
+            "format" : "uuid",
+            "type" : "string"
+          },
+          "recommendations" : {
+            "items" : {
+              "$ref" : "#/components/schemas/NextCookRecommendation"
+            },
+            "type" : "array"
+          }
+        },
+        "type" : "object"
+      },
+      "PersonalRecipeVersion" : {
+        "properties" : {
+          "createdAt" : {
+            "format" : "date-time",
+            "type" : "string"
+          },
+          "id" : {
+            "format" : "uuid",
+            "type" : "string"
+          },
+          "isDefault" : {
+            "type" : "boolean"
+          },
+          "parentVersionId" : {
+            "format" : "uuid",
+            "type" : "string"
+          },
+          "recipeId" : {
+            "format" : "uuid",
+            "type" : "string"
+          },
+          "sourceReviewId" : {
+            "format" : "uuid",
+            "type" : "string"
+          },
+          "summary" : {
+            "type" : "string"
+          },
+          "title" : {
+            "type" : "string"
+          },
+          "userId" : {
+            "format" : "uuid",
+            "type" : "string"
+          },
+          "versionNumber" : {
+            "format" : "int32",
+            "type" : "integer"
+          }
+        },
+        "type" : "object"
+      },
+      "PersonalRecipeVersionDetail" : {
+        "properties" : {
+          "ingredientAdjustments" : {
+            "items" : {
+              "$ref" : "#/components/schemas/IngredientAdjustment"
+            },
+            "type" : "array"
+          },
+          "ingredients" : {
+            "items" : {
+              "$ref" : "#/components/schemas/ComposedIngredient"
+            },
+            "type" : "array"
+          },
+          "stepAdjustments" : {
+            "items" : {
+              "$ref" : "#/components/schemas/StepAdjustment"
+            },
+            "type" : "array"
+          },
+          "steps" : {
+            "items" : {
+              "$ref" : "#/components/schemas/ComposedStep"
+            },
+            "type" : "array"
+          },
+          "version" : {
+            "$ref" : "#/components/schemas/PersonalRecipeVersion"
+          }
+        },
+        "type" : "object"
+      },
+      "PostCookReview" : {
+        "properties" : {
+          "clientSessionId" : {
+            "format" : "uuid",
+            "type" : "string"
+          },
+          "comment" : {
+            "type" : "string"
+          },
+          "cookedAt" : {
+            "format" : "date-time",
+            "type" : "string"
+          },
+          "createdAt" : {
+            "format" : "date-time",
+            "type" : "string"
+          },
+          "createdPersonalVersionId" : {
+            "format" : "uuid",
+            "type" : "string"
+          },
+          "id" : {
+            "format" : "uuid",
+            "type" : "string"
+          },
+          "nextTimeNote" : {
+            "type" : "string"
+          },
+          "rating" : {
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "recipeId" : {
+            "format" : "uuid",
+            "type" : "string"
+          },
+          "sourcePersonalVersionId" : {
+            "format" : "uuid",
+            "type" : "string"
+          },
+          "targetServings" : {
+            "type" : "number"
+          },
+          "userId" : {
+            "format" : "uuid",
+            "type" : "string"
+          }
+        },
+        "type" : "object"
+      },
+      "RecentRecipeResponse" : {
+        "properties" : {
+          "description" : {
+            "type" : "string"
+          },
+          "favorite" : {
+            "type" : "boolean"
+          },
+          "hasPersonalVersion" : {
+            "type" : "boolean"
+          },
+          "id" : {
+            "format" : "uuid",
+            "type" : "string"
+          },
+          "imageUrl" : {
+            "type" : "string"
+          },
+          "lastCookedAt" : {
+            "format" : "date-time",
+            "type" : "string"
+          },
+          "lastRating" : {
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "latestPersonalVersionId" : {
+            "format" : "uuid",
+            "type" : "string"
+          },
+          "title" : {
+            "type" : "string"
+          }
+        },
+        "type" : "object"
+      },
+      "Recipe" : {
+        "properties" : {
+          "baseServings" : {
+            "format" : "double",
+            "type" : "number"
+          },
+          "description" : {
+            "type" : "string"
+          },
+          "id" : {
+            "format" : "uuid",
+            "type" : "string"
+          },
+          "imageUrl" : {
+            "type" : "string"
+          },
+          "ingredients" : {
+            "items" : {
+              "$ref" : "#/components/schemas/RecipeIngredient"
+            },
+            "type" : "array"
+          },
+          "steps" : {
+            "items" : {
+              "$ref" : "#/components/schemas/RecipeStep"
+            },
+            "type" : "array"
+          },
+          "title" : {
+            "type" : "string"
+          }
+        },
+        "type" : "object"
+      },
+      "RecipeIngredient" : {
+        "properties" : {
+          "amount" : {
+            "format" : "double",
+            "type" : "number"
+          },
+          "id" : {
+            "format" : "uuid",
+            "type" : "string"
+          },
+          "name" : {
+            "type" : "string"
+          },
+          "required" : {
+            "type" : "boolean"
+          },
+          "unit" : {
+            "type" : "string"
+          }
+        },
+        "type" : "object"
+      },
+      "RecipeStep" : {
+        "properties" : {
+          "cautionNote" : {
+            "type" : "string"
+          },
+          "id" : {
+            "format" : "uuid",
+            "type" : "string"
+          },
+          "imageUrl" : {
+            "type" : "string"
+          },
+          "instruction" : {
+            "type" : "string"
+          },
+          "stepIndex" : {
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "timerSeconds" : {
+            "format" : "int32",
+            "type" : "integer"
+          }
+        },
+        "type" : "object"
+      },
+      "RecipeSummaryResponse" : {
+        "properties" : {
+          "description" : {
+            "type" : "string"
+          },
+          "favorite" : {
+            "type" : "boolean"
+          },
+          "hasPersonalVersion" : {
+            "type" : "boolean"
+          },
+          "id" : {
+            "format" : "uuid",
+            "type" : "string"
+          },
+          "imageUrl" : {
+            "type" : "string"
+          },
+          "latestPersonalVersionId" : {
+            "format" : "uuid",
+            "type" : "string"
+          },
+          "title" : {
+            "type" : "string"
+          }
+        },
+        "type" : "object"
+      },
+      "RecommendationEvidence" : {
+        "properties" : {
+          "cookedAt" : {
+            "format" : "date-time",
+            "type" : "string"
+          },
+          "rating" : {
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "recipeId" : {
+            "format" : "uuid",
+            "type" : "string"
+          },
+          "recipeTitle" : {
+            "type" : "string"
+          },
+          "reviewId" : {
+            "format" : "uuid",
+            "type" : "string"
+          }
+        },
+        "type" : "object"
+      },
+      "RecommendationFeedbackResponse" : {
+        "properties" : {
+          "appliedAmount" : {
+            "type" : "number"
+          },
+          "createdAt" : {
+            "format" : "date-time",
+            "type" : "string"
+          },
+          "decision" : {
+            "enum" : [ "ACCEPTED", "REJECTED", "MODIFIED" ],
+            "type" : "string"
+          },
+          "id" : {
+            "format" : "uuid",
+            "type" : "string"
+          },
+          "originalIngredientId" : {
+            "format" : "uuid",
+            "type" : "string"
+          },
+          "recipeId" : {
+            "format" : "uuid",
+            "type" : "string"
+          },
+          "recommendationId" : {
+            "format" : "uuid",
+            "type" : "string"
+          }
+        },
+        "type" : "object"
+      },
+      "StepAdjustment" : {
+        "properties" : {
+          "cautionNote" : {
+            "type" : "string"
+          },
+          "insertAfterStepIndex" : {
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "instruction" : {
+            "type" : "string"
+          },
+          "originalStepId" : {
+            "format" : "uuid",
+            "type" : "string"
+          },
+          "sortOrder" : {
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "timerSeconds" : {
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "type" : {
+            "enum" : [ "ADD", "MODIFY", "REMOVE" ],
+            "type" : "string"
+          }
+        },
+        "type" : "object"
+      },
+      "SubmitRecommendationFeedbackRequest" : {
+        "properties" : {
+          "appliedAmount" : {
+            "type" : "number"
+          },
+          "decision" : {
+            "enum" : [ "ACCEPTED", "REJECTED", "MODIFIED" ],
+            "type" : "string"
+          },
+          "evidenceReviewIds" : {
+            "items" : {
+              "format" : "uuid",
+              "type" : "string"
+            },
+            "type" : "array"
+          },
+          "explanationSource" : {
+            "type" : "string"
+          },
+          "model" : {
+            "type" : "string"
+          },
+          "originalAmount" : {
+            "type" : "number"
+          },
+          "originalIngredientId" : {
+            "format" : "uuid",
+            "type" : "string"
+          },
+          "promptVersion" : {
+            "type" : "string"
+          },
+          "reason" : {
+            "type" : "string"
+          },
+          "suggestedAmount" : {
+            "type" : "number"
+          },
+          "unit" : {
+            "type" : "string"
+          }
+        },
+        "type" : "object"
+      },
+      "SubmitReviewRequest" : {
+        "properties" : {
+          "clientSessionId" : {
+            "format" : "uuid",
+            "type" : "string"
+          },
+          "comment" : {
+            "type" : "string"
+          },
+          "cookedAt" : {
+            "format" : "date-time",
+            "type" : "string"
+          },
+          "ingredients" : {
+            "items" : {
+              "$ref" : "#/components/schemas/ExecutedIngredientRequest"
+            },
+            "type" : "array"
+          },
+          "nextTimeNote" : {
+            "type" : "string"
+          },
+          "rating" : {
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "recipeId" : {
+            "format" : "uuid",
+            "type" : "string"
+          },
+          "sourcePersonalVersionId" : {
+            "format" : "uuid",
+            "type" : "string"
+          },
+          "steps" : {
+            "items" : {
+              "$ref" : "#/components/schemas/ExecutedStepRequest"
+            },
+            "type" : "array"
+          },
+          "targetServings" : {
+            "type" : "number"
+          }
+        },
+        "type" : "object"
+      },
+      "SuggestedAction" : {
+        "properties" : {
+          "seconds" : {
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "type" : {
+            "type" : "string"
+          }
+        },
+        "type" : "object"
+      },
+      "User" : {
+        "properties" : {
+          "anonymous" : {
+            "type" : "boolean"
+          },
+          "betaNumber" : {
+            "format" : "int64",
+            "type" : "integer"
+          },
+          "displayName" : {
+            "type" : "string"
+          },
+          "email" : {
+            "type" : "string"
+          },
+          "id" : {
+            "format" : "uuid",
+            "type" : "string"
+          }
+        },
+        "type" : "object"
+      }
+    }
+  },
+  "info" : {
+    "description" : "음성 기반 요리 어시스턴트 CookPilot 백엔드 API. 모든 라우트는 /api/v1 아래에 있고, 에러는 RFC-7807 ProblemDetail 형식이다.",
+    "title" : "CookPilot Backend API",
+    "version" : "v1"
+  },
+  "openapi" : "3.1.0",
+  "paths" : {
+    "/api/v1/ai-feedback" : {
+      "post" : {
+        "operationId" : "feedback_1",
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/AiFeedbackRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/AiFeedbackResponse"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "ai-feedback-controller" ]
+      }
+    },
+    "/api/v1/cooking-history" : {
+      "get" : {
+        "operationId" : "history",
+        "parameters" : [ {
+          "in" : "query",
+          "name" : "from",
+          "required" : true,
+          "schema" : {
+            "format" : "date-time",
+            "type" : "string"
+          }
+        }, {
+          "in" : "query",
+          "name" : "to",
+          "required" : true,
+          "schema" : {
+            "format" : "date-time",
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "items" : {
+                    "$ref" : "#/components/schemas/CookingHistoryItem"
+                  },
+                  "type" : "array"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "review-controller" ]
+      }
+    },
+    "/api/v1/favorites" : {
+      "get" : {
+        "operationId" : "list_1",
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "items" : {
+                    "$ref" : "#/components/schemas/FavoriteRecipeResponse"
+                  },
+                  "type" : "array"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "favorite-controller" ]
+      }
+    },
+    "/api/v1/home/recent-recipes" : {
+      "get" : {
+        "operationId" : "recentRecipes",
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "items" : {
+                    "$ref" : "#/components/schemas/RecentRecipeResponse"
+                  },
+                  "type" : "array"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "home-recipe-controller" ]
+      }
+    },
+    "/api/v1/personal-versions/{versionId}" : {
+      "get" : {
+        "operationId" : "get_2",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "versionId",
+          "required" : true,
+          "schema" : {
+            "format" : "uuid",
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/PersonalRecipeVersionDetail"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "personal-recipe-controller" ]
+      }
+    },
+    "/api/v1/recipes" : {
+      "get" : {
+        "operationId" : "list",
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "items" : {
+                    "$ref" : "#/components/schemas/RecipeSummaryResponse"
+                  },
+                  "type" : "array"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "recipe-controller" ]
+      }
+    },
+    "/api/v1/recipes/{recipeId}" : {
+      "get" : {
+        "operationId" : "get_1",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "recipeId",
+          "required" : true,
+          "schema" : {
+            "format" : "uuid",
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/Recipe"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "recipe-controller" ]
+      }
+    },
+    "/api/v1/recipes/{recipeId}/favorite" : {
+      "delete" : {
+        "operationId" : "remove",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "recipeId",
+          "required" : true,
+          "schema" : {
+            "format" : "uuid",
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "204" : {
+            "description" : "No Content"
+          }
+        },
+        "tags" : [ "favorite-controller" ]
+      },
+      "put" : {
+        "operationId" : "add",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "recipeId",
+          "required" : true,
+          "schema" : {
+            "format" : "uuid",
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/FavoriteRecipeResponse"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "favorite-controller" ]
+      }
+    },
+    "/api/v1/recipes/{recipeId}/next-cook-recommendations" : {
+      "get" : {
+        "operationId" : "recommend",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "recipeId",
+          "required" : true,
+          "schema" : {
+            "format" : "uuid",
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/NextCookRecommendationResponse"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "recommendation-controller" ]
+      }
+    },
+    "/api/v1/recipes/{recipeId}/personal-versions" : {
+      "get" : {
+        "operationId" : "listByRecipe_1",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "recipeId",
+          "required" : true,
+          "schema" : {
+            "format" : "uuid",
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "items" : {
+                    "$ref" : "#/components/schemas/PersonalRecipeVersion"
+                  },
+                  "type" : "array"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "personal-recipe-controller" ]
+      }
+    },
+    "/api/v1/recipes/{recipeId}/recommendation-feedback/{recommendationId}" : {
+      "put" : {
+        "operationId" : "feedback",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "recipeId",
+          "required" : true,
+          "schema" : {
+            "format" : "uuid",
+            "type" : "string"
+          }
+        }, {
+          "in" : "path",
+          "name" : "recommendationId",
+          "required" : true,
+          "schema" : {
+            "format" : "uuid",
+            "type" : "string"
+          }
+        } ],
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/SubmitRecommendationFeedbackRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/RecommendationFeedbackResponse"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "recommendation-controller" ]
+      }
+    },
+    "/api/v1/recipes/{recipeId}/reviews" : {
+      "get" : {
+        "operationId" : "listByRecipe",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "recipeId",
+          "required" : true,
+          "schema" : {
+            "format" : "uuid",
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "items" : {
+                    "$ref" : "#/components/schemas/PostCookReview"
+                  },
+                  "type" : "array"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "review-controller" ]
+      }
+    },
+    "/api/v1/reviews" : {
+      "post" : {
+        "operationId" : "submit",
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/SubmitReviewRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "201" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/PostCookReview"
+                }
+              }
+            },
+            "description" : "Created"
+          }
+        },
+        "tags" : [ "review-controller" ]
+      }
+    },
+    "/api/v1/reviews/{reviewId}" : {
+      "get" : {
+        "operationId" : "get",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "reviewId",
+          "required" : true,
+          "schema" : {
+            "format" : "uuid",
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/PostCookReview"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "review-controller" ]
+      }
+    },
+    "/api/v1/users/anonymous" : {
+      "post" : {
+        "operationId" : "createAnonymous",
+        "parameters" : [ {
+          "in" : "header",
+          "name" : "Idempotency-Key",
+          "required" : false,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "201" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/User"
+                }
+              }
+            },
+            "description" : "Created"
+          }
+        },
+        "tags" : [ "user-controller" ]
+      }
+    },
+    "/api/v1/users/me" : {
+      "get" : {
+        "operationId" : "me",
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/User"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "user-controller" ]
+      }
+    }
+  },
+  "servers" : [ {
+    "description" : "Generated server url",
+    "url" : "http://localhost"
+  } ]
+}
