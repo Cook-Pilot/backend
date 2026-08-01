@@ -15,11 +15,15 @@ import org.springframework.stereotype.Component;
 @Component
 class SafetyRuleCoach {
 
-	private static final String CLAUSE_SEPARATOR_CHARACTERS = ".!?。！？:：;；\\n\\r";
+	private static final String SENTENCE_SEPARATOR_CHARACTERS = ".!?。！？;；\\n\\r";
+	private static final String SAFETY_CLAUSE_SEPARATOR_CHARACTERS =
+			SENTENCE_SEPARATOR_CHARACTERS + ":：";
 	private static final String REPORT_BOUNDARY_CHARACTERS =
-			CLAUSE_SEPARATOR_CHARACTERS + ",，\"'”’」』";
-	private static final Pattern CLAUSE_BOUNDARY = Pattern.compile(
-			"[" + CLAUSE_SEPARATOR_CHARACTERS + "]+");
+			SAFETY_CLAUSE_SEPARATOR_CHARACTERS + ",，\"'”’」』";
+	private static final Pattern SAFETY_CLAUSE_BOUNDARY = Pattern.compile(
+			"[" + SAFETY_CLAUSE_SEPARATOR_CHARACTERS + "]+");
+	private static final Pattern DIRECTIVE_CLAUSE_BOUNDARY = Pattern.compile(
+			"[" + SENTENCE_SEPARATOR_CHARACTERS + "]+");
 	private static final String HAZARD_SUBJECT_PARTICLE =
 			"(?:이|가|은|는|도|만|조차|마저|까지(?:는|도|만)?)";
 	private static final String HAZARD_MODIFIER =
@@ -348,7 +352,7 @@ class SafetyRuleCoach {
 	}
 
 	private boolean reportsActiveAllergyRisk(String speech) {
-		String[] clauses = CLAUSE_BOUNDARY.split(speech);
+		String[] clauses = SAFETY_CLAUSE_BOUNDARY.split(speech);
 		boolean hasAllergyContext = false;
 		boolean subjectElidedEligible = false;
 		boolean active = false;
@@ -438,7 +442,7 @@ class SafetyRuleCoach {
 			return false;
 		}
 
-		String[] clauses = CLAUSE_BOUNDARY.split(speech);
+		String[] clauses = SAFETY_CLAUSE_BOUNDARY.split(speech);
 		boolean hasUndercookedContext = false;
 		boolean active = false;
 		for (String clause : clauses) {
@@ -471,7 +475,7 @@ class SafetyRuleCoach {
 	}
 
 	private boolean reportsActiveFireRisk(String speech) {
-		for (String clause : CLAUSE_BOUNDARY.split(speech)) {
+		for (String clause : SAFETY_CLAUSE_BOUNDARY.split(speech)) {
 			if (containsUnretractedHazard(ACTIVE_SMOKE_OR_FIRE_RISK, clause)
 					|| containsUnretractedHazard(ACTIVE_EXPLICIT_FIRE_RISK, clause)) {
 				return true;
@@ -507,7 +511,8 @@ class SafetyRuleCoach {
 			if (text == null) {
 				continue;
 			}
-			for (String clause : CLAUSE_BOUNDARY.split(normalize(text))) {
+			for (String rawClause : DIRECTIVE_CLAUSE_BOUNDARY.split(normalize(text))) {
+				String clause = normalizeDirectiveSeparators(rawClause);
 				if (containsUnretractedDirective(
 						POSITIVE_STEP_TRANSITION,
 						STEP_REPLACEMENT_DIRECTIVE,
@@ -521,6 +526,10 @@ class SafetyRuleCoach {
 			}
 		}
 		return false;
+	}
+
+	private String normalizeDirectiveSeparators(String clause) {
+		return clause.replace(':', ' ').replace('：', ' ');
 	}
 
 	private boolean containsUnretractedDirective(
