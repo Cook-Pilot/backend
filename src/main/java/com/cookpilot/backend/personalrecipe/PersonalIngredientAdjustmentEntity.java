@@ -46,6 +46,10 @@ public class PersonalIngredientAdjustmentEntity {
 	@Column(name = "amount")
 	private BigDecimal amount;
 
+	/** MODIFY amount 키가 있었는지. true + amount NULL 이 명시적 양 제거다. */
+	@Column(name = "amount_override_present", nullable = false)
+	private boolean amountOverridePresent;
+
 	@Column(name = "unit")
 	private String unit;
 
@@ -62,11 +66,21 @@ public class PersonalIngredientAdjustmentEntity {
 	public PersonalIngredientAdjustmentEntity(UUID personalVersionId, UUID originalIngredientId,
 			AdjustmentType adjustmentType, String name, BigDecimal amount, String unit,
 			Boolean required, int sortOrder) {
+		this(personalVersionId, originalIngredientId, adjustmentType, name, amount, unit,
+				required, sortOrder,
+				adjustmentType == AdjustmentType.MODIFY && amount != null);
+	}
+
+	public PersonalIngredientAdjustmentEntity(UUID personalVersionId, UUID originalIngredientId,
+			AdjustmentType adjustmentType, String name, BigDecimal amount, String unit,
+			Boolean required, int sortOrder, boolean amountOverridePresent) {
 		this.personalVersionId = personalVersionId;
 		this.originalIngredientId = originalIngredientId;
 		this.adjustmentType = adjustmentType;
 		this.name = name;
 		this.amount = amount;
+		this.amountOverridePresent = adjustmentType == AdjustmentType.MODIFY
+				&& (amountOverridePresent || amount != null);
 		this.unit = unit;
 		this.required = required;
 		this.sortOrder = sortOrder;

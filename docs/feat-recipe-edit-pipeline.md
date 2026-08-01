@@ -223,7 +223,7 @@ public record ParentDelta(
 ### 근거
 
 - **adjustment 셋이 아니라 합성 결과를 비교한다.** 두 diff 를 직접 비교하면
-  "`MODIFY.amount` 가 null → 1.5" 같은 diff 의 diff 가 나온다. 사용자에게 무의미하고
+  "`MODIFY.amount` 키 생략 → 1.5" 같은 diff 의 diff 가 나온다. 사용자에게 무의미하고
   비교 규칙을 새로 만들어야 한다. 부모와 자기를 각각 `DiffComposer` 로 합성해서 결과
   리스트를 비교하면 새 규칙이 0개고 `before`/`after` 가 화면에 그대로 쓰는 실제 값이 된다.
 - **변경된 항목만 담는다.** `before`/`after` 중 하나가 null 로 생김/사라짐을 표현 —

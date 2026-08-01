@@ -128,7 +128,7 @@ public class PersonalRecipeService {
 		ingredientAdjustmentRepository.saveAll(diff.ingredients().stream()
 				.map(adj -> new PersonalIngredientAdjustmentEntity(saved.getId(),
 						adj.originalIngredientId(), adj.type(), adj.name(), adj.amount(),
-						adj.unit(), adj.required(), adj.sortOrder()))
+						adj.unit(), adj.required(), adj.sortOrder(), adj.amountSpecified()))
 				.toList());
 		stepAdjustmentRepository.saveAll(diff.steps().stream()
 				.map(adj -> new PersonalStepAdjustmentEntity(saved.getId(), adj.originalStepId(),
@@ -334,7 +334,7 @@ public class PersonalRecipeService {
 		return adjustments.stream()
 				.map(adj -> new IngredientAdjustment(adj.originalIngredientId(), adj.type(),
 						adj.name(), normalizeAmount(adj.amount(), baseServings, targetServings),
-						adj.unit(), adj.required(), adj.sortOrder()))
+						adj.amountSpecified(), adj.unit(), adj.required(), adj.sortOrder()))
 				.toList();
 	}
 
@@ -369,14 +369,24 @@ public class PersonalRecipeService {
 						.toList());
 	}
 
-	/** MODIFY 의 non-null 필드 중 원본과 실제로 다른 것이 하나라도 있는지. */
+	/** MODIFY 의 지정된 필드 중 원본과 실제로 다른 것이 하나라도 있는지. */
 	private boolean overridesAnything(
 			IngredientAdjustment adj, DiffComposer.OriginalIngredient original) {
 		return differs(adj.name(), original.name())
-				|| (adj.amount() != null && (original.amount() == null
-						|| original.amount().compareTo(adj.amount()) != 0))
+				|| differsAmount(adj, original.amount())
 				|| differs(adj.unit(), original.unit())
 				|| (adj.required() != null && adj.required() != original.required());
+	}
+
+	/** amount 는 키 생략(유지)과 명시적 null(제거)을 별도로 비교한다. */
+	private boolean differsAmount(IngredientAdjustment adj, BigDecimal originalAmount) {
+		if (!adj.amountSpecified()) {
+			return false;
+		}
+		if (adj.amount() == null) {
+			return originalAmount != null;
+		}
+		return originalAmount == null || originalAmount.compareTo(adj.amount()) != 0;
 	}
 
 	private boolean overridesAnything(StepAdjustment adj, DiffComposer.OriginalStep original) {

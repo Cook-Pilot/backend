@@ -62,6 +62,26 @@ class DiffComposerTest {
 	}
 
 	@Test
+	void MODIFY에서_amount_키_생략은_원본_양을_유지한다() {
+		List<ComposedIngredient> result = DiffComposer.composeIngredients(cocktailIngredients(), List.of(
+				new IngredientAdjustment(rum, AdjustmentType.MODIFY, "화이트 럼",
+						null, false, null, null, 0)));
+
+		assertThat(result.get(1).name()).isEqualTo("화이트 럼");
+		assertThat(result.get(1).amount()).isEqualByComparingTo("45.00");
+	}
+
+	@Test
+	void MODIFY에서_amount_명시적_null은_원본_양을_제거한다() {
+		List<ComposedIngredient> result = DiffComposer.composeIngredients(cocktailIngredients(), List.of(
+				new IngredientAdjustment(rum, AdjustmentType.MODIFY, null,
+						null, true, null, null, 0)));
+
+		assertThat(result.get(1).amount()).isNull();
+		assertThat(result.get(1).origin()).isEqualTo(ComposedIngredient.Origin.MODIFIED);
+	}
+
+	@Test
 	void REMOVE된_재료는_결과에서_빠진다() {
 		List<ComposedIngredient> result = DiffComposer.composeIngredients(cocktailIngredients(), List.of(
 				new IngredientAdjustment(lime, AdjustmentType.REMOVE, null, null, null, null, 0)));

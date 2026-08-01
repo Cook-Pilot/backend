@@ -272,6 +272,27 @@ class CoreSchemaPersistenceTest {
 	}
 
 	@Test
+	void MODIFY_amount_명시적_null_presence를_왕복한다() {
+		UserEntity user = userRepository.save(new UserEntity("amount-null@test.com", "amount-null"));
+		RecipeEntity recipe = recipeRepository.save(new RecipeEntity("amount-null레시피", null, null));
+		RecipeIngredientEntity water = ingredientRepository.save(
+				new RecipeIngredientEntity(recipe.getId(), "물", new BigDecimal("500.00"), "ml", true, 0));
+		PersonalRecipeVersionEntity version = versionRepository.save(new PersonalRecipeVersionEntity(
+				user.getId(), recipe.getId(), 1, "amount-null버전", null, null));
+
+		ingredientAdjustmentRepository.save(new PersonalIngredientAdjustmentEntity(
+				version.getId(), water.getId(), AdjustmentType.MODIFY,
+				null, null, null, null, 0, true));
+		flushAndClear();
+
+		PersonalIngredientAdjustmentEntity saved = ingredientAdjustmentRepository
+				.findByPersonalVersionIdOrderBySortOrderAsc(version.getId())
+				.getFirst();
+		assertThat(saved.getAmount()).isNull();
+		assertThat(saved.isAmountOverridePresent()).isTrue();
+	}
+
+	@Test
 	void ADD_diff가_원본을_참조하면_CHECK로_거부된다() {
 		UserEntity user = userRepository.save(new UserEntity("check@test.com", "check"));
 		RecipeEntity recipe = recipeRepository.save(new RecipeEntity("check레시피", null, null));
