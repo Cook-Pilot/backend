@@ -19,11 +19,11 @@ class SafetyRuleCoach {
 	private static final String HAZARD_SUBJECT_PARTICLE =
 			"(?:이|가|은|는|도|만|조차|마저|까지(?:는|도|만)?)";
 	private static final String HAZARD_MODIFIER =
-			"(?:갑자기|갑작스럽게|방금|지금|아까부터|계속|자꾸|점점|좀"
-					+ "|너무|아주|정말|엄청|많이|심하게|크게|세게|거세게"
-					+ "|확|막|평소보다(?:도)?|전보다)";
+			"(?:갑자기|방금|지금|아까부터|계속|자꾸|점점|조금|약간|매우"
+					+ "|좀|너무|아주|정말|엄청|많이|확|막"
+					+ "|[가-힣]{1,16}(?:게|히|보다(?:도)?))";
 	private static final String HAZARD_MODIFIERS =
-			"(?:(?:" + HAZARD_MODIFIER + ")\\s*){0,4}";
+			"(?:(?:" + HAZARD_MODIFIER + ")\\s+){0,5}";
 	private static final String HAZARD_REPORT_PREFIX =
 			"(?:\\s*" + HAZARD_SUBJECT_PARTICLE + "\\s*" + HAZARD_MODIFIERS
 					+ "|\\s+" + HAZARD_MODIFIERS
@@ -31,13 +31,16 @@ class SafetyRuleCoach {
 	private static final String ACTIVE_HAZARD_REPORT =
 			"(?:나(?=\\s*$)|나요|납니다|나네(?:요)?|나는데(?:요)?|나서(?:요)?"
 					+ "|나고\\s*있(?:어(?:요)?|습니다)"
-					+ "|나기\\s*시작했(?:어(?:요)?|습니다)|난다"
+					+ "|나기\\s*시작(?:해(?:요)?|했(?:어(?:요)?|습니다))"
+					+ "|나는\\s*중(?:입니다|이에요|예요)|난다"
 					+ "|난\\s*것\\s*같(?:아(?:요)?|습니다)"
 					+ "|났(?=\\s*$)|났어(?:요)?|났습니다|났네(?:요)?|났는데(?:요)?|났다)";
 	private static final String ACTIVE_FIRE_SPREAD_REPORT =
 			"(?:붙어(?:요)?|붙었(?:어(?:요)?|습니다|네(?:요)?)"
+					+ "|붙은\\s*것\\s*같(?:아(?:요)?|습니다)"
 					+ "|번져(?:요)?|번집니다|번졌(?:어(?:요)?|습니다|네(?:요)?)"
-					+ "|번지고\\s*있(?:어(?:요)?|습니다))";
+					+ "|번지고\\s*있(?:어(?:요)?|습니다)"
+					+ "|번지는\\s*중(?:입니다|이에요|예요))";
 	private static final String ACTIVE_FIRE_EVENT_REPORT =
 			"(?:" + ACTIVE_HAZARD_REPORT
 					+ "|" + ACTIVE_FIRE_SPREAD_REPORT
@@ -48,7 +51,9 @@ class SafetyRuleCoach {
 	private static final Pattern ACTIVE_SMOKE_OR_FIRE_RISK = Pattern.compile(
 			"(?<![\\p{L}\\p{N}])(?:연기|불)"
 					+ HAZARD_REPORT_PREFIX
-					+ "(?:" + ACTIVE_HAZARD_REPORT + "|" + ACTIVE_FIRE_SPREAD_REPORT + ")"
+					+ "(?:" + ACTIVE_HAZARD_REPORT
+					+ "|" + ACTIVE_FIRE_SPREAD_REPORT
+					+ "|(?:입니다|이에요|예요))"
 					+ HAZARD_REPORT_BOUNDARY);
 	private static final Pattern ACTIVE_EXPLICIT_FIRE_RISK = Pattern.compile(
 			"(?<![\\p{L}\\p{N}])(?:화재|기름\\s*불|산불)"
@@ -56,6 +61,14 @@ class SafetyRuleCoach {
 					+ "(?:" + ACTIVE_FIRE_EVENT_REPORT + "|(?:입니다|이에요|예요))"
 					+ HAZARD_REPORT_BOUNDARY
 					+ "|\\s*(?=$))");
+	private static final Pattern HAZARD_RETRACTION_PREFIX = Pattern.compile(
+			"^\\s*(?:[\\\"'”’」』]?\\s*(?:라는|라고|이라고)\\s*"
+					+ "(?:(?:말|내용|표현)(?:은|는|이|가)?\\s*)?"
+					+ "(?:사실이\\s*)?"
+					+ "(?:아닙니다|아니에요|아니야|아니고|아니지만|틀렸(?:습니다|어요))"
+					+ "|[,，]\\s*(?:아니|정정하면|사실은)\\s*"
+					+ "(?:(?:연기|불)(?:이|가)?\\s*아니라\\s*)?"
+					+ "(?:수증기|김|안개)(?:입니다|이에요|예요))");
 	private static final String STEP_REFERENCE =
 			"(?:(?:다음|그\\s*다음|차기|후속)\\s*(?:번\\s*)?(?:조리\\s*)?단계"
 					+ "|(?:다음|그\\s*다음|차기|후속)\\s*(?:순서|과정)"
@@ -89,55 +102,67 @@ class SafetyRuleCoach {
 	private static final String ALL_DONE_PREFIX =
 			"(?:(?:이제|벌써|이미)\\s*)?(?:(?:모두|전부)\\s*)?다\\s*";
 	private static final String POLITE_REQUEST_ENDING =
-			"(?:주세요|주십시오|줘(?:요)?|주시기\\s*바랍니다|주시면\\s*됩니다)";
+			"(?:주세요|주십시오|줘(?:요)?|주시기\\s*바랍니다|주시면\\s*됩니다"
+					+ "|주셨으면\\s*합니다)";
+	private static final String VERB_REQUEST_SUFFIX =
+			"\\s*" + POLITE_REQUEST_ENDING;
+	private static final String VERB_PERMISSION_SUFFIX =
+			"(?:도|셔도|면|시면)\\s*" + TRANSITION_PERMISSION;
 	private static final String NOMINAL_ACTION_REQUEST =
-			"(?:해|하여)\\s*" + POLITE_REQUEST_ENDING;
+			"(?:해|하여)" + VERB_REQUEST_SUFFIX;
 	private static final String NOMINAL_ACTION_PERMISSION =
 			"(?:해도|하셔도|하면|하시면)\\s*" + TRANSITION_PERMISSION;
+	private static final String NOMINAL_ACTION_DIRECTIVE =
+			"(?:하세요|하십시오|합니다|" + NOMINAL_ACTION_REQUEST
+					+ "|" + NOMINAL_ACTION_PERMISSION
+					+ "|\\s*부탁드(?:립니다|릴게요|려요))";
+	private static final String TRANSITION_ACTION_DIRECTIVE =
+			"(?:(?:넘어가|가)(?:세요|십시오|" + VERB_REQUEST_SUFFIX
+					+ "|" + VERB_PERMISSION_SUFFIX + ")"
+					+ "|넘어가(?:겠습니다|자|는\\s*게\\s*(?:좋(?:습니다|아요)|낫(?:습니다|아요)))"
+					+ "|넘어갑니다|넘어갈게요|넘어갑시다"
+					+ "|(?:이동|진행|전환|시작)" + NOMINAL_ACTION_DIRECTIVE + ")";
+	private static final String COMPLETION_ACTION_DIRECTIVE =
+			"(?:(?:완료|완성|종료|마무리)\\s*" + NOMINAL_ACTION_DIRECTIVE
+					+ "|끝(?:내(?:세요|십시오|" + VERB_REQUEST_SUFFIX
+					+ "|" + VERB_PERMISSION_SUFFIX + ")|냅니다)"
+					+ "|마치(?:세요|십시오|" + VERB_PERMISSION_SUFFIX + ")"
+					+ "|마칩니다"
+					+ "|마쳐(?:" + VERB_REQUEST_SUFFIX
+					+ "|도\\s*" + TRANSITION_PERMISSION + "))";
 	private static final Pattern POSITIVE_STEP_TRANSITION = Pattern.compile(
 			STEP_REFERENCE
 					+ "\\s*(?:" + TRANSITION_PARTICLE + "\\s*)?"
 					+ TRANSITION_ADVERBS
 					+ TRANSITION_COOKING_OBJECT
 					+ TRANSITION_ADVERBS
-					+ "(?:넘어가(?:\\s*주세요|세요|십시오"
-					+ "|(?:도|셔도|면|시면)\\s*" + TRANSITION_PERMISSION
-					+ "|겠습니다|자|는\\s*게\\s*(?:좋(?:습니다|아요)|낫(?:습니다|아요)))"
-					+ "|넘어갑니다|넘어가겠습니다|넘어갈게요|넘어갑시다"
-					+ "|(?:이동|진행|전환|시작)(?:하세요|하십시오|합니다|"
-					+ NOMINAL_ACTION_REQUEST
-					+ "|" + NOMINAL_ACTION_PERMISSION + ")"
-					+ "|가(?:\\s*주세요|세요|십시오"
-					+ "|(?:도|셔도|면|시면)\\s*" + TRANSITION_PERMISSION + "))");
+					+ TRANSITION_ACTION_DIRECTIVE);
+	private static final String COMPLETION_DECLARATION =
+			"(?:완료\\s*(?:됐(?:습니다|어요|으니|으므로|으니까)"
+					+ "|되었(?:습니다|어요|으니|으므로|으니까)|입니다|예요|(?=\\s*$))"
+					+ "|완성\\s*(?:됐(?:습니다|어요|으니|으므로|으니까)"
+					+ "|되었(?:습니다|어요|으니|으므로|으니까)|입니다|예요|(?=\\s*$))"
+					+ "|끝(?:났(?:습니다|어요|으니|으므로|으니까)|입니다|이에요|(?=\\s*$))"
+					+ "|종료\\s*(?:됐(?:습니다|어요)|되었습니다|(?=\\s*$))"
+					+ "|마쳤(?:습니다|어요|으니|으므로|으니까)"
+					+ "|" + ALL_DONE_PREFIX + COMPLETED_STATE + ")";
 	private static final Pattern POSITIVE_COMPLETION = Pattern.compile(
 			"(?:" + COOKING_SUBJECT
-					+ "(?:완료\\s*(?:하세요|하십시오|합니다|" + NOMINAL_ACTION_REQUEST
-					+ "|" + NOMINAL_ACTION_PERMISSION
-					+ "|됐(?:습니다|어요|으니|으므로|으니까)|되었(?:습니다|어요|으니|으므로|으니까)"
-					+ "|입니다|예요|\\s*$)"
-					+ "|완성\\s*(?:하세요|하십시오|합니다|" + NOMINAL_ACTION_REQUEST
-					+ "|" + NOMINAL_ACTION_PERMISSION
-					+ "|됐(?:습니다|어요|으니|으므로|으니까)"
-					+ "|되었(?:습니다|어요|으니|으므로|으니까)|입니다|예요|\\s*$)"
-					+ "|끝(?:내세요|내십시오|냅니다|내\\s*" + POLITE_REQUEST_ENDING
-					+ "|내(?:도|면)\\s*됩니다"
-					+ "|났(?:습니다|어요|으니|으므로|으니까)"
-					+ "|입니다|이에요|\\s*$)"
-					+ "|종료\\s*(?:하세요|하십시오|합니다|" + NOMINAL_ACTION_REQUEST
-					+ "|" + NOMINAL_ACTION_PERMISSION
-					+ "|됐(?:습니다|어요)|되었습니다|\\s*$)"
-					+ "|마무리\\s*(?:하세요|하십시오|합니다|" + NOMINAL_ACTION_REQUEST
-					+ "|" + NOMINAL_ACTION_PERMISSION + ")"
-					+ "|마치(?:세요|십시오|면\\s*됩니다)"
-					+ "|마쳐\\s*" + POLITE_REQUEST_ENDING
-					+ "|마쳤(?:습니다|어요|으니|으므로|으니까)"
-					+ "|" + ALL_DONE_PREFIX + COMPLETED_STATE + ")"
+					+ "(?:" + COMPLETION_ACTION_DIRECTIVE
+					+ "|" + COMPLETION_DECLARATION + ")"
 					+ "|^\\s*" + ALL_DONE_PREFIX + COMPLETED_STATE + ")");
-	private static final Pattern RETRACTED_DIRECTIVE_SUFFIX = Pattern.compile(
+	private static final Pattern DIRECTIVE_RETRACTION_PREFIX = Pattern.compile(
 			"^\\s*(?:[\\\"'”’」』]?\\s*(?:라는|라고|이라고)\\s*"
 					+ "(?:(?:문구|안내|말)(?:은|는|을|를)?\\s*)?"
-					+ "(?:따르지|따라가지|무시|사용하지|말하지|하지\\s*마)"
-					+ "|(?:이|가)?\\s*아니라(?:\\s|$))");
+					+ "(?:따르지|따라가지|무시|사용하지|말하지|하지)"
+					+ "(?:\\s*(?:마세요|말고))?\\s*"
+					+ "|(?:이|가)?\\s*아니라\\s*)");
+	private static final String REPLACEMENT_LEAD =
+			"(?:(?:지금|이제|바로|대신|그보다)\\s*)?";
+	private static final Pattern STEP_REPLACEMENT_DIRECTIVE = Pattern.compile(
+			"^\\s*" + REPLACEMENT_LEAD + TRANSITION_ACTION_DIRECTIVE);
+	private static final Pattern COMPLETION_REPLACEMENT_DIRECTIVE = Pattern.compile(
+			"^\\s*" + REPLACEMENT_LEAD + COMPLETION_ACTION_DIRECTIVE);
 
 	Optional<AiFeedbackAdvice> answer(AiFeedbackContext context) {
 		String speech = normalize(context.userSpeech());
@@ -174,8 +199,19 @@ class SafetyRuleCoach {
 
 	private boolean reportsActiveFireRisk(String speech) {
 		for (String clause : CLAUSE_BOUNDARY.split(speech)) {
-			if (ACTIVE_SMOKE_OR_FIRE_RISK.matcher(clause).find()
-					|| ACTIVE_EXPLICIT_FIRE_RISK.matcher(clause).find()) {
+			if (containsUnretractedHazard(ACTIVE_SMOKE_OR_FIRE_RISK, clause)
+					|| containsUnretractedHazard(ACTIVE_EXPLICIT_FIRE_RISK, clause)) {
+				return true;
+			}
+		}
+		return false;
+	}
+
+	private boolean containsUnretractedHazard(Pattern hazard, String clause) {
+		var matcher = hazard.matcher(clause);
+		while (matcher.find()) {
+			String suffix = clause.substring(matcher.end());
+			if (!HAZARD_RETRACTION_PREFIX.matcher(suffix).find()) {
 				return true;
 			}
 		}
@@ -194,8 +230,14 @@ class SafetyRuleCoach {
 				continue;
 			}
 			for (String clause : CLAUSE_BOUNDARY.split(normalize(text))) {
-				if (containsUnretractedDirective(POSITIVE_STEP_TRANSITION, clause)
-						|| containsUnretractedDirective(POSITIVE_COMPLETION, clause)) {
+				if (containsUnretractedDirective(
+						POSITIVE_STEP_TRANSITION,
+						STEP_REPLACEMENT_DIRECTIVE,
+						clause)
+						|| containsUnretractedDirective(
+								POSITIVE_COMPLETION,
+								COMPLETION_REPLACEMENT_DIRECTIVE,
+								clause)) {
 					return true;
 				}
 			}
@@ -203,11 +245,17 @@ class SafetyRuleCoach {
 		return false;
 	}
 
-	private boolean containsUnretractedDirective(Pattern directive, String clause) {
+	private boolean containsUnretractedDirective(
+			Pattern directive, Pattern replacement, String clause) {
 		var matcher = directive.matcher(clause);
 		while (matcher.find()) {
 			String suffix = clause.substring(matcher.end());
-			if (!RETRACTED_DIRECTIVE_SUFFIX.matcher(suffix).find()) {
+			var retraction = DIRECTIVE_RETRACTION_PREFIX.matcher(suffix);
+			if (!retraction.find()) {
+				return true;
+			}
+			String remainder = suffix.substring(retraction.end());
+			if (replacement.matcher(remainder).find()) {
 				return true;
 			}
 		}
