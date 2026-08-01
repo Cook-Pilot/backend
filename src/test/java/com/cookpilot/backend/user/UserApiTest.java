@@ -194,45 +194,7 @@ class UserApiTest extends PostgresApiTestBase {
 								  "recipeId": "%s",
 								  "rating": 5,
 								  "comment": "첫 번째 사용자 후기",
-								  "targetServings": 1,
-								  "ingredients": [
-								    {
-								      "originalIngredientId": "20000000-0000-0000-0000-000000000101",
-								      "name": "라면",
-								      "amount": 1,
-								      "unit": "봉",
-								      "required": true,
-								      "omitted": false,
-								      "sortOrder": 0
-								    },
-								    {
-								      "originalIngredientId": "20000000-0000-0000-0000-000000000102",
-								      "name": "물",
-								      "amount": 400,
-								      "unit": "ml",
-								      "required": true,
-								      "omitted": false,
-								      "sortOrder": 1
-								    },
-								    {
-								      "originalIngredientId": "20000000-0000-0000-0000-000000000103",
-								      "name": "계란",
-								      "amount": 1,
-								      "unit": "개",
-								      "required": false,
-								      "omitted": false,
-								      "sortOrder": 2
-								    },
-								    {
-								      "originalIngredientId": "20000000-0000-0000-0000-000000000104",
-								      "name": "파",
-								      "amount": 0.5,
-								      "unit": "대",
-								      "required": false,
-								      "omitted": false,
-								      "sortOrder": 3
-								    }
-								  ]
+								  "targetServings": 1
 								}
 								""".formatted(UUID.randomUUID(), TestRecipeIds.RAMEN_RECIPE_ID)))
 				.andExpect(status().isCreated())
@@ -241,7 +203,6 @@ class UserApiTest extends PostgresApiTestBase {
 				.getContentAsString();
 		JsonNode review = objectMapper.readTree(reviewBody);
 		String reviewId = review.get("id").asText();
-		String versionId = review.get("createdPersonalVersionId").asText();
 
 		mockMvc.perform(get("/api/v1/recipes/"
 						+ TestRecipeIds.RAMEN_RECIPE_ID + "/reviews")
@@ -256,9 +217,6 @@ class UserApiTest extends PostgresApiTestBase {
 						.header(UserService.USER_ID_HEADER, secondUserId))
 				.andExpect(status().isOk())
 				.andExpect(jsonPath("$.length()").value(0));
-		mockMvc.perform(get("/api/v1/personal-versions/" + versionId)
-						.header(UserService.USER_ID_HEADER, secondUserId))
-				.andExpect(status().isNotFound());
 		mockMvc.perform(get("/api/v1/home/recent-recipes")
 						.header(UserService.USER_ID_HEADER, secondUserId))
 				.andExpect(status().isOk())
@@ -268,10 +226,6 @@ class UserApiTest extends PostgresApiTestBase {
 						.header(UserService.USER_ID_HEADER, firstUserId))
 				.andExpect(status().isOk())
 				.andExpect(jsonPath("$.id").value(reviewId));
-		mockMvc.perform(get("/api/v1/personal-versions/" + versionId)
-						.header(UserService.USER_ID_HEADER, firstUserId))
-				.andExpect(status().isOk())
-				.andExpect(jsonPath("$.version.id").value(versionId));
 		mockMvc.perform(get("/api/v1/home/recent-recipes")
 						.header(UserService.USER_ID_HEADER, firstUserId))
 				.andExpect(status().isOk())

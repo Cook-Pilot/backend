@@ -81,6 +81,26 @@ public class PostCookReviewEntity {
 	protected PostCookReviewEntity() {
 	}
 
+	/**
+	 * 저장 요청을 그대로 받아 엔티티를 만든다. SubmitReviewRequest 필드는 이 테이블 컬럼과 1:1 이라
+	 * 서비스가 인자를 하나씩 풀어 옮길 이유가 없다.
+	 *
+	 * userId 는 요청이 정하지 않는다(현재 사용자에서 온다). cookedAt 이 비면 수신 시각으로 대체한다 —
+	 * DB 가 NOT NULL 이고, 시각을 모른 채 저장하는 것보다 "서버가 받은 때"가 낫다.
+	 */
+	public static PostCookReviewEntity of(UUID userId, SubmitReviewRequest request) {
+		return new PostCookReviewEntity(
+				userId,
+				request.recipeId(),
+				request.clientSessionId(),
+				request.cookedAt() != null ? request.cookedAt() : Instant.now(),
+				request.sourcePersonalVersionId(),
+				request.targetServings(),
+				request.rating(),
+				request.comment(),
+				request.nextTimeNote());
+	}
+
 	public PostCookReviewEntity(UUID userId, UUID recipeId, UUID clientSessionId,
 			Instant cookedAt, UUID sourcePersonalVersionId, BigDecimal targetServings,
 			Integer rating, String comment, String nextTimeNote) {

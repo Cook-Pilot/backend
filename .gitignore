@@ -42,3 +42,8 @@ out/
 
 # 로컬 작업 노트 (추적 제외)
 TODO.md
+new_diff_approach.md
+docs/schema-snapshot.sql
+
+### Claude Code ###
+.claude/
