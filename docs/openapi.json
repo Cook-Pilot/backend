@@ -90,6 +90,17 @@
         },
         "type" : "object"
       },
+      "Cooking" : {
+        "properties" : {
+          "blank" : {
+            "type" : "boolean"
+          },
+          "transcript" : {
+            "type" : "string"
+          }
+        },
+        "type" : "object"
+      },
       "CookingHistoryItem" : {
         "properties" : {
           "comment" : {
@@ -134,60 +145,6 @@
           "sourcePersonalVersionId" : {
             "format" : "uuid",
             "type" : "string"
-          }
-        },
-        "type" : "object"
-      },
-      "ExecutedIngredientRequest" : {
-        "properties" : {
-          "amount" : {
-            "type" : "number"
-          },
-          "name" : {
-            "type" : "string"
-          },
-          "omitted" : {
-            "type" : "boolean"
-          },
-          "originalIngredientId" : {
-            "format" : "uuid",
-            "type" : "string"
-          },
-          "required" : {
-            "type" : "boolean"
-          },
-          "sortOrder" : {
-            "format" : "int32",
-            "type" : "integer"
-          },
-          "unit" : {
-            "type" : "string"
-          }
-        },
-        "type" : "object"
-      },
-      "ExecutedStepRequest" : {
-        "properties" : {
-          "cautionNote" : {
-            "type" : "string"
-          },
-          "instruction" : {
-            "type" : "string"
-          },
-          "omitted" : {
-            "type" : "boolean"
-          },
-          "originalStepId" : {
-            "format" : "uuid",
-            "type" : "string"
-          },
-          "sortOrder" : {
-            "format" : "int32",
-            "type" : "integer"
-          },
-          "timerSeconds" : {
-            "format" : "int32",
-            "type" : "integer"
           }
         },
         "type" : "object"
@@ -516,6 +473,17 @@
         },
         "type" : "object"
       },
+      "RecipeEditRequest" : {
+        "properties" : {
+          "cooking" : {
+            "$ref" : "#/components/schemas/Cooking"
+          },
+          "setup" : {
+            "$ref" : "#/components/schemas/Setup"
+          }
+        },
+        "type" : "object"
+      },
       "RecipeIngredient" : {
         "properties" : {
           "amount" : {
@@ -648,6 +616,23 @@
         },
         "type" : "object"
       },
+      "Setup" : {
+        "properties" : {
+          "ingredientAdjustments" : {
+            "items" : {
+              "$ref" : "#/components/schemas/IngredientAdjustment"
+            },
+            "type" : "array"
+          },
+          "stepAdjustments" : {
+            "items" : {
+              "$ref" : "#/components/schemas/StepAdjustment"
+            },
+            "type" : "array"
+          }
+        },
+        "type" : "object"
+      },
       "StepAdjustment" : {
         "properties" : {
           "cautionNote" : {
@@ -736,12 +721,6 @@
             "format" : "date-time",
             "type" : "string"
           },
-          "ingredients" : {
-            "items" : {
-              "$ref" : "#/components/schemas/ExecutedIngredientRequest"
-            },
-            "type" : "array"
-          },
           "nextTimeNote" : {
             "type" : "string"
           },
@@ -756,12 +735,6 @@
           "sourcePersonalVersionId" : {
             "format" : "uuid",
             "type" : "string"
-          },
-          "steps" : {
-            "items" : {
-              "$ref" : "#/components/schemas/ExecutedStepRequest"
-            },
-            "type" : "array"
           },
           "targetServings" : {
             "type" : "number"
@@ -1225,6 +1198,43 @@
           }
         },
         "tags" : [ "review-controller" ]
+      }
+    },
+    "/api/v1/reviews/{reviewId}/personal-versions" : {
+      "post" : {
+        "operationId" : "create",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "reviewId",
+          "required" : true,
+          "schema" : {
+            "format" : "uuid",
+            "type" : "string"
+          }
+        } ],
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/RecipeEditRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/PersonalRecipeVersion"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "personal-recipe-controller" ]
       }
     },
     "/api/v1/users/anonymous" : {

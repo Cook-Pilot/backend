@@ -35,7 +35,7 @@ README 수기 나열로 공유하기 어려워졌다. springdoc-openapi 를 붙�
 
 - DB 스키마 변경 없음(마이그레이션 없음).
 - 신규 라우트는 springdoc 이 제공하는 `/v3/api-docs*`, `/swagger-ui*` 뿐. `/api/v1` 계약 변경 없음.
-- 신규 산출물 `docs/openapi.json` — 현재 16 paths / 26 schemas.
+- 신규 산출물 `docs/openapi.json` — 현재 17 paths / 27 schemas.
 
 ## 스펙 파일 갱신 방법
 
@@ -48,6 +48,12 @@ README 수기 나열로 공유하기 어려워졌다. springdoc-openapi 를 붙�
 CI(`ci.yml` 의 `Check OpenAPI spec is up to date`)가 `docs/openapi.json` 과 방금 생성한
 `build/openapi.json` 을 `diff` 해서 어긋나면 실패시킨다. 봇 자동 커밋 대신 사람이 커밋하는
 방식을 골랐다 — PR 에 봇 커밋이 끼지 않고 워크플로 권한도 `contents: read` 로 유지된다.
+
+**주의: PR 에서 CI 는 브랜치 HEAD 가 아니라 main 과 합친 머지 커밋을 검사한다**
+(`pull_request` 이벤트의 `actions/checkout` 기본 동작). 그래서 내가 API 를 안 건드렸어도
+main 에 새 엔드포인트가 들어오면 이 검사가 실패한다 — 브랜치의 스펙에는 그 엔드포인트가 없기 때문.
+해결은 main 을 브랜치에 합치고 위 명령으로 재생성하는 것. 즉 이 게이트는 "스펙 최신성" 과 함께
+"PR 이 main 과 동기화됨" 도 사실상 강제한다. 생성물을 커밋하는 방식의 구조적 비용이다.
 
 ## 검증
 
