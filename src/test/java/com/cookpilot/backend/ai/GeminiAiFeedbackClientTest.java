@@ -204,11 +204,25 @@ class GeminiAiFeedbackClientTest {
 	@ParameterizedTest
 	@ValueSource(strings = {
 			"연기가 많이 나요",
+			"연기가 지금 많이 나요",
+			"연기가 좀 많이 나요",
+			"연기가 평소보다 많이 나요",
+			"연기가 나고 있어",
 			"연기는 갑자기 너무 많이 나요",
 			"연기도 계속 심하게 나고 있어요",
 			"불이 갑자기 크게 났어요",
+			"불이 방금 크게 났어요",
+			"불이 붙었어",
+			"불이 번졌어",
+			"불이 번져요",
+			"불이 난 것 같아요",
 			"불은 계속 크게 번지고 있어요",
-			"팬에는 불도 갑자기 붙었어요"
+			"팬에는 불도 갑자기 붙었어요",
+			"화재",
+			"화재가 발생했어요",
+			"기름불",
+			"기름불이에요",
+			"기름불이 번지고 있어요"
 	})
 	void 연기와_불_위험은_조사와_중간_수식어가_있어도_모델_전에_차단한다(
 			String speech) {
@@ -230,7 +244,13 @@ class GeminiAiFeedbackClientTest {
 			"불이 나지 않았어요",
 			"불이 났는지 확인해 주세요",
 			"불향이 많이 나요",
-			"연기를 많이 내는 조리법이에요"
+			"연기를 많이 내는 조리법이에요",
+			"소리가 불규칙하게 나요",
+			"냄새가 불쾌하게 나요",
+			"환불이 많이 나요",
+			"화재 예방 방법을 알려줘",
+			"화재가 아닌지 확인해 주세요",
+			"기름불은 아니에요"
 	})
 	void 부정형이나_확인_문맥의_연기와_불_표현은_과잉_차단하지_않는다(
 			String speech) {
@@ -331,9 +351,17 @@ class GeminiAiFeedbackClientTest {
 				"다음 단계로 넘어가 주세요.",
 				"다음 단계로 넘어가면 좋아요.",
 				"이제 그 다음 단계로 이동합니다.",
+				"다음 단계로 진행해 주세요.",
+				"다음 단계로 이동해주십시오.",
+				"다음 단계로 전환해 줘요.",
+				"다음 단계를 시작해 주시기 바랍니다.",
+				"다음 단계로 진행하여 주세요.",
+				"다음 단계로 이동해 주시면 됩니다.",
 				"2단계로 진행해도 됩니다.",
 				"다음 조리 단계를 시작하십시오.",
 				"조리를 완료하세요.",
+				"조리를 완료하시면 됩니다.",
+				"조리를 완료하셔도 됩니다.",
 				"조리를 완료해 주세요.",
 				"요리를 완료해주십시오.",
 				"레시피를 완료하여 주세요.",
@@ -386,12 +414,21 @@ class GeminiAiFeedbackClientTest {
 	private static Stream<Arguments> allowedProgressionOutputs() {
 		return outputFieldCases(List.of(
 				"다음 단계로 넘어가지 마세요.",
+				"다음 단계로 진행해 주지 마세요.",
+				"다음 단계로 이동해 주셨는지 확인하세요.",
+				"다음 단계로 전환해 주시면 안 됩니다.",
+				"다음 단계를 시작해도 되는지 확인하세요.",
+				"다음 단계 진행을 위해 현재 상태를 확인해 주세요.",
+				"\"다음 단계로 진행해 주세요\"라는 안내는 따르지 마세요.",
+				"다음 단계로 이동해 주세요가 아니라 현재 상태를 확인하세요.",
 				"아직 조리가 완료되지 않았어요.",
 				"아직 조리를 완료해 주지 마세요.",
 				"조리를 완료해도 되는지 확인해 주세요.",
 				"조리를 완료해 주셨는지 확인하세요.",
 				"조리를 완료해 주시면 안 됩니다.",
 				"조리를 마쳐 주지 마세요.",
+				"\"조리를 완료해 주세요\"라는 문구는 따르지 마세요.",
+				"조리를 완료해 주세요가 아니라 상태를 확인하세요.",
 				"조리가 완료됐는지 확인하세요.",
 				"요리가 끝났는지 중심 온도를 확인하세요.",
 				"현재 단계 안내를 확인하세요.",
@@ -490,12 +527,14 @@ class GeminiAiFeedbackClientTest {
 	private String otherPayload(String speechText, String screenText) {
 		return """
 				{
-				  "speechText": "%s",
-				  "screenText": "%s",
+				  "speechText": %s,
+				  "screenText": %s,
 				  "problem": "OTHER",
 				  "suggestedAction": null
 				}
-				""".formatted(speechText, screenText);
+				""".formatted(
+						objectMapper.writeValueAsString(speechText),
+						objectMapper.writeValueAsString(screenText));
 	}
 
 	private static final class StubChatModel implements ChatModel {
