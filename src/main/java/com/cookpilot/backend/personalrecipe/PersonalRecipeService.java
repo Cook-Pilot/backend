@@ -6,7 +6,6 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -18,11 +17,11 @@ import org.springframework.transaction.annotation.Transactional;
 
 import com.cookpilot.backend.common.NotFoundException;
 import com.cookpilot.backend.recipe.RecipeEntity;
-import com.cookpilot.backend.recipe.RecipeIngredientEntity;
 import com.cookpilot.backend.recipe.RecipeIngredientRepository;
 import com.cookpilot.backend.recipe.RecipeRepository;
-import com.cookpilot.backend.recipe.RecipeStepEntity;
 import com.cookpilot.backend.recipe.RecipeStepRepository;
+import com.cookpilot.backend.review.PostCookReviewEntity;
+import com.cookpilot.backend.review.PostCookReviewRepository;
 import com.cookpilot.backend.user.UserService;
 
 /**
@@ -43,6 +42,7 @@ public class PersonalRecipeService {
 	private final RecipeRepository recipeRepository;
 	private final RecipeIngredientRepository recipeIngredientRepository;
 	private final RecipeStepRepository recipeStepRepository;
+	private final PostCookReviewRepository reviewRepository;
 	private final UserService userService;
 
 	public PersonalRecipeService(PersonalRecipeVersionRepository versionRepository,
@@ -51,6 +51,7 @@ public class PersonalRecipeService {
 			RecipeRepository recipeRepository,
 			RecipeIngredientRepository recipeIngredientRepository,
 			RecipeStepRepository recipeStepRepository,
+			PostCookReviewRepository reviewRepository,
 			UserService userService) {
 		this.versionRepository = versionRepository;
 		this.ingredientAdjustmentRepository = ingredientAdjustmentRepository;
@@ -58,50 +59,61 @@ public class PersonalRecipeService {
 		this.recipeRepository = recipeRepository;
 		this.recipeIngredientRepository = recipeIngredientRepository;
 		this.recipeStepRepository = recipeStepRepository;
+		this.reviewRepository = reviewRepository;
 		this.userService = userService;
 	}
 
-	/** 실제 실행 결과가 원본과 다를 때만 원본 기준 누적 diff 버전을 만든다. */
+	/**
+	 * 한 번의 조리에서 나온 수정 사항(setup/cooking/review 층)으로 원본 기준 누적 diff 버전을
+	 * 만든다. 결과가 원본과 같으면 Optional.empty() — 버전을 만들지 않는다.
+	 *
+	 * 입력은 층별로 이미 타입(ADD/MODIFY/REMOVE)이 붙은 diff 다. 서버는 검증만 하고
+	 * 스냅샷 역산은 하지 않는다(명시적 diff 계약). 프론트가 원본 기준으로 머지해서 보내므로
+	 * 부모 버전의 diff 는 읽지 않는다 — 부모는 계보(parent_version_id)로만 남는다.
+	 *
+	 * 층은 (원본, 앞 층 diff) → diff 로 이어진다. 원본은 절대 변하지 않으므로 한 번만 읽고,
+	 * 층을 통과하며 바뀌는 것은 diff 뿐이다. 마지막에 남은 diff 를 저장한다.
+	 *
+	 * 멱등: 리뷰 하나가 만드는 버전은 최대 하나다(uq_personal_versions_source_review).
+	 * 멱등 게이트는 소유자 확인 뒤에 둔다 — 앞에 두면 이미 버전이 있는 남의 reviewId 로
+	 * 404 대신 그 사람의 버전이 나간다.
+	 * 리뷰가 clientSessionId 로 멱등해서 재시도해도 reviewId 가 같으므로, 이 게이트가 순차
+	 * 재전송을 막는다. 동시 재전송은 lockCurrentUser 의 사용자 행 락이 직렬화한다 —
+	 * 그게 없으면 두 요청이 같은 version_number 를 읽고 UNIQUE 위반으로 500 이 된다.
+	 *
+	 * 조리 1회의 사실은 리뷰 행에서 읽는다 — 레시피, 인분, 부모 버전, 그리고 review 층의 입력.
+	 * 요청 본문으로도 받으면 같은 사실의 쓰기 가능한 사본이 둘이 되고, 어긋나도 에러가 나지 않는다.
+	 * 조회가 소유자 스코프(findByIdAndUserId)라 남의 리뷰를 지목하면 404 이고, 레시피를 리뷰에서
+	 * 뽑으므로 "리뷰와 다른 레시피" 케이스는 표현 자체가 불가능하다.
+	 *
+	 * + 추가로 맛 벡터 등이 추가되면 여기에서 참조할 수 있게 AI 입력을 넣어주면 될 듯 합니다~
+	 */
 	@Transactional
-	public Optional<PersonalRecipeVersion> createFromExecution(
-			UUID recipeId, UUID sourceReviewId, ExecutedRecipe execution) {
+	public Optional<PersonalRecipeVersion> createFromEdits(UUID reviewId, RecipeEditRequest request) {
+		UUID userId = userService.lockCurrentUser().id();
+
+		PostCookReviewEntity review = reviewRepository.findByIdAndUserId(reviewId, userId)
+				.orElseThrow(() -> new NotFoundException("조리 기록을 찾을 수 없습니다: " + reviewId));
+
+		Optional<PersonalRecipeVersionEntity> alreadyCreated =
+				versionRepository.findFirstBySourceReviewId(reviewId);
+		if (alreadyCreated.isPresent()) {
+			return alreadyCreated.map(PersonalRecipeVersion::from);
+		}
+
+		UUID recipeId = review.getRecipeId();
 		RecipeEntity recipe = recipeRepository.findById(recipeId)
 				.orElseThrow(() -> new NotFoundException("레시피를 찾을 수 없습니다: " + recipeId));
-		UUID userId = userService.getCurrentUser().id();
 
-		BigDecimal targetServings = execution.targetServings() != null
-				? execution.targetServings()
-				: recipe.getBaseServings();
-		if (targetServings.signum() <= 0) {
-			throw new IllegalArgumentException("targetServings는 0보다 커야 합니다.");
-		}
-		validateSourceVersion(userId, recipeId, execution.sourcePersonalVersionId());
+		UUID parentVersionId = review.getSourcePersonalVersionId();
+		validateSourceVersion(userId, recipeId, parentVersionId);
 
-		// 스냅샷 자체가 없으면(별점·메모만 전송) 실행 변경 판정이 불가능하므로 버전을 만들지 않는다.
-		// 소스 버전이 지정된 경우에도 마찬가지 — 빈 diff 와 소스 diff 를 비교하면 원본과 동일한
-		// 빈 버전이 생기는 오판을 막는다.
-		boolean hasIngredientSnapshot = execution.ingredients() != null
-				&& !execution.ingredients().isEmpty();
-		boolean hasStepSnapshot = execution.steps() != null && !execution.steps().isEmpty();
-		if (!hasIngredientSnapshot && !hasStepSnapshot) {
-			return Optional.empty();
-		}
-
-		List<IngredientAdjustment> ingredientAdjustments =
-				buildIngredientAdjustments(recipe, targetServings, execution.ingredients());
-		List<StepAdjustment> stepAdjustments =
-				buildStepAdjustments(recipeId, execution.steps());
-		// 조정 0개 = 원본과 동일한 실행. 소스 diff 와 다르더라도(예: 개인 버전을 쓰다 원본으로
-		// 돌아간 조리) 원본과 같은 빈 버전을 만들 이유는 없다.
-		if (ingredientAdjustments.isEmpty() && stepAdjustments.isEmpty()) {
-			return Optional.empty();
-		}
-		List<IngredientAdjustment> sourceIngredientAdjustments =
-				sourceIngredientAdjustments(execution.sourcePersonalVersionId());
-		List<StepAdjustment> sourceStepAdjustments =
-				sourceStepAdjustments(execution.sourcePersonalVersionId());
-		if (sameIngredientAdjustments(ingredientAdjustments, sourceIngredientAdjustments)
-				&& sameStepAdjustments(stepAdjustments, sourceStepAdjustments)) {
+		Originals originals = readOriginals(recipeId);
+		Diff diff = applySetup(
+				originals, request.setup(), review.getTargetServings(), recipe.getBaseServings());
+		diff = applyCooking(originals, diff, request.cooking());
+		diff = applyReview(originals, diff, review);
+		if (diff.isEmpty()) {
 			return Optional.empty();
 		}
 
@@ -109,16 +121,16 @@ public class PersonalRecipeService {
 		PersonalRecipeVersionEntity entity = new PersonalRecipeVersionEntity(
 				userId, recipeId, nextVersionNumber,
 				recipe.getTitle() + " - 내 버전 v" + nextVersionNumber,
-				buildSummary(ingredientAdjustments, stepAdjustments), sourceReviewId);
-		entity.setParentVersionId(execution.sourcePersonalVersionId());
+				buildSummary(diff), reviewId);
+		entity.setParentVersionId(parentVersionId);
 		PersonalRecipeVersionEntity saved = versionRepository.save(entity);
 
-		ingredientAdjustmentRepository.saveAll(ingredientAdjustments.stream()
+		ingredientAdjustmentRepository.saveAll(diff.ingredients().stream()
 				.map(adj -> new PersonalIngredientAdjustmentEntity(saved.getId(),
 						adj.originalIngredientId(), adj.type(), adj.name(), adj.amount(),
 						adj.unit(), adj.required(), adj.sortOrder()))
 				.toList());
-		stepAdjustmentRepository.saveAll(stepAdjustments.stream()
+		stepAdjustmentRepository.saveAll(diff.steps().stream()
 				.map(adj -> new PersonalStepAdjustmentEntity(saved.getId(), adj.originalStepId(),
 						adj.type(), adj.insertAfterStepIndex(), adj.sortOrder(), adj.instruction(),
 						adj.timerSeconds(), adj.cautionNote()))
@@ -127,48 +139,90 @@ public class PersonalRecipeService {
 	}
 
 	/**
-	 * 기존 버전에서 새 버전을 파생한다. 요청의 diff 는 원본 기준 누적 전체 집합이고,
-	 * null 이면 부모 diff 를 그대로 복사한다.
+	 * setup 층: UI 편집에서 온 정형 diff. LLM 을 거치지 않는다.
+	 *
+	 * amount 는 조리 인분 기준으로 오므로 1인분 기준으로 되돌린 뒤, 되돌린 결과가 원본과
+	 * 같아진 MODIFY 를 버린다 — 인분만 바꾼 조리가 여기서 빈 diff 가 된다.
+	 *
+	 * 검증은 되돌리기 전에 한다 — normalize 는 요청 본문을 그대로 훑으므로 검증이 뒤면
+	 * 깨진 입력(리스트 안의 null 등)이 검증 전에 NPE 로 터져 400 대신 500 이 된다.
+	 * 되돌리기는 부호와 null 여부를 바꾸지 않아 검증 결과도 달라지지 않는다.
+	 *
+	 * 재료를 건드리면 리뷰에 targetServings 가 있어야 한다. 없으면 조리 인분 기준 양이 1인분
+	 * 기준으로 그대로 저장돼 조용히 배수만큼 어긋난다 — 에러 없이 틀리느니 400 이 낫다.
+	 * 단계만 고치는 수정(타이머 등)은 양과 무관하므로 요구하지 않는다.
 	 */
-	@Transactional
-	public PersonalRecipeVersion derive(UUID parentVersionId, DeriveVersionRequest request) {
-		PersonalRecipeVersionEntity parent = findEntity(parentVersionId);
-		UUID userId = userService.getCurrentUser().id();
-		UUID recipeId = parent.getRecipeId();
+	private Diff applySetup(Originals originals, RecipeEditRequest.Setup setup,
+			BigDecimal targetServings, BigDecimal baseServings) {
+		if (setup == null) {
+			return Diff.EMPTY;
+		}
+		List<IngredientAdjustment> ingredients = setup.ingredientAdjustmentsOrEmpty();
+		if (!ingredients.isEmpty() && (targetServings == null || targetServings.signum() <= 0)) {
+			throw new IllegalArgumentException(
+					"재료를 수정하려면 조리 기록에 targetServings(0보다 큰 값)가 있어야 합니다.");
+		}
+		Diff diff = new Diff(ingredients, setup.stepAdjustmentsOrEmpty());
+		validate(originals, diff);
+		return dropNoOpModifies(originals, new Diff(
+				normalizeAmounts(diff.ingredients(), baseServings, targetServings), diff.steps()));
+	}
 
-		List<IngredientAdjustment> ingredientAdjustments = request.ingredientAdjustments() != null
-				? request.ingredientAdjustments()
-				: ingredientAdjustmentRepository.findByPersonalVersionIdOrderBySortOrderAsc(parentVersionId)
-						.stream().map(IngredientAdjustment::from).toList();
-		List<StepAdjustment> stepAdjustments = request.stepAdjustments() != null
-				? request.stepAdjustments()
-				: stepAdjustmentRepository.findByPersonalVersionIdOrderBySortOrderAsc(parentVersionId)
-						.stream().map(StepAdjustment::from).toList();
+	/**
+	 * cooking 층: 조리 중 발화를 앞 층 diff 에 반영해 갱신된 원본 기준 완결 diff 를 낸다.
+	 * 자연어가 없으면 층을 통째로 건너뛴다 — 침묵 = 앞 층 결과 그대로 통과.
+	 *
+	 * TODO(AI 확정 후) LLM 호출을 여기 넣는다. 넣을 때 지켜야 하는 것:
+	 *  - 프롬프트의 "현재 상태"는 diff 가 아니라 DiffComposer 로 합성한 결과여야 한다
+	 *    (모델은 MODIFY(amount=1.5) 를 못 읽고 "고추장 1.5스푼" 은 읽는다)
+	 *  - 모델 출력의 원본 참조는 UUID 가 아니라 원본 행 번호로 받고 서버가 매핑한다
+	 *  - 결과는 validate/dropNoOpModifies 를 다시 통과시킨다 (LLM 은 신뢰 경계 밖)
+	 * 배관이 없는 동안은 앞 층 결과를 그대로 통과시킨다.
+	 */
+	private Diff applyCooking(Originals originals, Diff base, RecipeEditRequest.Cooking cooking) {
+		if (cooking == null || cooking.isBlank()) {
+			return base;
+		}
+		// TODO(AI 확정 후) 여기가 LLM 호출 자리다. 배관이 없으므로 발화가 있어도 통과시킨다.
+		return base;
+	}
 
-		validateIngredientAdjustments(recipeId, ingredientAdjustments);
-		validateStepAdjustments(recipeId, stepAdjustments);
+	/**
+	 * review 층: 조리 후 리뷰를 앞 층 diff 에 반영한다. 마지막 층이므로 이 결과가 저장된다.
+	 * cooking 층과 계약이 같다 — 침묵이면 통과, 결과는 원본 기준 완결 diff.
+	 *
+	 * 입력은 요청이 아니라 리뷰 행이다(comment / next_time_note). 같은 문장을 본문으로도
+	 * 받으면 리뷰에 적힌 것과 다른 것을 보낼 수 있고, 무엇이 정본인지 정할 근거가 없다.
+	 *
+	 * TODO(AI 확정 후) applyCooking 과 같은 조건으로 LLM 호출을 넣는다. 추가로,
+	 * 조리 후 해석은 피드백 루프가 없어(틀려도 다음 조리까지 모른다) 사용자 확인 UI 가 필수다.
+	 * cooking transcript 도 컨텍스트로 같이 줘야 앞 층 결정을 되돌릴 수 있다.
+	 */
+	private Diff applyReview(Originals originals, Diff base, PostCookReviewEntity review) {
+		if (isBlank(review.getComment()) && isBlank(review.getNextTimeNote())) {
+			return base;
+		}
+		// TODO(AI 확정 후) 여기가 LLM 호출 자리다. 배관이 없으므로 리뷰 본문이 있어도 통과시킨다.
+		return base;
+	}
 
-		int nextVersionNumber = nextVersionNumber(userId, recipeId);
-		PersonalRecipeVersionEntity entity = new PersonalRecipeVersionEntity(
-				userId, recipeId, nextVersionNumber,
-				request.title() != null ? request.title() : parent.getTitle(),
-				request.summary() != null ? request.summary() : parent.getSummary(),
-				null);
-		entity.setParentVersionId(parentVersionId);
-		PersonalRecipeVersionEntity saved = versionRepository.save(entity);
+	private static boolean isBlank(String text) {
+		return text == null || text.isBlank();
+	}
 
-		ingredientAdjustmentRepository.saveAll(ingredientAdjustments.stream()
-				.map(adj -> new PersonalIngredientAdjustmentEntity(saved.getId(),
-						adj.originalIngredientId(), adj.type(), adj.name(), adj.amount(),
-						adj.unit(), adj.required(), adj.sortOrder()))
-				.toList());
-		stepAdjustmentRepository.saveAll(stepAdjustments.stream()
-				.map(adj -> new PersonalStepAdjustmentEntity(saved.getId(), adj.originalStepId(),
-						adj.type(), adj.insertAfterStepIndex(), adj.sortOrder(), adj.instruction(),
-						adj.timerSeconds(), adj.cautionNote()))
-				.toList());
-
-		return PersonalRecipeVersion.from(saved);
+	/** 원본은 불변이라 층마다 다시 읽지 않는다. 층 함수는 JPA 엔티티를 보지 않는다. */
+	private Originals readOriginals(UUID recipeId) {
+		Map<UUID, DiffComposer.OriginalIngredient> ingredients = new HashMap<>();
+		recipeIngredientRepository.findByRecipeIdOrderBySortOrderAsc(recipeId)
+				.forEach(i -> ingredients.put(i.getId(), new DiffComposer.OriginalIngredient(
+						i.getId(), i.getName(), i.getAmount(), i.getUnit(), i.isRequired(),
+						i.getSortOrder())));
+		Map<UUID, DiffComposer.OriginalStep> steps = new HashMap<>();
+		recipeStepRepository.findByRecipeIdOrderByStepIndexAsc(recipeId)
+				.forEach(s -> steps.put(s.getId(), new DiffComposer.OriginalStep(
+						s.getId(), s.getStepIndex(), s.getInstruction(), s.getTimerSeconds(),
+						s.getCautionNote())));
+		return new Originals(ingredients, steps);
 	}
 
 	/** 상세: 메타 + 합성 결과(원본 + diff) + 원시 diff. */
@@ -183,23 +237,14 @@ public class PersonalRecipeService {
 				.findByPersonalVersionIdOrderBySortOrderAsc(versionId)
 				.stream().map(StepAdjustment::from).toList();
 
-		List<DiffComposer.OriginalIngredient> originalIngredients = recipeIngredientRepository
-				.findByRecipeIdOrderBySortOrderAsc(entity.getRecipeId())
-				.stream()
-				.map(i -> new DiffComposer.OriginalIngredient(i.getId(), i.getName(), i.getAmount(),
-						i.getUnit(), i.isRequired(), i.getSortOrder()))
-				.toList();
-		List<DiffComposer.OriginalStep> originalSteps = recipeStepRepository
-				.findByRecipeIdOrderByStepIndexAsc(entity.getRecipeId())
-				.stream()
-				.map(s -> new DiffComposer.OriginalStep(s.getId(), s.getStepIndex(),
-						s.getInstruction(), s.getTimerSeconds(), s.getCautionNote()))
-				.toList();
+		Originals originals = readOriginals(entity.getRecipeId());
 
 		return new PersonalRecipeVersionDetail(
 				PersonalRecipeVersion.from(entity),
-				DiffComposer.composeIngredients(originalIngredients, ingredientAdjustments),
-				DiffComposer.composeSteps(originalSteps, stepAdjustments),
+				DiffComposer.composeIngredients(
+						List.copyOf(originals.ingredients().values()), ingredientAdjustments),
+				DiffComposer.composeSteps(
+						List.copyOf(originals.steps().values()), stepAdjustments),
 				ingredientAdjustments,
 				stepAdjustments);
 	}
@@ -255,7 +300,16 @@ public class PersonalRecipeService {
 				.orElse(1);
 	}
 
-	private void validateSourceVersion(UUID userId, UUID recipeId, UUID sourceVersionId) {
+	/**
+	 * 조리에 쓴 개인 버전이 이 레시피 소속인지. 다른 레시피의 버전을 지목하면 400.
+	 * 그대로 parent_version_id 가 되므로 계보가 꼬이면 안 된다.
+	 */
+	/**
+	 * 조리에 쓴 개인 버전이 이 사용자·이 레시피의 것인지. 리뷰 저장(ReviewService)과 버전
+	 * 생성 양쪽에서 부른다 — 리뷰의 source_personal_version_id 가 곧 새 버전의 계보 부모라
+	 * 리뷰가 저장되는 시점에 이미 대조돼 있어야 한다.
+	 */
+	public void validateSourceVersion(UUID userId, UUID recipeId, UUID sourceVersionId) {
 		if (sourceVersionId == null) {
 			return;
 		}
@@ -267,222 +321,24 @@ public class PersonalRecipeService {
 		}
 	}
 
-	private List<IngredientAdjustment> sourceIngredientAdjustments(UUID sourceVersionId) {
-		if (sourceVersionId == null) {
-			return List.of();
+	/**
+	 * 조리 인분 기준으로 온 amount 를 1인분 기준으로 되돌린다. 인분은 diff 에 들어가지 않는다.
+	 * 인분 정보가 없거나 base 와 같으면 손대지 않는다. REMOVE 는 amount 가 없어 그대로 통과한다.
+	 */
+	private List<IngredientAdjustment> normalizeAmounts(List<IngredientAdjustment> adjustments,
+			BigDecimal baseServings, BigDecimal targetServings) {
+		if (targetServings == null || targetServings.signum() <= 0
+				|| targetServings.compareTo(baseServings) == 0) {
+			return adjustments;
 		}
-		return ingredientAdjustmentRepository
-				.findByPersonalVersionIdOrderBySortOrderAsc(sourceVersionId)
-				.stream().map(IngredientAdjustment::from).toList();
-	}
-
-	private List<StepAdjustment> sourceStepAdjustments(UUID sourceVersionId) {
-		if (sourceVersionId == null) {
-			return List.of();
-		}
-		return stepAdjustmentRepository
-				.findByPersonalVersionIdOrderBySortOrderAsc(sourceVersionId)
-				.stream().map(StepAdjustment::from).toList();
-	}
-
-	private List<IngredientAdjustment> buildIngredientAdjustments(
-			RecipeEntity recipe, BigDecimal targetServings,
-			List<ExecutedRecipe.ExecutedIngredient> executedIngredients) {
-		if (executedIngredients == null || executedIngredients.isEmpty()) {
-			return List.of();
-		}
-
-		List<RecipeIngredientEntity> originals = recipeIngredientRepository
-				.findByRecipeIdOrderBySortOrderAsc(recipe.getId());
-		Map<UUID, RecipeIngredientEntity> originalsById = new LinkedHashMap<>();
-		originals.forEach(item -> originalsById.put(item.getId(), item));
-
-		Map<UUID, ExecutedRecipe.ExecutedIngredient> executedByOriginal = new HashMap<>();
-		List<ExecutedRecipe.ExecutedIngredient> additions = new ArrayList<>();
-		for (ExecutedRecipe.ExecutedIngredient item : executedIngredients) {
-			if (item.originalIngredientId() == null) {
-				additions.add(item);
-				continue;
-			}
-			if (!originalsById.containsKey(item.originalIngredientId())) {
-				throw new IllegalArgumentException(
-						"이 레시피의 재료가 아닙니다: " + item.originalIngredientId());
-			}
-			if (executedByOriginal.put(item.originalIngredientId(), item) != null) {
-				throw new IllegalArgumentException(
-						"같은 원본 재료가 중복되었습니다: " + item.originalIngredientId());
-			}
-		}
-
-		// 스냅샷은 원본 재료 전체를 커버해야 한다. 목록 부재를 암묵적 생략(REMOVE)으로
-		// 해석하면 부분 페이로드가 조용히 재료 대량 삭제 버전을 만든다 — 생략은 omitted=true 로만 표현한다.
-		for (RecipeIngredientEntity original : originals) {
-			if (!executedByOriginal.containsKey(original.getId())) {
-				throw new IllegalArgumentException(
-						"실행 스냅샷에 원본 재료가 누락되었습니다(사용하지 않았다면 omitted=true로 보내세요): "
-								+ original.getName());
-			}
-		}
-
-		List<IngredientAdjustment> adjustments = new ArrayList<>();
-		for (RecipeIngredientEntity original : originals) {
-			ExecutedRecipe.ExecutedIngredient actual = executedByOriginal.get(original.getId());
-			if (actual.omitted()) {
-				adjustments.add(new IngredientAdjustment(
-						original.getId(), AdjustmentType.REMOVE,
-						null, null, null, null, original.getSortOrder()));
-				continue;
-			}
-			validateIngredient(actual);
-			if (original.getAmount() != null && actual.amount() == null) {
-				throw new IllegalArgumentException(
-						"MVP에서는 기존 재료의 양 제거를 지원하지 않습니다.");
-			}
-			if (trimToNull(original.getUnit()) != null && trimToNull(actual.unit()) == null) {
-				throw new IllegalArgumentException(
-						"MVP에서는 기존 재료의 단위 제거를 지원하지 않습니다.");
-			}
-			BigDecimal normalizedAmount = normalizeAmount(
-					actual.amount(), recipe.getBaseServings(), targetServings);
-			String changedName = sameText(original.getName(), actual.name()) ? null : actual.name().trim();
-			BigDecimal changedAmount = sameAmount(original.getAmount(), normalizedAmount)
-					? null : normalizedAmount;
-			String changedUnit = sameText(original.getUnit(), actual.unit())
-					? null : trimToNull(actual.unit());
-			boolean required = actual.required() != null ? actual.required() : original.isRequired();
-			Boolean changedRequired = original.isRequired() == required ? null : required;
-
-			if (changedName != null || changedAmount != null
-					|| changedUnit != null || changedRequired != null) {
-				adjustments.add(new IngredientAdjustment(
-						original.getId(), AdjustmentType.MODIFY,
-						changedName, changedAmount, changedUnit, changedRequired,
-						actual.sortOrder()));
-			}
-		}
-
-		for (ExecutedRecipe.ExecutedIngredient addition : additions) {
-			if (addition.omitted()) {
-				continue;
-			}
-			validateIngredient(addition);
-			adjustments.add(new IngredientAdjustment(
-					null, AdjustmentType.ADD, addition.name().trim(),
-					normalizeAmount(addition.amount(), recipe.getBaseServings(), targetServings),
-					trimToNull(addition.unit()),
-					addition.required() != null ? addition.required() : true,
-					addition.sortOrder()));
-		}
-		return List.copyOf(adjustments);
-	}
-
-	private List<StepAdjustment> buildStepAdjustments(
-			UUID recipeId, List<ExecutedRecipe.ExecutedStep> executedSteps) {
-		if (executedSteps == null || executedSteps.isEmpty()) {
-			return List.of();
-		}
-
-		List<RecipeStepEntity> originals = recipeStepRepository
-				.findByRecipeIdOrderByStepIndexAsc(recipeId);
-		Map<UUID, RecipeStepEntity> originalsById = new LinkedHashMap<>();
-		originals.forEach(item -> originalsById.put(item.getId(), item));
-
-		Map<UUID, ExecutedRecipe.ExecutedStep> executedByOriginal = new HashMap<>();
-		List<ExecutedRecipe.ExecutedStep> ordered = executedSteps.stream()
-				.sorted(java.util.Comparator.comparingInt(ExecutedRecipe.ExecutedStep::sortOrder))
+		return adjustments.stream()
+				.map(adj -> new IngredientAdjustment(adj.originalIngredientId(), adj.type(),
+						adj.name(), normalizeAmount(adj.amount(), baseServings, targetServings),
+						adj.unit(), adj.required(), adj.sortOrder()))
 				.toList();
-		for (ExecutedRecipe.ExecutedStep item : ordered) {
-			if (item.originalStepId() == null) {
-				continue;
-			}
-			if (!originalsById.containsKey(item.originalStepId())) {
-				throw new IllegalArgumentException(
-						"이 레시피의 단계가 아닙니다: " + item.originalStepId());
-			}
-			if (executedByOriginal.put(item.originalStepId(), item) != null) {
-				throw new IllegalArgumentException(
-						"같은 원본 단계가 중복되었습니다: " + item.originalStepId());
-			}
-		}
-
-		// 재료와 동일한 완전성 계약: 스냅샷은 원본 단계 전체를 커버해야 하고, 생략은 omitted=true 로만 표현한다.
-		for (RecipeStepEntity original : originals) {
-			if (!executedByOriginal.containsKey(original.getId())) {
-				throw new IllegalArgumentException(
-						"실행 스냅샷에 원본 단계가 누락되었습니다(수행하지 않았다면 omitted=true로 보내세요): "
-								+ (original.getStepIndex() + 1) + "번째 단계");
-			}
-		}
-
-		List<StepAdjustment> adjustments = new ArrayList<>();
-		for (RecipeStepEntity original : originals) {
-			ExecutedRecipe.ExecutedStep actual = executedByOriginal.get(original.getId());
-			if (actual.omitted()) {
-				adjustments.add(new StepAdjustment(
-						original.getId(), AdjustmentType.REMOVE,
-						null, original.getStepIndex(), null, null, null));
-				continue;
-			}
-			validateStep(actual);
-			String changedInstruction = sameText(original.getInstruction(), actual.instruction())
-					? null : actual.instruction().trim();
-			Integer changedTimer = java.util.Objects.equals(
-					original.getTimerSeconds(), actual.timerSeconds()) ? null : actual.timerSeconds();
-			String changedCaution = sameText(original.getCautionNote(), actual.cautionNote())
-					? null : trimToNull(actual.cautionNote());
-			if (original.getTimerSeconds() != null && actual.timerSeconds() == null) {
-				throw new IllegalArgumentException("MVP에서는 기존 타이머 제거를 지원하지 않습니다.");
-			}
-			if (original.getCautionNote() != null && trimToNull(actual.cautionNote()) == null) {
-				throw new IllegalArgumentException("MVP에서는 기존 주의 문구 제거를 지원하지 않습니다.");
-			}
-			if (changedInstruction != null || changedTimer != null || changedCaution != null) {
-				adjustments.add(new StepAdjustment(
-						original.getId(), AdjustmentType.MODIFY,
-						null, actual.sortOrder(),
-						changedInstruction, changedTimer, changedCaution));
-			}
-		}
-
-		int lastOriginalStepIndex = -1;
-		int addedOrder = 0;
-		for (ExecutedRecipe.ExecutedStep actual : ordered) {
-			if (actual.originalStepId() != null) {
-				lastOriginalStepIndex = originalsById.get(actual.originalStepId()).getStepIndex();
-				continue;
-			}
-			if (actual.omitted()) {
-				continue;
-			}
-			validateStep(actual);
-			adjustments.add(new StepAdjustment(
-					null, AdjustmentType.ADD,
-					lastOriginalStepIndex, addedOrder++,
-					actual.instruction().trim(),
-					actual.timerSeconds(),
-					trimToNull(actual.cautionNote())));
-		}
-		return List.copyOf(adjustments);
 	}
 
-	private void validateIngredient(ExecutedRecipe.ExecutedIngredient ingredient) {
-		if (ingredient.name() == null || ingredient.name().isBlank()) {
-			throw new IllegalArgumentException("실행 재료의 name은 필수입니다.");
-		}
-		if (ingredient.amount() != null && ingredient.amount().signum() < 0) {
-			throw new IllegalArgumentException("실행 재료의 amount는 0 이상이어야 합니다.");
-		}
-	}
-
-	private void validateStep(ExecutedRecipe.ExecutedStep step) {
-		if (step.instruction() == null || step.instruction().isBlank()) {
-			throw new IllegalArgumentException("실행 단계의 instruction은 필수입니다.");
-		}
-		if (step.timerSeconds() != null && step.timerSeconds() < 0) {
-			throw new IllegalArgumentException("실행 단계의 timerSeconds는 0 이상이어야 합니다.");
-		}
-	}
-
+	/** targetServings 조리량 → 1인분(baseServings) 기준으로 되돌린다. createFromEdits 의 setup 층용. */
 	private BigDecimal normalizeAmount(
 			BigDecimal actual, BigDecimal baseServings, BigDecimal targetServings) {
 		if (actual == null) {
@@ -493,90 +349,51 @@ public class PersonalRecipeService {
 				.stripTrailingZeros();
 	}
 
-	private boolean sameAmount(BigDecimal left, BigDecimal right) {
-		return left == null ? right == null : right != null && left.compareTo(right) == 0;
+	/**
+	 * 원본과 다를 게 없는 MODIFY 를 버린다. ADD/REMOVE 는 그 자체가 변경이라 항상 남는다.
+	 *
+	 * validate 를 통과한 뒤에만 부른다 — MODIFY 의 원본 참조가 이 레시피 것임이 보장돼야
+	 * originals.get 이 null 이 아니다.
+	 */
+	private Diff dropNoOpModifies(Originals originals, Diff diff) {
+		return new Diff(
+				diff.ingredients().stream()
+						.filter(adj -> adj.type() != AdjustmentType.MODIFY
+								|| overridesAnything(adj,
+										originals.ingredients().get(adj.originalIngredientId())))
+						.toList(),
+				diff.steps().stream()
+						.filter(adj -> adj.type() != AdjustmentType.MODIFY
+								|| overridesAnything(adj,
+										originals.steps().get(adj.originalStepId())))
+						.toList());
 	}
 
-	private boolean sameText(String left, String right) {
-		return java.util.Objects.equals(trimToNull(left), trimToNull(right));
+	/** MODIFY 의 non-null 필드 중 원본과 실제로 다른 것이 하나라도 있는지. */
+	private boolean overridesAnything(
+			IngredientAdjustment adj, DiffComposer.OriginalIngredient original) {
+		return differs(adj.name(), original.name())
+				|| (adj.amount() != null && (original.amount() == null
+						|| original.amount().compareTo(adj.amount()) != 0))
+				|| differs(adj.unit(), original.unit())
+				|| (adj.required() != null && adj.required() != original.required());
 	}
 
-	private boolean sameIngredientAdjustments(
-			List<IngredientAdjustment> left, List<IngredientAdjustment> right) {
-		if (left.size() != right.size()) {
-			return false;
-		}
-		boolean[] matched = new boolean[right.size()];
-		for (IngredientAdjustment candidate : left) {
-			boolean found = false;
-			for (int index = 0; index < right.size(); index++) {
-				if (!matched[index] && sameIngredientAdjustment(candidate, right.get(index))) {
-					matched[index] = true;
-					found = true;
-					break;
-				}
-			}
-			if (!found) {
-				return false;
-			}
-		}
-		return true;
+	private boolean overridesAnything(StepAdjustment adj, DiffComposer.OriginalStep original) {
+		return differs(adj.instruction(), original.instruction())
+				|| differs(adj.timerSeconds(), original.timerSeconds())
+				|| differs(adj.cautionNote(), original.cautionNote());
 	}
 
-	private boolean sameIngredientAdjustment(IngredientAdjustment left, IngredientAdjustment right) {
-		return java.util.Objects.equals(left.originalIngredientId(), right.originalIngredientId())
-				&& left.type() == right.type()
-				&& sameText(left.name(), right.name())
-				&& sameAmount(left.amount(), right.amount())
-				&& sameText(left.unit(), right.unit())
-				&& java.util.Objects.equals(left.required(), right.required())
-				&& left.sortOrder() == right.sortOrder();
+	/** override 가 null 이면 "원본 값 유지"이므로 차이로 세지 않는다. */
+	private boolean differs(Object override, Object originalValue) {
+		return override != null && !override.equals(originalValue);
 	}
 
-	private boolean sameStepAdjustments(
-			List<StepAdjustment> left, List<StepAdjustment> right) {
-		if (left.size() != right.size()) {
-			return false;
-		}
-		boolean[] matched = new boolean[right.size()];
-		for (StepAdjustment candidate : left) {
-			boolean found = false;
-			for (int index = 0; index < right.size(); index++) {
-				if (!matched[index] && sameStepAdjustment(candidate, right.get(index))) {
-					matched[index] = true;
-					found = true;
-					break;
-				}
-			}
-			if (!found) {
-				return false;
-			}
-		}
-		return true;
-	}
-
-	private boolean sameStepAdjustment(StepAdjustment left, StepAdjustment right) {
-		return java.util.Objects.equals(left.originalStepId(), right.originalStepId())
-				&& left.type() == right.type()
-				&& java.util.Objects.equals(left.insertAfterStepIndex(), right.insertAfterStepIndex())
-				&& left.sortOrder() == right.sortOrder()
-				&& sameText(left.instruction(), right.instruction())
-				&& java.util.Objects.equals(left.timerSeconds(), right.timerSeconds())
-				&& sameText(left.cautionNote(), right.cautionNote());
-	}
-
-	private String trimToNull(String value) {
-		if (value == null || value.isBlank()) {
-			return null;
-		}
-		return value.trim();
-	}
-
-	private String buildSummary(
-			List<IngredientAdjustment> ingredientAdjustments,
-			List<StepAdjustment> stepAdjustments) {
+	/** diff 에서 사람이 읽는 요약을 만든다. createFromEdits 의 저장 단계용. */
+	private String buildSummary(Diff diff) {
 		List<String> parts = new ArrayList<>();
-		for (IngredientAdjustment adjustment : ingredientAdjustments) {
+		for (IngredientAdjustment adjustment : diff.ingredients()) {
 			String target = adjustment.name() != null
 					? adjustment.name()
 					: "재료";
@@ -586,7 +403,7 @@ public class PersonalRecipeService {
 				case REMOVE -> "재료 생략";
 			});
 		}
-		for (StepAdjustment adjustment : stepAdjustments) {
+		for (StepAdjustment adjustment : diff.steps()) {
 			parts.add(switch (adjustment.type()) {
 				case ADD -> "조리 단계 추가";
 				case MODIFY -> "조리 단계 조정";
@@ -596,46 +413,81 @@ public class PersonalRecipeService {
 		return String.join(" · ", parts.stream().limit(5).toList());
 	}
 
-	private void validateIngredientAdjustments(UUID recipeId, List<IngredientAdjustment> adjustments) {
-		Set<UUID> originalIds = new HashSet<>();
-		recipeIngredientRepository.findByRecipeIdOrderBySortOrderAsc(recipeId)
-				.forEach(i -> originalIds.add(i.getId()));
+	/**
+	 * 층 출력이 저장 가능한 diff 인지. 층마다 출력 타입이 같으므로 층마다 이걸 통과시킨다.
+	 *
+	 * DB CHECK 와 겹치는 검사가 있지만 여기서 잡아야 400 이 된다 — DB 가 잡으면
+	 * DataIntegrityViolationException 이라 500 이다. DB 가 아예 모르는 검사도 있다 —
+	 * "원본 참조가 이 레시피 것인지"(FK 는 존재만 본다), 값의 범위(음수 amount/timer,
+	 * 공백 문자열), 한 원본 행에 조정이 둘 이상인지(UNIQUE 가 없고, 있어도 합성 결과가
+	 * 어느 쪽인지 정해지지 않는다). 이것들은 여기서만 잡힌다.
+	 */
+	private void validate(Originals originals, Diff diff) {
+		validateIngredientAdjustments(originals.ingredients(), diff.ingredients());
+		validateStepAdjustments(originals.steps(), diff.steps());
+	}
+
+	private void validateIngredientAdjustments(
+			Map<UUID, DiffComposer.OriginalIngredient> originals,
+			List<IngredientAdjustment> adjustments) {
+		Set<UUID> referenced = new HashSet<>();
 		for (IngredientAdjustment adj : adjustments) {
+			if (adj == null) {
+				throw new IllegalArgumentException("재료 조정에 빈 항목이 있습니다.");
+			}
 			if (adj.type() == null) {
 				throw new IllegalArgumentException("재료 조정에 type은 필수입니다.");
+			}
+			if (adj.name() != null && adj.name().isBlank()) {
+				throw new IllegalArgumentException("재료 조정의 name은 공백일 수 없습니다.");
+			}
+			if (adj.amount() != null && adj.amount().signum() < 0) {
+				throw new IllegalArgumentException("재료 조정의 amount는 0 이상이어야 합니다.");
 			}
 			if (adj.type() == AdjustmentType.ADD) {
 				if (adj.originalIngredientId() != null) {
 					throw new IllegalArgumentException("ADD 재료 조정은 원본 재료를 참조할 수 없습니다.");
 				}
-				if (adj.name() == null || adj.name().isBlank()) {
+				if (adj.name() == null) {
 					throw new IllegalArgumentException("ADD 재료 조정에 name은 필수입니다.");
 				}
 			} else {
 				if (adj.originalIngredientId() == null) {
 					throw new IllegalArgumentException(adj.type() + " 재료 조정에 원본 재료 참조는 필수입니다.");
 				}
-				if (!originalIds.contains(adj.originalIngredientId())) {
+				if (!originals.containsKey(adj.originalIngredientId())) {
 					throw new IllegalArgumentException(
 							"이 레시피의 재료가 아닙니다: " + adj.originalIngredientId());
+				}
+				if (!referenced.add(adj.originalIngredientId())) {
+					throw new IllegalArgumentException(
+							"같은 원본 재료를 두 번 조정할 수 없습니다: " + adj.originalIngredientId());
 				}
 			}
 		}
 	}
 
-	private void validateStepAdjustments(UUID recipeId, List<StepAdjustment> adjustments) {
-		Set<UUID> originalIds = new HashSet<>();
-		recipeStepRepository.findByRecipeIdOrderByStepIndexAsc(recipeId)
-				.forEach(s -> originalIds.add(s.getId()));
+	private void validateStepAdjustments(
+			Map<UUID, DiffComposer.OriginalStep> originals, List<StepAdjustment> adjustments) {
+		Set<UUID> referenced = new HashSet<>();
 		for (StepAdjustment adj : adjustments) {
+			if (adj == null) {
+				throw new IllegalArgumentException("단계 조정에 빈 항목이 있습니다.");
+			}
 			if (adj.type() == null) {
 				throw new IllegalArgumentException("단계 조정에 type은 필수입니다.");
+			}
+			if (adj.instruction() != null && adj.instruction().isBlank()) {
+				throw new IllegalArgumentException("단계 조정의 instruction은 공백일 수 없습니다.");
+			}
+			if (adj.timerSeconds() != null && adj.timerSeconds() < 0) {
+				throw new IllegalArgumentException("단계 조정의 timerSeconds는 0 이상이어야 합니다.");
 			}
 			if (adj.type() == AdjustmentType.ADD) {
 				if (adj.originalStepId() != null) {
 					throw new IllegalArgumentException("ADD 단계 조정은 원본 단계를 참조할 수 없습니다.");
 				}
-				if (adj.instruction() == null || adj.instruction().isBlank()) {
+				if (adj.instruction() == null) {
 					throw new IllegalArgumentException("ADD 단계 조정에 instruction은 필수입니다.");
 				}
 				if (adj.insertAfterStepIndex() == null || adj.insertAfterStepIndex() < -1) {
@@ -645,8 +497,17 @@ public class PersonalRecipeService {
 				if (adj.originalStepId() == null) {
 					throw new IllegalArgumentException(adj.type() + " 단계 조정에 원본 단계 참조는 필수입니다.");
 				}
-				if (!originalIds.contains(adj.originalStepId())) {
+				if (!originals.containsKey(adj.originalStepId())) {
 					throw new IllegalArgumentException("이 레시피의 단계가 아닙니다: " + adj.originalStepId());
+				}
+				if (!referenced.add(adj.originalStepId())) {
+					throw new IllegalArgumentException(
+							"같은 원본 단계를 두 번 조정할 수 없습니다: " + adj.originalStepId());
+				}
+				// 앵커는 ADD 전용이다. 비ADD 는 원본 위치를 그대로 쓰므로 DB CHECK 도 NULL 을 요구한다.
+				if (adj.insertAfterStepIndex() != null) {
+					throw new IllegalArgumentException(
+							adj.type() + " 단계 조정은 insertAfterStepIndex를 가질 수 없습니다.");
 				}
 			}
 		}

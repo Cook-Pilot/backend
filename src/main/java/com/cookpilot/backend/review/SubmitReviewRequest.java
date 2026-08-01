@@ -2,11 +2,16 @@ package com.cookpilot.backend.review;
 
 import java.math.BigDecimal;
 import java.time.Instant;
-import java.util.List;
 import java.util.UUID;
 
-import com.cookpilot.backend.personalrecipe.ExecutedRecipe;
-
+/**
+ * 조리 후 리뷰 저장 요청. 필드는 post_cook_reviews 컬럼과 1:1 이다.
+ *
+ * 실행 스냅샷(재료·단계)은 여기서 받지 않는다 — 개인 레시피 버전 생성은 별도 경로다.
+ * 이 요청은 "무엇을 조리했고 어땠는지"만 기록한다.
+ *
+ * 서버가 채우는 컬럼: id, user_id, created_at, structured_feedback.
+ */
 public record SubmitReviewRequest(
 		UUID clientSessionId,
 		UUID recipeId,
@@ -15,73 +20,6 @@ public record SubmitReviewRequest(
 		UUID sourcePersonalVersionId,
 		Integer rating,
 		String comment,
-		String nextTimeNote,
-		List<ExecutedIngredientRequest> ingredients,
-		List<ExecutedStepRequest> steps
+		String nextTimeNote
 ) {
-
-	public ExecutedRecipe toExecutedRecipe() {
-		List<ExecutedRecipe.ExecutedIngredient> executedIngredients = ingredients == null
-				? List.of()
-				: ingredients.stream()
-						.map(item -> {
-							if (item == null) {
-								throw new IllegalArgumentException("ingredients 항목은 null일 수 없습니다.");
-							}
-							return new ExecutedRecipe.ExecutedIngredient(
-									item.originalIngredientId(),
-									item.name(),
-									item.amount(),
-									item.unit(),
-									item.required(),
-									Boolean.TRUE.equals(item.omitted()),
-									item.sortOrder());
-						})
-						.toList();
-		List<ExecutedRecipe.ExecutedStep> executedSteps = steps == null
-				? List.of()
-				: steps.stream()
-						.map(item -> {
-							if (item == null) {
-								throw new IllegalArgumentException("steps 항목은 null일 수 없습니다.");
-							}
-							return new ExecutedRecipe.ExecutedStep(
-									item.originalStepId(),
-									item.instruction(),
-									item.timerSeconds(),
-									item.cautionNote(),
-									Boolean.TRUE.equals(item.omitted()),
-									item.sortOrder());
-						})
-						.toList();
-		return new ExecutedRecipe(
-				sourcePersonalVersionId,
-				targetServings,
-				executedIngredients,
-				executedSteps);
-	}
-
-	public record ExecutedIngredientRequest(
-			UUID originalIngredientId,
-			String name,
-			BigDecimal amount,
-			String unit,
-			Boolean required,
-			// Jackson 3 는 primitive 생성자 인자가 JSON 에 없으면 역직렬화를 거부한다.
-			// 필드 생략을 false(실행함)로 허용하기 위해 박싱 타입으로 받는다.
-			Boolean omitted,
-			int sortOrder
-	) {
-	}
-
-	public record ExecutedStepRequest(
-			UUID originalStepId,
-			String instruction,
-			Integer timerSeconds,
-			String cautionNote,
-			// ExecutedIngredientRequest.omitted 와 같은 이유로 박싱 타입.
-			Boolean omitted,
-			int sortOrder
-	) {
-	}
 }

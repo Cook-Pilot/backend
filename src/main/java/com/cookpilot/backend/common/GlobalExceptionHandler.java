@@ -1,5 +1,9 @@
 package com.cookpilot.backend.common;
 
+import org.hibernate.exception.ConstraintViolationException;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ProblemDetail;
 import org.springframework.web.bind.annotation.ExceptionHandler;
@@ -10,6 +14,14 @@ import com.cookpilot.backend.user.UserNotFoundException;
 
 @RestControllerAdvice
 public class GlobalExceptionHandler {
+
+	private static final Logger log = LoggerFactory.getLogger(GlobalExceptionHandler.class);
+
+	/** 단계 조정의 ADD/비ADD 조합 CHECK(V2). 서비스가 먼저 잡지만 새는 조합이 있으면 여기서 400. */
+	private static final String STEP_ADJUSTMENT_CHECK = "personal_step_adjustments_check";
+
+	/** 재료 조정의 ADD/비ADD 조합 CHECK(V2). */
+	private static final String INGREDIENT_ADJUSTMENT_CHECK = "personal_ingredient_adjustments_check";
 
 	@ExceptionHandler(UserNotFoundException.class)
 	public ProblemDetail handleUserNotFound(UserNotFoundException e) {
@@ -40,5 +52,32 @@ public class GlobalExceptionHandler {
 	@ExceptionHandler(IllegalStateException.class)
 	public ProblemDetail handleConflict(IllegalStateException e) {
 		return ProblemDetail.forStatusAndDetail(HttpStatus.CONFLICT, e.getMessage());
+	}
+
+	/**
+	 * DB 제약 위반. 이름을 아는 제약만 4xx 로 옮기고 나머지는 500 그대로 둔다.
+	 *
+	 * 통째로 4xx 로 내리면 NOT NULL 누락·UNIQUE 충돌 같은 진짜 서버 버그가 클라 잘못으로
+	 * 위장돼 로그에서 사라진다. 그래서 화이트리스트다 — 아는 이름이 아니면 스택과 함께 남긴다.
+	 *
+	 * 제약 이름은 Postgres 가 붙인 것이고 Hibernate 가 ConstraintViolationException 에 담아준다.
+	 * 마이그레이션에서 제약 이름을 바꾸면 여기도 같이 바꿔야 한다.
+	 */
+	@ExceptionHandler(DataIntegrityViolationException.class)
+	public ProblemDetail handleDataIntegrityViolation(DataIntegrityViolationException e) {
+		String constraint = constraintName(e);
+		if (STEP_ADJUSTMENT_CHECK.equals(constraint) || INGREDIENT_ADJUSTMENT_CHECK.equals(constraint)) {
+			return ProblemDetail.forStatusAndDetail(
+					HttpStatus.BAD_REQUEST, "저장할 수 없는 수정 조합입니다.");
+		}
+		log.error("처리하지 못한 제약 위반: constraint={}", constraint, e);
+		return ProblemDetail.forStatusAndDetail(
+				HttpStatus.INTERNAL_SERVER_ERROR, "요청을 처리하지 못했습니다.");
+	}
+
+	private String constraintName(DataIntegrityViolationException e) {
+		return e.getCause() instanceof ConstraintViolationException violation
+				? violation.getConstraintName()
+				: null;
 	}
 }
