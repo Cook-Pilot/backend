@@ -17,6 +17,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.ai.chat.messages.AssistantMessage;
 import org.springframework.ai.chat.model.ChatModel;
 import org.springframework.ai.chat.model.ChatResponse;
@@ -200,6 +201,46 @@ class GeminiAiFeedbackClientTest {
 		assertThat(result.orElseThrow().speechText()).contains("열원을 끄세요");
 	}
 
+	@ParameterizedTest
+	@ValueSource(strings = {
+			"연기가 많이 나요",
+			"연기는 갑자기 너무 많이 나요",
+			"연기도 계속 심하게 나고 있어요",
+			"불이 갑자기 크게 났어요",
+			"불은 계속 크게 번지고 있어요",
+			"팬에는 불도 갑자기 붙었어요"
+	})
+	void 연기와_불_위험은_조사와_중간_수식어가_있어도_모델_전에_차단한다(
+			String speech) {
+		StubChatModel model = StubChatModel.returning(otherPayload("모델 문구"));
+
+		Optional<AiFeedbackAdvice> result =
+				client(enabledProperties(), model).advise(context(speech));
+
+		assertThat(model.calls).hasValue(0);
+		assertThat(result).isPresent();
+		assertThat(result.orElseThrow().problem()).isEqualTo("FIRE_RISK");
+	}
+
+	@ParameterizedTest
+	@ValueSource(strings = {
+			"연기가 많이 나지 않아요",
+			"연기가 나는지 확인해 주세요",
+			"연기 나는 연출을 설명해 주세요",
+			"불이 나지 않았어요",
+			"불이 났는지 확인해 주세요",
+			"불향이 많이 나요",
+			"연기를 많이 내는 조리법이에요"
+	})
+	void 부정형이나_확인_문맥의_연기와_불_표현은_과잉_차단하지_않는다(
+			String speech) {
+		StubChatModel model = StubChatModel.returning(otherPayload("모델 문구"));
+
+		assertThat(client(enabledProperties(), model).advise(context(speech)))
+				.isPresent();
+		assertThat(model.calls).hasValue(1);
+	}
+
 	@Test
 	void 모델이_안전_위험으로_분류하면_post_advisor가_서버_문구로_교체한다() {
 		StubChatModel model = StubChatModel.returning("""
@@ -293,6 +334,14 @@ class GeminiAiFeedbackClientTest {
 				"2단계로 진행해도 됩니다.",
 				"다음 조리 단계를 시작하십시오.",
 				"조리를 완료하세요.",
+				"조리를 완료해 주세요.",
+				"요리를 완료해주십시오.",
+				"레시피를 완료하여 주세요.",
+				"음식을 완성해 주세요.",
+				"레시피를 종료해 주시기 바랍니다.",
+				"조리를 마무리해 주시면 됩니다.",
+				"요리를 끝내 주세요.",
+				"조리를 마쳐 주세요.",
 				"요리가 끝났습니다.",
 				"조리를 끝내도 됩니다.",
 				"요리를 마쳤습니다.",
@@ -338,6 +387,11 @@ class GeminiAiFeedbackClientTest {
 		return outputFieldCases(List.of(
 				"다음 단계로 넘어가지 마세요.",
 				"아직 조리가 완료되지 않았어요.",
+				"아직 조리를 완료해 주지 마세요.",
+				"조리를 완료해도 되는지 확인해 주세요.",
+				"조리를 완료해 주셨는지 확인하세요.",
+				"조리를 완료해 주시면 안 됩니다.",
+				"조리를 마쳐 주지 마세요.",
 				"조리가 완료됐는지 확인하세요.",
 				"요리가 끝났는지 중심 온도를 확인하세요.",
 				"현재 단계 안내를 확인하세요.",

@@ -16,6 +16,26 @@ import org.springframework.stereotype.Component;
 class SafetyRuleCoach {
 
 	private static final Pattern CLAUSE_BOUNDARY = Pattern.compile("[.!?。！？;；\\n\\r]+");
+	private static final String HAZARD_SUBJECT_PARTICLE =
+			"(?:(?:이|가|은|는|도|만|조차|마저|까지(?:는|도|만)?)\\s*)?";
+	private static final String HAZARD_MODIFIER =
+			"(?:갑자기|계속|자꾸|점점|너무|아주|정말|엄청|많이|심하게|크게|확|막"
+					+ "|[가-힣]{1,12}게)";
+	private static final String HAZARD_MODIFIERS =
+			"(?:(?:" + HAZARD_MODIFIER + ")\\s*){0,3}";
+	private static final String ACTIVE_HAZARD_REPORT =
+			"(?:나(?=\\s*$)|나요|납니다|나네요|나는데(?:요)?|나서(?:요)?"
+					+ "|나고\\s*있(?:어요|습니다)|나기\\s*시작했(?:어요|습니다)"
+					+ "|났(?=\\s*$)|났어(?:요)?|났습니다|났네요|났는데(?:요)?|났다)";
+	private static final Pattern ACTIVE_SMOKE_OR_FIRE_RISK = Pattern.compile(
+			"(?:연기|불)\\s*"
+					+ HAZARD_SUBJECT_PARTICLE
+					+ HAZARD_MODIFIERS
+					+ "(?:" + ACTIVE_HAZARD_REPORT
+					+ "|붙었(?:어요|습니다|네요)"
+					+ "|번지(?:고\\s*있(?:어요|습니다)|네요)"
+					+ "|번졌(?:어요|습니다|네요))"
+					+ "(?=$|\\s|[.!?。！？,，;；\\n\\r])");
 	private static final String STEP_REFERENCE =
 			"(?:(?:다음|그\\s*다음|차기|후속)\\s*(?:번\\s*)?(?:조리\\s*)?단계"
 					+ "|(?:다음|그\\s*다음|차기|후속)\\s*(?:순서|과정)"
@@ -48,6 +68,10 @@ class SafetyRuleCoach {
 					+ "|된\\s*상태(?:입니다|이에요|예요|네요|지만))";
 	private static final String ALL_DONE_PREFIX =
 			"(?:(?:이제|벌써|이미)\\s*)?(?:(?:모두|전부)\\s*)?다\\s*";
+	private static final String POLITE_REQUEST_ENDING =
+			"(?:주세요|주십시오|줘(?:요)?|주시기\\s*바랍니다|주시면\\s*됩니다)";
+	private static final String NOMINAL_COMPLETION_REQUEST =
+			"(?:해|하여)\\s*" + POLITE_REQUEST_ENDING;
 	private static final Pattern POSITIVE_STEP_TRANSITION = Pattern.compile(
 			STEP_REFERENCE
 					+ "\\s*(?:" + TRANSITION_PARTICLE + "\\s*)?"
@@ -64,17 +88,24 @@ class SafetyRuleCoach {
 					+ "|(?:도|셔도|면|시면)\\s*" + TRANSITION_PERMISSION + "))");
 	private static final Pattern POSITIVE_COMPLETION = Pattern.compile(
 			"(?:" + COOKING_SUBJECT
-					+ "(?:완료(?:하세요|하십시오|합니다|해도\\s*됩니다|하면\\s*됩니다"
+					+ "(?:완료\\s*(?:하세요|하십시오|합니다|" + NOMINAL_COMPLETION_REQUEST
+					+ "|해도\\s*됩니다|하면\\s*됩니다"
 					+ "|됐(?:습니다|어요|으니|으므로|으니까)|되었(?:습니다|어요|으니|으므로|으니까)"
 					+ "|입니다|예요|\\s*$)"
-					+ "|완성(?:하세요|하십시오|합니다|됐(?:습니다|어요|으니|으므로|으니까)"
+					+ "|완성\\s*(?:하세요|하십시오|합니다|" + NOMINAL_COMPLETION_REQUEST
+					+ "|됐(?:습니다|어요|으니|으므로|으니까)"
 					+ "|되었(?:습니다|어요|으니|으므로|으니까)|입니다|예요|\\s*$)"
-					+ "|끝(?:내세요|내십시오|냅니다|내(?:도|면)\\s*됩니다"
+					+ "|끝(?:내세요|내십시오|냅니다|내\\s*" + POLITE_REQUEST_ENDING
+					+ "|내(?:도|면)\\s*됩니다"
 					+ "|났(?:습니다|어요|으니|으므로|으니까)"
 					+ "|입니다|이에요|\\s*$)"
-					+ "|종료(?:하세요|하십시오|합니다|됐(?:습니다|어요)|되었습니다|\\s*$)"
-					+ "|마무리(?:하세요|하십시오|합니다|하시면\\s*됩니다)"
-					+ "|마치(?:세요|십시오|면\\s*됩니다)|마쳤(?:습니다|어요|으니|으므로|으니까)"
+					+ "|종료\\s*(?:하세요|하십시오|합니다|" + NOMINAL_COMPLETION_REQUEST
+					+ "|됐(?:습니다|어요)|되었습니다|\\s*$)"
+					+ "|마무리\\s*(?:하세요|하십시오|합니다|" + NOMINAL_COMPLETION_REQUEST
+					+ "|하시면\\s*됩니다)"
+					+ "|마치(?:세요|십시오|면\\s*됩니다)"
+					+ "|마쳐\\s*" + POLITE_REQUEST_ENDING
+					+ "|마쳤(?:습니다|어요|으니|으므로|으니까)"
 					+ "|" + ALL_DONE_PREFIX + COMPLETED_STATE + ")"
 					+ "|^\\s*" + ALL_DONE_PREFIX + COMPLETED_STATE + ")");
 
@@ -82,8 +113,8 @@ class SafetyRuleCoach {
 		String speech = normalize(context.userSpeech());
 		String cookingContext = speech + " " + normalize(context.instruction());
 
-		if (containsAny(speech,
-				"불이 났", "불났", "화재", "기름불", "팬에 불", "냄비에 불", "연기가 나")) {
+		if (containsAny(speech, "화재", "기름불")
+				|| ACTIVE_SMOKE_OR_FIRE_RISK.matcher(speech).find()) {
 			return Optional.of(fireRisk());
 		}
 
@@ -105,7 +136,7 @@ class SafetyRuleCoach {
 			return Optional.of(undercookedRisk());
 		}
 
-		if (containsAny(speech, "타는 냄새", "연기가 보여", "연기 나", "까맣게 타")) {
+		if (containsAny(speech, "타는 냄새", "연기가 보여", "까맣게 타")) {
 			return Optional.of(burningRisk());
 		}
 
