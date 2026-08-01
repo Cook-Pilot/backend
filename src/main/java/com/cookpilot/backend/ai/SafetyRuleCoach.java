@@ -15,7 +15,11 @@ import org.springframework.stereotype.Component;
 @Component
 class SafetyRuleCoach {
 
-	private static final Pattern CLAUSE_BOUNDARY = Pattern.compile("[.!?。！？;；\\n\\r]+");
+	private static final String CLAUSE_SEPARATOR_CHARACTERS = ".!?。！？:：;；\\n\\r";
+	private static final String REPORT_BOUNDARY_CHARACTERS =
+			CLAUSE_SEPARATOR_CHARACTERS + ",，\"'”’」』";
+	private static final Pattern CLAUSE_BOUNDARY = Pattern.compile(
+			"[" + CLAUSE_SEPARATOR_CHARACTERS + "]+");
 	private static final String HAZARD_SUBJECT_PARTICLE =
 			"(?:이|가|은|는|도|만|조차|마저|까지(?:는|도|만)?)";
 	private static final String HAZARD_MODIFIER =
@@ -24,6 +28,15 @@ class SafetyRuleCoach {
 					+ "|[가-힣]{1,16}(?:게|히|보다(?:도)?))";
 	private static final String HAZARD_MODIFIERS =
 			"(?:(?:" + HAZARD_MODIFIER + ")\\s+){0,5}";
+	private static final String ALLERGY_LOCATION_OR_MODIFIER =
+			"(?:" + HAZARD_MODIFIER
+					+ "|[가-힣]{1,16}(?:(?:쪽|주변|전체)?(?:에|에서|으로))"
+					+ "|[가-힣]{1,12}쪽(?:만|도|은|는)?"
+					+ "|(?:팔|다리|얼굴|온몸|몸|피부|손|발|등|배|가슴|입술|목|눈|눈가)"
+					+ "(?:과|와)?"
+					+ "|(?:한쪽|양쪽|전체|온몸)(?:만|도|은|는)?)";
+	private static final String ALLERGY_LOCATION_OR_MODIFIERS =
+			"(?:(?:" + ALLERGY_LOCATION_OR_MODIFIER + ")\\s+){0,6}";
 	private static final String HAZARD_REPORT_PREFIX =
 			"(?:\\s*" + HAZARD_SUBJECT_PARTICLE + "\\s*" + HAZARD_MODIFIERS
 					+ "|\\s+" + HAZARD_MODIFIERS
@@ -47,7 +60,7 @@ class SafetyRuleCoach {
 					+ "|발생했(?:어(?:요)?|습니다|네(?:요)?)"
 					+ "|발생하고\\s*있(?:어(?:요)?|습니다))";
 	private static final String HAZARD_REPORT_BOUNDARY =
-			"(?=$|\\s|[.!?。！？,，;；\\n\\r\"'”’」』])";
+			"(?=$|\\s|[" + REPORT_BOUNDARY_CHARACTERS + "])";
 	private static final Pattern ACTIVE_SMOKE_OR_FIRE_RISK = Pattern.compile(
 			"(?<![\\p{L}\\p{N}])(?:연기|불)"
 					+ HAZARD_REPORT_PREFIX
@@ -116,13 +129,15 @@ class SafetyRuleCoach {
 					+ "|곤란(?:합니다|해요)|가빠(?:요)?))";
 	private static final Pattern ACTIVE_ALLERGY_RISK = Pattern.compile(
 			"(?<![\\p{L}\\p{N}])(?:"
-					+ ALLERGY_LABEL + HAZARD_MODIFIERS + ACTIVE_ALLERGY_STATE
-					+ "|두드러기\\s*(?:(?:이|가|은|는|도)\\s*)?"
-					+ HAZARD_MODIFIERS + ACTIVE_ALLERGY_STATE
-					+ "|(?:입술|목)\\s*(?:(?:이|가|은|는|도)\\s*)?"
-					+ HAZARD_MODIFIERS + ACTIVE_SWELLING_STATE
+					+ ALLERGY_LABEL + ALLERGY_LOCATION_OR_MODIFIERS
+					+ ACTIVE_ALLERGY_STATE
+					+ "|두드러기\\s*(?:" + HAZARD_SUBJECT_PARTICLE + "\\s*)?"
+					+ ALLERGY_LOCATION_OR_MODIFIERS + ACTIVE_ALLERGY_STATE
+					+ "|(?:입술|목)(?:\\s*(?:주변|주위|한쪽|양쪽|안쪽|바깥쪽|전체))?"
+					+ "\\s*(?:" + HAZARD_SUBJECT_PARTICLE + "\\s*)?"
+					+ ALLERGY_LOCATION_OR_MODIFIERS + ACTIVE_SWELLING_STATE
 					+ "|(?:숨|호흡)\\s*(?:(?:이|가|은|는|을|를|도)\\s*)?"
-					+ HAZARD_MODIFIERS + ACTIVE_BREATHING_STATE
+					+ ALLERGY_LOCATION_OR_MODIFIERS + ACTIVE_BREATHING_STATE
 					+ ")" + HAZARD_REPORT_BOUNDARY);
 	private static final Pattern HISTORICAL_ALLERGY_CONTEXT = Pattern.compile(
 			"(?<![\\p{L}\\p{N}])"
