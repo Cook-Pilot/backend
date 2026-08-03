@@ -9,6 +9,7 @@ import org.springframework.http.ProblemDetail;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 
+import com.cookpilot.backend.ai.AiFeedbackRateLimitExceededException;
 import com.cookpilot.backend.user.MissingUserSessionException;
 import com.cookpilot.backend.user.UserNotFoundException;
 
@@ -36,6 +37,15 @@ public class GlobalExceptionHandler {
 		ProblemDetail problem = ProblemDetail.forStatusAndDetail(
 				HttpStatus.UNAUTHORIZED, e.getMessage());
 		problem.setProperty("code", "USER_SESSION_REQUIRED");
+		return problem;
+	}
+
+	@ExceptionHandler(AiFeedbackRateLimitExceededException.class)
+	public ProblemDetail handleAiFeedbackRateLimit(
+			AiFeedbackRateLimitExceededException e) {
+		ProblemDetail problem = ProblemDetail.forStatusAndDetail(
+				HttpStatus.TOO_MANY_REQUESTS, e.getMessage());
+		problem.setProperty("code", "AI_FEEDBACK_RATE_LIMITED");
 		return problem;
 	}
 

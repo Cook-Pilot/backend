@@ -18,6 +18,10 @@ repositories {
 }
 
 dependencies {
+	implementation platform('org.springframework.ai:spring-ai-bom:2.0.0')
+	implementation 'org.springframework.ai:spring-ai-starter-model-google-genai'
+	// F-08은 SDK 내부 transport의 연결 재시도와 redirect도 명시적으로 끈다.
+	implementation 'com.squareup.okhttp3:okhttp'
 	implementation 'org.springframework.boot:spring-boot-starter-actuator'
 	implementation 'org.springframework.boot:spring-boot-starter-webmvc'
 	// 영속 계층(그룹 A). 스키마 정본은 Flyway, JPA는 validate 로 검증만 한다.

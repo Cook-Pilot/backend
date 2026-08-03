@@ -3,9 +3,16 @@
     "schemas" : {
       "AiFeedbackRequest" : {
         "properties" : {
+          "instruction" : {
+            "type" : "string"
+          },
           "recipeId" : {
             "format" : "uuid",
             "type" : "string"
+          },
+          "remainingSeconds" : {
+            "format" : "int32",
+            "type" : "integer"
           },
           "stepIndex" : {
             "format" : "int32",

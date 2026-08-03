@@ -60,6 +60,10 @@ DB 접속 정보는 전부 환경변수로 주입되므로 이미지 재빌드 �
 | `DB_URL` | `jdbc:postgresql://db:5432/cookpilot` | JDBC URL |
 | `DB_USERNAME` | `cookpilot` | 계정 |
 | `DB_PASSWORD` | `cookpilot` | 비밀번호 |
+| `GEMINI_ENABLED` | `false` | F-08/F-11 Gemini 호출 활성화 |
+| `GEMINI_API_KEY` | 없음 | Google AI Studio에서 발급한 서버 전용 키 |
+| `GEMINI_MODEL` | `gemini-3.5-flash` | Gemini 모델 |
+| `AI_FEEDBACK_REQUESTS_PER_MINUTE` | `20` | F-08 사용자별 분당 요청 수 |
 
 외부 DB로 전환:
 
@@ -69,6 +73,21 @@ DB_USERNAME=<user> DB_PASSWORD=<pass> docker compose up app
 ```
 
 > 배포 환경의 기본 비밀번호는 반드시 교체하십시오. 위 기본값은 로컬 개발 전용입니다.
+
+## F-08 Gemini 조리 도움
+
+API 키는 Flutter 앱이나 저장소에 넣지 않고 서버 환경변수로만 주입합니다.
+
+```bash
+GEMINI_ENABLED=true \
+GEMINI_API_KEY='<google-ai-studio-key>' \
+./gradlew bootRun --args='--spring.profiles.active=db'
+```
+
+`POST /api/v1/ai-feedback`은 서버 안전 규칙 → Gemini 구조화 응답 → 보수적인
+fallback 순서로 동작합니다. 키가 없거나 Gemini가 timeout·429·오류를 반환해도
+F-08 API 자체는 fallback 답변을 반환합니다. 상세 계약은
+[`docs/feat-f08-gemini-feedback.md`](docs/feat-f08-gemini-feedback.md)를 참고하십시오.
 
 ## 배포 (VPS + Watchtower)
 
@@ -116,7 +135,7 @@ com.cookpilot.backend
 ├── recipe/          PostgreSQL/JPA 기반 원본 레시피 조회 (F-01)
 ├── review/          조리 후 피드백 = 조리 1회의 기록 (F-10)
 ├── personalrecipe/  개인 레시피 버전 (F-11~12)
-├── ai/              LLM 예외 피드백 — AI 파트 미확정, mock 응답 (F-08)
+├── ai/              안전 규칙 + Gemini + fallback 조리 예외 피드백 (F-08)
 ├── user/            고정 목유저 (인증 미도입)
 └── common/          공통 예외 처리 (ProblemDetail)
 ```
