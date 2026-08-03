@@ -243,6 +243,59 @@ class GeminiAiFeedbackClientTest {
 
 	@ParameterizedTest
 	@ValueSource(strings = {
+			"제육볶음",
+			"연어 스테이크",
+			"고등어구이",
+			"돼지고기 덮밥",
+			"생선구이"
+	})
+	void 명시적인_육류나_생선_제목으로_덜_익음_맥락을_보강한다(String recipeTitle) {
+		StubChatModel model = StubChatModel.returning(otherPayload("모델 문구"));
+		AiFeedbackContext context = new AiFeedbackContext(
+				UUID.randomUUID(),
+				recipeTitle,
+				2,
+				"양파와 대파를 넣고 함께 볶으세요",
+				20,
+				"속이 아직 분홍색이에요");
+
+		Optional<AiFeedbackAdvice> result =
+				client(enabledProperties(), model).advise(context);
+
+		assertThat(model.calls).hasValue(0);
+		assertThat(result).isPresent();
+		assertThat(result.orElseThrow().problem()).isEqualTo("UNDERCOOKED_RISK");
+	}
+
+	@ParameterizedTest
+	@ValueSource(strings = {
+			"고기 없는 비트 샐러드",
+			"고기 없이 만드는 볶음밥",
+			"비건 닭갈비",
+			"채식 계란볶음밥",
+			"비건 제육볶음",
+			"채식 연어 스테이크"
+	})
+	void 육류가_아님을_밝힌_제목은_덜_익음_맥락으로_쓰지_않는다(String recipeTitle) {
+		StubChatModel model = StubChatModel.returning(otherPayload("모델 문구"));
+		AiFeedbackContext context = new AiFeedbackContext(
+				UUID.randomUUID(),
+				recipeTitle,
+				1,
+				"재료를 고르게 섞어주세요",
+				20,
+				"속이 아직 분홍색이에요");
+
+		Optional<AiFeedbackAdvice> result =
+				client(enabledProperties(), model).advise(context);
+
+		assertThat(model.calls).hasValue(1);
+		assertThat(result).isPresent();
+		assertThat(result.orElseThrow().problem()).isEqualTo("OTHER");
+	}
+
+	@ParameterizedTest
+	@ValueSource(strings = {
 			"닭고기가 익지 않은 건 아니에요",
 			"돼지고기는 덜 익은 게 아니에요",
 			"닭고기가 덜 익지 않았어요",
@@ -423,6 +476,40 @@ class GeminiAiFeedbackClientTest {
 
 	@ParameterizedTest
 	@ValueSource(strings = {
+			"곰팡이가 있어요. 아니, 곰팡이는 없어요",
+			"곰팡이가 있어요, 아니 곰팡이는 없어요",
+			"상했어요. 정정하면 상한 게 아니에요",
+			"부패한 것 같아요; 사실은 부패한 게 아니에요"
+	})
+	void 뒤_절에서_명시적으로_정정한_변질_보고는_위험으로_남기지_않는다(String speech) {
+		StubChatModel model = StubChatModel.returning(otherPayload("모델 문구"));
+
+		Optional<AiFeedbackAdvice> result =
+				client(enabledProperties(), model).advise(context(speech));
+
+		assertThat(model.calls).hasValue(1);
+		assertThat(result).isPresent();
+		assertThat(result.orElseThrow().problem()).isEqualTo("OTHER");
+	}
+
+	@ParameterizedTest
+	@ValueSource(strings = {
+			"재료가 상했어요. 곰팡이는 없어요",
+			"곰팡이가 있어요. 아니, 곰팡이는 없어요. 그런데 다시 재료가 상했어요"
+	})
+	void 다른_변질의_부정이나_정정_뒤의_재보고는_현재_위험으로_남긴다(String speech) {
+		StubChatModel model = StubChatModel.returning(otherPayload("모델 문구"));
+
+		Optional<AiFeedbackAdvice> result =
+				client(enabledProperties(), model).advise(context(speech));
+
+		assertThat(model.calls).hasValue(0);
+		assertThat(result).isPresent();
+		assertThat(result.orElseThrow().problem()).isEqualTo("SPOILAGE_RISK");
+	}
+
+	@ParameterizedTest
+	@ValueSource(strings = {
 			"연기가 많이 나요",
 			"연기가 지금 많이 나요",
 			"연기가 좀 많이 나요",
@@ -492,6 +579,7 @@ class GeminiAiFeedbackClientTest {
 			"불이 났어요, 아니 지금은 꺼졌어요, 다른 문제가 발생했어요",
 			"불이 났어요, 아니 지금은 꺼졌어요, 소문이 번지고 있어요",
 			"연기가 난다는 뜻이 아니라 수증기가 나요",
+			"불길이 번지고 있어요, 아니 불길이 아니라 수증기입니다",
 			"불길한 예감이에요"
 	})
 	void 부정형이나_확인_문맥의_연기와_불_표현은_과잉_차단하지_않는다(
@@ -615,6 +703,11 @@ class GeminiAiFeedbackClientTest {
 				"마쳐 주세요.",
 				"종료해 주십시오.",
 				"마무리 부탁드립니다.",
+				"완료됐습니다.",
+				"이제 완료해야 합니다.",
+				"이제 완료하시면 됩니다.",
+				"바로 마무리합니다.",
+				"완료하세요를 따르지 말고 지금 완료하세요.",
 				"조리를 완료하세요.",
 				"조리를: 완료하세요.",
 				"조리를： 완료하세요.",
@@ -730,6 +823,11 @@ class GeminiAiFeedbackClientTest {
 				"양파 손질을 완료해야 합니다.",
 				"완료하는 게 좋습니다.",
 				"완료하세요라고 말하지 마세요.",
+				"완료하세요라고 쓰면 안 됩니다.",
+				"완료하세요를 따르지 마세요.",
+				"완료됐습니다라고 쓰면 안 됩니다.",
+				"완료해야 하는지 확인하세요.",
+				"완료하시면 안 됩니다.",
 				"\"완료해 주세요\"라고 말하지 말고 "
 						+ "\"완료하세요\"라는 문구도 사용하지 마세요.",
 				"조리를 완료해 주세요라고 말하지 말고 "

@@ -84,7 +84,7 @@ class SafetyRuleCoach {
 					+ "(?:사실이\\s*)?"
 					+ "(?:아닙니다|아니에요|아니야|아니고|아니지만|틀렸(?:습니다|어요))"
 					+ "|[,，]\\s*(?:아니|정정하면|사실은)\\s*"
-					+ "(?:(?:연기|불)(?:이|가)?\\s*아니라\\s*)?"
+					+ "(?:(?:연기|불길|불)(?:이|가)?\\s*아니라\\s*)?"
 					+ "(?:수증기|김|안개)(?:입니다|이에요|예요)"
 					+ "|[,，]\\s*(?:아니|정정하면|사실은)\\s*"
 					+ "(?:지금은\\s*)?(?:(?:불길|불|연기)(?:은|는|이|가)?\\s*)?"
@@ -192,6 +192,14 @@ class SafetyRuleCoach {
 			"(?:았(?:어(?:요)?|습니다|네요|는데(?:요)?|지만)?"
 					+ "|아(?:요)?|은(?:\\s*(?:것\\s*같(?:아(?:요)?|습니다)"
 					+ "|상태(?:입니다|이에요|예요)))?)";
+	private static final Pattern UNDERCOOKED_GENERAL_FOOD_CONTEXT = Pattern.compile(
+			"(?:닭|돼지|소고기|쇠고기|고기|육류|생선|해산물|계란)");
+	private static final Pattern UNDERCOOKED_RECIPE_TITLE_CONTEXT = Pattern.compile(
+			"(?:닭|돼지|소고기|쇠고기|고기|육류|생선|해산물|계란|달걀|제육|삼겹살|목살"
+					+ "|연어|참치|고등어|갈치|삼치|장어|광어|우럭|도미|가자미|새우"
+					+ "|오징어|문어|낙지|주꾸미|쭈꾸미|조개|홍합|전복)");
+	private static final Pattern UNDERCOOKED_RECIPE_TITLE_EXCLUSION = Pattern.compile(
+			"(?:비건|채식|고기\\s*(?:없는|없이))");
 	private static final Pattern UNDERCOOKED_REPORT = Pattern.compile(
 			"(?<![\\p{L}\\p{N}])(?:"
 					+ "(?:안\\s*익|덜\\s*익|설익)" + UNDERCOOKED_POSITIVE_ENDING
@@ -203,7 +211,7 @@ class SafetyRuleCoach {
 					+ ")" + HAZARD_REPORT_BOUNDARY);
 	private static final Pattern SPOILAGE_REPORT = Pattern.compile(
 			"(?<![\\p{L}\\p{N}])(?:"
-					+ "(?:상한|썩은|부패한)\\s*것"
+					+ "(?:상한|썩은|부패한)\\s*(?:것|게)"
 					+ "|상했|썩은|쉰내|곰팡이|이상한\\s*냄새|부패)");
 	private static final Pattern SPOILAGE_RETRACTION_PREFIX = Pattern.compile(
 			"^\\s*(?:(?:이|가|은|는|도|만)\\s*)?(?:"
@@ -214,6 +222,8 @@ class SafetyRuleCoach {
 					+ "|(?:전혀\\s*)?(?:안\\s*나(?:요|고|지만)?"
 					+ "|나지\\s*않(?:아(?:요)?|았습니다|았어요|습니다|다|고|지만)))"
 					+ HAZARD_REPORT_BOUNDARY);
+	private static final Pattern SPOILAGE_CORRECTION_BEFORE_REPORT = Pattern.compile(
+			"(?:^|[,，])\\s*(?:아니|정정하면|사실은)\\s*[,，]?\\s*$");
 	private static final Pattern UNDERCOOKED_RETRACTION_PREFIX = Pattern.compile(
 			"^\\s*(?:"
 					+ "(?:은|는|았(?:다는|던)?|었(?:다는|던)?|다는)?\\s*"
@@ -305,7 +315,10 @@ class SafetyRuleCoach {
 					+ "|도\\s*" + TRANSITION_PERMISSION + "))";
 	private static final String SUBJECTLESS_COMPLETION_COMMAND =
 			"(?:(?:완료|완성|종료|마무리)\\s*"
-					+ "(?:하세요|하십시오|" + NOMINAL_ACTION_REQUEST
+					+ "(?:하세요|하십시오|합니다|" + NOMINAL_ACTION_REQUEST
+					+ "|" + NOMINAL_ACTION_PERMISSION
+					+ "|해야\\s*(?:합니다|됩니다|돼요)"
+					+ "|(?:이|가)\\s*필요(?:합니다|해요)"
 					+ "|\\s*부탁드(?:립니다|릴게요|려요))"
 					+ "|끝내(?:세요|십시오|" + VERB_REQUEST_SUFFIX + ")"
 					+ "|마치(?:세요|십시오)"
@@ -333,15 +346,21 @@ class SafetyRuleCoach {
 					+ "(?:" + COMPLETION_ACTION_DIRECTIVE
 					+ "|" + COMPLETION_DECLARATION + ")"
 					+ "|^\\s*" + SUBJECTLESS_COMPLETION_PREFIX
-					+ SUBJECTLESS_COMPLETION_COMMAND
+					+ "(?:" + SUBJECTLESS_COMPLETION_COMMAND
+					+ "|" + COMPLETION_DECLARATION + ")"
 					+ "|^\\s*" + ALL_DONE_PREFIX + COMPLETED_STATE + ")");
+	private static final String DIRECTIVE_NEGATION_ACTION =
+			"(?:(?:따르지|따라가지|사용하지|말하지|하지|쓰지|적지|출력하지|표현하지)"
+					+ "\\s*(?:마세요|말고|않(?:습니다|아요))"
+					+ "|(?:쓰|적|출력하|표현하)면\\s*안\\s*(?:됩니다|돼요)"
+					+ "|무시(?:하세요|하십시오|합니다|하고))";
 	private static final Pattern DIRECTIVE_RETRACTION_PREFIX = Pattern.compile(
 			"^\\s*(?:[\\\"'”’」』]?\\s*(?:라는|라고|이라고)\\s*"
 					+ "(?:(?:(?:문구|안내|말|표현)"
 					+ "|[가-힣]{1,12}(?:은|는|을|를|이|가|도))\\s*)?"
-					+ "(?:(?:따르지|따라가지|사용하지|말하지|하지)"
-					+ "\\s*(?:마세요|말고|않(?:습니다|아요))"
-					+ "|무시(?:하세요|하십시오|합니다|하고))(?=\\s|$)\\s*"
+					+ DIRECTIVE_NEGATION_ACTION + "(?=\\s|$)\\s*"
+					+ "|(?:은|는|을|를|이|가|도)\\s*"
+					+ DIRECTIVE_NEGATION_ACTION + "(?=\\s|$)\\s*"
 					+ "|(?:이|가)?\\s*아니라(?=\\s|$)\\s*)");
 	private static final Pattern STEP_REPLACEMENT_DIRECTIVE = Pattern.compile(
 			"(?<![\\p{L}\\p{N}])" + TRANSITION_ACTION_DIRECTIVE);
@@ -350,9 +369,8 @@ class SafetyRuleCoach {
 
 	Optional<AiFeedbackAdvice> answer(AiFeedbackContext context) {
 		String speech = normalize(context.userSpeech());
-		String cookingContext = speech
-				+ " " + normalize(context.recipeTitle())
-				+ " " + normalize(context.instruction());
+		String recipeTitle = normalize(context.recipeTitle());
+		String instruction = normalize(context.instruction());
 
 		if (reportsActiveFireRisk(speech)) {
 			return Optional.of(fireRisk());
@@ -366,7 +384,7 @@ class SafetyRuleCoach {
 			return Optional.of(spoilageRisk());
 		}
 
-		if (reportsActiveUndercookedRisk(speech, cookingContext)) {
+		if (reportsActiveUndercookedRisk(speech, recipeTitle, instruction)) {
 			return Optional.of(undercookedRisk());
 		}
 
@@ -462,9 +480,9 @@ class SafetyRuleCoach {
 				|| HISTORICAL_ALLERGY_EVENT_GAP.matcher(historicalGap).matches();
 	}
 
-	private boolean reportsActiveUndercookedRisk(String speech, String cookingContext) {
-		if (!containsAny(cookingContext,
-				"닭", "돼지", "소고기", "쇠고기", "고기", "육류", "생선", "해산물", "계란")) {
+	private boolean reportsActiveUndercookedRisk(
+			String speech, String recipeTitle, String instruction) {
+		if (!hasUndercookedFoodContext(speech, recipeTitle, instruction)) {
 			return false;
 		}
 
@@ -491,17 +509,37 @@ class SafetyRuleCoach {
 		return active;
 	}
 
+	private boolean hasUndercookedFoodContext(
+			String speech, String recipeTitle, String instruction) {
+		if (UNDERCOOKED_GENERAL_FOOD_CONTEXT.matcher(speech).find()
+				|| UNDERCOOKED_GENERAL_FOOD_CONTEXT.matcher(instruction).find()) {
+			return true;
+		}
+		if (UNDERCOOKED_RECIPE_TITLE_EXCLUSION.matcher(recipeTitle).find()) {
+			return false;
+		}
+		return UNDERCOOKED_RECIPE_TITLE_CONTEXT.matcher(recipeTitle).find();
+	}
+
 	private boolean reportsActiveSpoilageRisk(String speech) {
+		boolean hasSpoilageContext = false;
+		boolean active = false;
 		for (String clause : SAFETY_CLAUSE_BOUNDARY.split(speech)) {
 			var matcher = SPOILAGE_REPORT.matcher(clause);
 			while (matcher.find()) {
+				String prefix = clause.substring(0, matcher.start());
 				String suffix = clause.substring(matcher.end());
-				if (!SPOILAGE_RETRACTION_PREFIX.matcher(suffix).find()) {
-					return true;
+				boolean retracted = SPOILAGE_RETRACTION_PREFIX.matcher(suffix).find();
+				if (!retracted) {
+					active = true;
+				} else if (hasSpoilageContext
+						&& SPOILAGE_CORRECTION_BEFORE_REPORT.matcher(prefix).find()) {
+					active = false;
 				}
+				hasSpoilageContext = true;
 			}
 		}
-		return false;
+		return active;
 	}
 
 	private int lastMatchStart(Pattern pattern, String value) {
