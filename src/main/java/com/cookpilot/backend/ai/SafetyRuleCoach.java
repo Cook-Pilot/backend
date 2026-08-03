@@ -1,5 +1,6 @@
 package com.cookpilot.backend.ai;
 
+import java.util.EnumSet;
 import java.util.Locale;
 import java.util.Optional;
 import java.util.regex.Pattern;
@@ -224,6 +225,16 @@ class SafetyRuleCoach {
 					+ HAZARD_REPORT_BOUNDARY);
 	private static final Pattern SPOILAGE_CORRECTION_BEFORE_REPORT = Pattern.compile(
 			"(?:^|[,，])\\s*(?:아니|정정하면|사실은)\\s*[,，]?\\s*$");
+
+	private enum SpoilageSignal {
+		SPOILED,
+		ROTTEN,
+		DECAY,
+		MOLD,
+		SOUR_SMELL,
+		ODD_SMELL
+	}
+
 	private static final Pattern UNDERCOOKED_RETRACTION_PREFIX = Pattern.compile(
 			"^\\s*(?:"
 					+ "(?:은|는|았(?:다는|던)?|었(?:다는|던)?|다는)?\\s*"
@@ -522,24 +533,43 @@ class SafetyRuleCoach {
 	}
 
 	private boolean reportsActiveSpoilageRisk(String speech) {
-		boolean hasSpoilageContext = false;
-		boolean active = false;
+		var activeSignals = EnumSet.noneOf(SpoilageSignal.class);
 		for (String clause : SAFETY_CLAUSE_BOUNDARY.split(speech)) {
 			var matcher = SPOILAGE_REPORT.matcher(clause);
 			while (matcher.find()) {
 				String prefix = clause.substring(0, matcher.start());
 				String suffix = clause.substring(matcher.end());
 				boolean retracted = SPOILAGE_RETRACTION_PREFIX.matcher(suffix).find();
+				SpoilageSignal signal = spoilageSignal(matcher.group());
 				if (!retracted) {
-					active = true;
-				} else if (hasSpoilageContext
-						&& SPOILAGE_CORRECTION_BEFORE_REPORT.matcher(prefix).find()) {
-					active = false;
+					activeSignals.add(signal);
+				} else if (SPOILAGE_CORRECTION_BEFORE_REPORT.matcher(prefix).find()) {
+					// A correction only retracts the same reported signal. Saying
+					// "곰팡이는 없어요" must not erase an earlier "상했어요".
+					activeSignals.remove(signal);
 				}
-				hasSpoilageContext = true;
 			}
 		}
-		return active;
+		return !activeSignals.isEmpty();
+	}
+
+	private SpoilageSignal spoilageSignal(String report) {
+		if (report.contains("곰팡이")) {
+			return SpoilageSignal.MOLD;
+		}
+		if (report.contains("쉰내")) {
+			return SpoilageSignal.SOUR_SMELL;
+		}
+		if (report.contains("이상한")) {
+			return SpoilageSignal.ODD_SMELL;
+		}
+		if (report.contains("상")) {
+			return SpoilageSignal.SPOILED;
+		}
+		if (report.contains("썩")) {
+			return SpoilageSignal.ROTTEN;
+		}
+		return SpoilageSignal.DECAY;
 	}
 
 	private int lastMatchStart(Pattern pattern, String value) {

@@ -495,6 +495,9 @@ class GeminiAiFeedbackClientTest {
 	@ParameterizedTest
 	@ValueSource(strings = {
 			"재료가 상했어요. 곰팡이는 없어요",
+			"재료가 상했어요. 정정하면 곰팡이는 없어요",
+			"곰팡이가 있어요. 사실은 재료가 상한 게 아니에요",
+			"재료가 상했어요. 곰팡이도 있어요. 아니, 곰팡이는 없어요",
 			"곰팡이가 있어요. 아니, 곰팡이는 없어요. 그런데 다시 재료가 상했어요"
 	})
 	void 다른_변질의_부정이나_정정_뒤의_재보고는_현재_위험으로_남긴다(String speech) {
