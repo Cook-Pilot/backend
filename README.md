@@ -131,6 +131,10 @@ com.cookpilot.backend
 PR과 `main` push마다 GitHub Actions가 `./gradlew test`를 실행합니다.
 워크플로: [`.github/workflows/ci.yml`](.github/workflows/ci.yml)
 
+`main` push는 이미지를 GHCR에 올린 뒤 **배포 스모크**까지 돌립니다. Watchtower가 컨테이너를 교체하고 새 리비전이 실제로 `UP`이 될 때까지(최대 15분) 기다렸다가 워크플로를 닫습니다. 기동에 실패하면 CI가 빨갛게 됩니다.
+
+이 단계는 레포 변수 `DEPLOY_BASE_URL`이 있어야 동작합니다 (Settings → Secrets and variables → Actions → Variables, 예: `http://<VPS_IP>:8080`). 없으면 경고만 남기고 건너뜁니다.
+
 ---
 
 # Git Convention
