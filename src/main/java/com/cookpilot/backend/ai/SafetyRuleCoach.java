@@ -66,7 +66,7 @@ class SafetyRuleCoach {
 	private static final String HAZARD_REPORT_BOUNDARY =
 			"(?=$|\\s|[" + REPORT_BOUNDARY_CHARACTERS + "])";
 	private static final Pattern ACTIVE_SMOKE_OR_FIRE_RISK = Pattern.compile(
-			"(?<![\\p{L}\\p{N}])(?:연기|불)"
+			"(?<![\\p{L}\\p{N}])(?:연기|불길|불)"
 					+ HAZARD_REPORT_PREFIX
 					+ "(?:" + ACTIVE_HAZARD_REPORT
 					+ "|" + ACTIVE_FIRE_SPREAD_REPORT
@@ -87,7 +87,7 @@ class SafetyRuleCoach {
 					+ "(?:(?:연기|불)(?:이|가)?\\s*아니라\\s*)?"
 					+ "(?:수증기|김|안개)(?:입니다|이에요|예요)"
 					+ "|[,，]\\s*(?:아니|정정하면|사실은)\\s*"
-					+ "(?:지금은\\s*)?(?:(?:불|연기)(?:은|는|이|가)?\\s*)?"
+					+ "(?:지금은\\s*)?(?:(?:불길|불|연기)(?:은|는|이|가)?\\s*)?"
 					+ "(?:꺼졌(?:어(?:요)?|습니다)"
 					+ "|꺼져\\s*있(?:어(?:요)?|습니다)"
 					+ "|멈췄(?:어(?:요)?|습니다)))");
@@ -198,8 +198,22 @@ class SafetyRuleCoach {
 					+ "|(?<!안\\s)(?<!덜\\s)익지\\s*않" + UNDERCOOKED_NEGATIVE_ENDING
 					+ "|핏물(?:이|은|는|도)?"
 					+ "|속(?:이|은|는)?\\s*(?:생|빨)"
-					+ "|(?:분홍색|핑크색)(?:이|은|는|도)?"
+					+ "|(?:분홍색|핑크색)"
+					+ "(?:이|은|는|도|입니다|이에요|예요|이네요|인데(?:요)?|이지만)?"
 					+ ")" + HAZARD_REPORT_BOUNDARY);
+	private static final Pattern SPOILAGE_REPORT = Pattern.compile(
+			"(?<![\\p{L}\\p{N}])(?:"
+					+ "(?:상한|썩은|부패한)\\s*것"
+					+ "|상했|썩은|쉰내|곰팡이|이상한\\s*냄새|부패)");
+	private static final Pattern SPOILAGE_RETRACTION_PREFIX = Pattern.compile(
+			"^\\s*(?:(?:이|가|은|는|도|만)\\s*)?(?:"
+					+ "같(?:지는|지)\\s*않(?:아(?:요)?|았습니다|았어요|습니다|다|고|지만)"
+					+ "|(?:것\\s*)?(?:이|가|은|는)?\\s*"
+					+ "(?:아니(?:에요|야|고|지만)|아닙니다)"
+					+ "|없(?:어(?:요)?|었습니다|었어요|습니다|다|고|지만|네요)"
+					+ "|(?:전혀\\s*)?(?:안\\s*나(?:요|고|지만)?"
+					+ "|나지\\s*않(?:아(?:요)?|았습니다|았어요|습니다|다|고|지만)))"
+					+ HAZARD_REPORT_BOUNDARY);
 	private static final Pattern UNDERCOOKED_RETRACTION_PREFIX = Pattern.compile(
 			"^\\s*(?:"
 					+ "(?:은|는|았(?:다는|던)?|었(?:다는|던)?|다는)?\\s*"
@@ -289,6 +303,15 @@ class SafetyRuleCoach {
 					+ "|마칩니다"
 					+ "|마쳐(?:" + VERB_REQUEST_SUFFIX
 					+ "|도\\s*" + TRANSITION_PERMISSION + "))";
+	private static final String SUBJECTLESS_COMPLETION_COMMAND =
+			"(?:(?:완료|완성|종료|마무리)\\s*"
+					+ "(?:하세요|하십시오|" + NOMINAL_ACTION_REQUEST
+					+ "|\\s*부탁드(?:립니다|릴게요|려요))"
+					+ "|끝내(?:세요|십시오|" + VERB_REQUEST_SUFFIX + ")"
+					+ "|마치(?:세요|십시오)"
+					+ "|마쳐" + VERB_REQUEST_SUFFIX + ")";
+	private static final String SUBJECTLESS_COMPLETION_PREFIX =
+			"(?:(?:이제(?:는)?|지금(?:은)?|바로|곧|꼭|반드시|무조건)\\s*){0,2}";
 	private static final Pattern POSITIVE_STEP_TRANSITION = Pattern.compile(
 			STEP_REFERENCE
 					+ "\\s*(?:" + TRANSITION_PARTICLE + "\\s*)?"
@@ -309,6 +332,8 @@ class SafetyRuleCoach {
 			"(?:" + COOKING_SUBJECT
 					+ "(?:" + COMPLETION_ACTION_DIRECTIVE
 					+ "|" + COMPLETION_DECLARATION + ")"
+					+ "|^\\s*" + SUBJECTLESS_COMPLETION_PREFIX
+					+ SUBJECTLESS_COMPLETION_COMMAND
 					+ "|^\\s*" + ALL_DONE_PREFIX + COMPLETED_STATE + ")");
 	private static final Pattern DIRECTIVE_RETRACTION_PREFIX = Pattern.compile(
 			"^\\s*(?:[\\\"'”’」』]?\\s*(?:라는|라고|이라고)\\s*"
@@ -325,7 +350,9 @@ class SafetyRuleCoach {
 
 	Optional<AiFeedbackAdvice> answer(AiFeedbackContext context) {
 		String speech = normalize(context.userSpeech());
-		String cookingContext = speech + " " + normalize(context.instruction());
+		String cookingContext = speech
+				+ " " + normalize(context.recipeTitle())
+				+ " " + normalize(context.instruction());
 
 		if (reportsActiveFireRisk(speech)) {
 			return Optional.of(fireRisk());
@@ -335,8 +362,7 @@ class SafetyRuleCoach {
 			return Optional.of(allergyRisk());
 		}
 
-		if (containsAny(speech,
-				"상한 것", "상했", "썩은", "쉰내", "곰팡", "이상한 냄새", "부패")) {
+		if (reportsActiveSpoilageRisk(speech)) {
 			return Optional.of(spoilageRisk());
 		}
 
@@ -463,6 +489,19 @@ class SafetyRuleCoach {
 			}
 		}
 		return active;
+	}
+
+	private boolean reportsActiveSpoilageRisk(String speech) {
+		for (String clause : SAFETY_CLAUSE_BOUNDARY.split(speech)) {
+			var matcher = SPOILAGE_REPORT.matcher(clause);
+			while (matcher.find()) {
+				String suffix = clause.substring(matcher.end());
+				if (!SPOILAGE_RETRACTION_PREFIX.matcher(suffix).find()) {
+					return true;
+				}
+			}
+		}
+		return false;
 	}
 
 	private int lastMatchStart(Pattern pattern, String value) {

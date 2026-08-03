@@ -222,6 +222,25 @@ class GeminiAiFeedbackClientTest {
 		assertThat(result.orElseThrow().problem()).isEqualTo("UNDERCOOKED_RISK");
 	}
 
+	@Test
+	void 레시피_제목의_육류_맥락으로_속의_분홍색_보고를_차단한다() {
+		StubChatModel model = StubChatModel.returning(otherPayload("모델 문구"));
+		AiFeedbackContext context = new AiFeedbackContext(
+				UUID.randomUUID(),
+				"닭가슴살 구이",
+				2,
+				"뒤집어 구워주세요",
+				20,
+				"속이 아직 분홍색이에요");
+
+		Optional<AiFeedbackAdvice> result =
+				client(enabledProperties(), model).advise(context);
+
+		assertThat(model.calls).hasValue(0);
+		assertThat(result).isPresent();
+		assertThat(result.orElseThrow().problem()).isEqualTo("UNDERCOOKED_RISK");
+	}
+
 	@ParameterizedTest
 	@ValueSource(strings = {
 			"닭고기가 익지 않은 건 아니에요",
@@ -362,6 +381,48 @@ class GeminiAiFeedbackClientTest {
 
 	@ParameterizedTest
 	@ValueSource(strings = {
+			"재료가 상한 것 같아요",
+			"재료가 상했어요",
+			"채소가 썩은 것 같아요",
+			"재료에서 쉰내가 나요",
+			"표면에 곰팡이가 있어요",
+			"이상한 냄새가 나요",
+			"재료가 부패한 것 같아요"
+	})
+	void 현재_변질_보고는_모델_전에_차단한다(String speech) {
+		StubChatModel model = StubChatModel.returning(otherPayload("모델 문구"));
+
+		Optional<AiFeedbackAdvice> result =
+				client(enabledProperties(), model).advise(context(speech));
+
+		assertThat(model.calls).hasValue(0);
+		assertThat(result).isPresent();
+		assertThat(result.orElseThrow().problem()).isEqualTo("SPOILAGE_RISK");
+	}
+
+	@ParameterizedTest
+	@ValueSource(strings = {
+			"상한 것 같지는 않고 소스가 너무 짜요",
+			"상한 것 같지는 않다",
+			"썩은 것은 아니에요",
+			"곰팡이는 없어요",
+			"곰팡이는 없다",
+			"쉰내는 안 나요",
+			"이상한 냄새가 나지 않아요"
+	})
+	void 부정된_변질_언급은_폐기_규칙으로_과잉_차단하지_않는다(String speech) {
+		StubChatModel model = StubChatModel.returning(otherPayload("모델 문구"));
+
+		Optional<AiFeedbackAdvice> result =
+				client(enabledProperties(), model).advise(context(speech));
+
+		assertThat(model.calls).hasValue(1);
+		assertThat(result).isPresent();
+		assertThat(result.orElseThrow().problem()).isEqualTo("OTHER");
+	}
+
+	@ParameterizedTest
+	@ValueSource(strings = {
 			"연기가 많이 나요",
 			"연기가 지금 많이 나요",
 			"연기가 좀 많이 나요",
@@ -382,6 +443,7 @@ class GeminiAiFeedbackClientTest {
 			"불이 번졌어",
 			"불이 번져요",
 			"불이 번지는 중이에요",
+			"불길이 번지고 있어요",
 			"불이 난 것 같아요",
 			"불이에요",
 			"불은 계속 크게 번지고 있어요",
@@ -429,7 +491,8 @@ class GeminiAiFeedbackClientTest {
 			"불이 났어요, 아니 지금은 꺼졌어요",
 			"불이 났어요, 아니 지금은 꺼졌어요, 다른 문제가 발생했어요",
 			"불이 났어요, 아니 지금은 꺼졌어요, 소문이 번지고 있어요",
-			"연기가 난다는 뜻이 아니라 수증기가 나요"
+			"연기가 난다는 뜻이 아니라 수증기가 나요",
+			"불길한 예감이에요"
 	})
 	void 부정형이나_확인_문맥의_연기와_불_표현은_과잉_차단하지_않는다(
 			String speech) {
@@ -546,6 +609,12 @@ class GeminiAiFeedbackClientTest {
 				"다음 단계로 이동해 주시면 됩니다.",
 				"2단계로 진행해도 됩니다.",
 				"다음 조리 단계를 시작하십시오.",
+				"이제 완성해 주세요.",
+				"완료하세요.",
+				"끝내세요.",
+				"마쳐 주세요.",
+				"종료해 주십시오.",
+				"마무리 부탁드립니다.",
 				"조리를 완료하세요.",
 				"조리를: 완료하세요.",
 				"조리를： 완료하세요.",
@@ -660,6 +729,7 @@ class GeminiAiFeedbackClientTest {
 				"조리 완료 필요 여부를 확인하세요.",
 				"양파 손질을 완료해야 합니다.",
 				"완료하는 게 좋습니다.",
+				"완료하세요라고 말하지 마세요.",
 				"\"완료해 주세요\"라고 말하지 말고 "
 						+ "\"완료하세요\"라는 문구도 사용하지 마세요.",
 				"조리를 완료해 주세요라고 말하지 말고 "
