@@ -22,6 +22,11 @@ RUN ./gradlew bootJar --no-daemon
 # 이 스테이지는 타겟 아키텍처별로 만들어진다. jar는 arch 독립이지만 JVM 바이너리는 아니다.
 FROM eclipse-temurin:21-jre-alpine
 
+# 이미지가 어느 커밋에서 나왔는지. /actuator/info 로 노출되어 배포 스모크가
+# "새 리비전으로 교체됐는가"를 확인하는 근거가 된다(구 컨테이너의 UP 응답과 구분).
+ARG GIT_SHA=unknown
+ENV APP_GIT_SHA=${GIT_SHA}
+
 WORKDIR /app
 
 RUN addgroup -S app && adduser -S -u 1001 -G app app
