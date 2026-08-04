@@ -9,6 +9,22 @@ spring:
       ddl-auto: none    # 스키마를 건드리지 않음
     open-in-view: false
 
+# health 는 기본 노출이지만 info 는 아니다. 배포 스모크가 "지금 뜬 컨테이너가 방금 민 커밋인가"를
+# 확인해야 해서 info 를 연다(구 컨테이너도 health 는 UP 이라 health 만으로는 구분이 안 된다).
+# 노출되는 값은 커밋 SHA 하나뿐이다 — 비밀이 아니며, 이미지 태그로도 이미 드러난다.
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+  info:
+    env:
+      enabled: true
+
+info:
+  app:
+    commit: ${APP_GIT_SHA:unknown}   # Dockerfile 의 ARG GIT_SHA 로 주입. 로컬 실행이면 unknown.
+
 # 다음 조리 추천 설명 생성. 키가 없거나 호출이 실패하면 규칙 결과는 유지하고 추천 fallback을 쓴다.
 cookpilot:
   ai:

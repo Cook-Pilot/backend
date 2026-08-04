@@ -24,6 +24,16 @@ services:
     depends_on:
       db:
         condition: service_healthy
+    # 새 이미지가 부팅에 실패해도 restart 정책 때문에 컨테이너는 계속 살아있는 척한다.
+    # (예: 운영 데이터에서만 깨지는 Flyway 마이그레이션 → 기동 실패 → 무한 재시작)
+    # 헬스체크를 붙여야 `docker compose ps` 와 CI 스모크가 그 상태를 unhealthy 로 본다.
+    # start_period 동안의 실패는 재시작으로 세지 않는다 — Spring 기동에 수십 초가 걸린다.
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O /dev/null http://localhost:8080/actuator/health || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 60s
     labels:
       # watchtower가 --label-enable 로 이 컨테이너만 감시한다.
       com.centurylinklabs.watchtower.enable: "true"
