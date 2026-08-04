@@ -13,15 +13,16 @@ import tools.jackson.databind.ObjectMapper;
 import tools.jackson.databind.SerializationFeature;
 import tools.jackson.databind.json.JsonMapper;
 
+import static org.hamcrest.Matchers.containsString;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.redirectedUrl;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 /**
- * springdoc 배선 스모크 테스트. OpenAPI 스펙 생성과 Swagger UI 진입점이 살아 있는지만 본다.
- * 스펙 내용(개별 엔드포인트 스키마)은 단언하지 않는다 — 컨트롤러가 늘 때마다 깨지는 단언은
- * 회귀를 못 잡고 유지비만 든다. 기본 프로파일 + 테스트 h2 컨텍스트라 Docker 없이 돈다.
+ * springdoc 배선 스모크 테스트. 일반 엔드포인트별 스키마는 반복 단언하지 않되, JSON 키
+ * presence 처럼 코드 타입만 보고 추론할 수 없는 고위험 계약은 명시적으로 고정한다.
+ * 기본 프로파일 + 테스트 h2 컨텍스트라 Docker 없이 돈다.
  */
 @SpringBootTest
 @AutoConfigureMockMvc
@@ -45,6 +46,26 @@ class OpenApiDocsTest {
 		mockMvc.perform(get("/swagger-ui.html"))
 				.andExpect(status().is3xxRedirection())
 				.andExpect(redirectedUrl("/swagger-ui/index.html"));
+	}
+
+	@Test
+	void 재료_amount_presence_계약이_스펙에_드러난다() throws Exception {
+		mockMvc.perform(get("/v3/api-docs"))
+				.andExpect(status().isOk())
+				.andExpect(jsonPath(
+						"$.components.schemas.IngredientAdjustmentInput.properties.amount.type[0]")
+						.value("number"))
+				.andExpect(jsonPath(
+						"$.components.schemas.IngredientAdjustmentInput.properties.amount.type[1]")
+						.value("null"))
+				.andExpect(jsonPath(
+						"$.components.schemas.IngredientAdjustmentInput.properties.amount.description")
+						.value(containsString("키 생략은 원본 양 유지")))
+				.andExpect(jsonPath(
+						"$.components.schemas.IngredientAdjustment.properties.amountSpecified.readOnly")
+						.value(true))
+				// 구현용 JsonNode 전체가 공개 API 스키마로 새면 클라이언트 생성 타입이 오염된다.
+				.andExpect(jsonPath("$.components.schemas.JsonNode").doesNotExist());
 	}
 
 	/**

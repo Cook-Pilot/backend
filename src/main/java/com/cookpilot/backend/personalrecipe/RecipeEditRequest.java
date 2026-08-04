@@ -37,12 +37,16 @@ public record RecipeEditRequest(
 	 * 되돌려 저장한다 — 인분 자체는 diff 에 들어가지 않는다(레시피 속성이 아니라 실행 파라미터).
 	 */
 	public record Setup(
-			List<IngredientAdjustment> ingredientAdjustments,
+			List<IngredientAdjustmentInput> ingredientAdjustments,
 			List<StepAdjustment> stepAdjustments
 	) {
 
 		public List<IngredientAdjustment> ingredientAdjustmentsOrEmpty() {
-			return ingredientAdjustments == null ? List.of() : ingredientAdjustments;
+			return ingredientAdjustments == null
+					? List.of()
+					: ingredientAdjustments.stream()
+							.map(input -> input == null ? null : input.toAdjustment())
+							.toList();
 		}
 
 		public List<StepAdjustment> stepAdjustmentsOrEmpty() {

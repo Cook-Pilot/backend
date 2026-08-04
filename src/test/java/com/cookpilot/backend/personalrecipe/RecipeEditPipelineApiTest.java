@@ -139,6 +139,50 @@ class RecipeEditPipelineApiTest extends PostgresApiTestBase {
 	}
 
 	@Test
+	void MODIFY_amount_명시적_null은_양을_제거해_저장하고_조회한다() throws Exception {
+		// targetServings != baseServings 여도 null presence 가 정규화 과정에서 사라지면 안 된다.
+		JsonNode version = createVersion(submitReview(RAMEN_ID, 4), """
+				{
+				  "setup": {
+				    "ingredientAdjustments": [
+				      {"originalIngredientId": "%s", "type": "MODIFY",
+				       "amount": null, "sortOrder": 0}
+				    ],
+				    "stepAdjustments": []
+				  }
+				}
+				""".formatted(ING_WATER));
+
+		JsonNode detail = getDetail(version.get("id").asString());
+		JsonNode water = findByName(detail.get("ingredients"), "물");
+		assertThat(water.get("amount").isNull()).isTrue();
+
+		JsonNode rawAdjustment = detail.get("ingredientAdjustments").get(0);
+		assertThat(rawAdjustment.get("amount").isNull()).isTrue();
+		assertThat(rawAdjustment.get("amountSpecified").asBoolean()).isTrue();
+	}
+
+	@Test
+	void MODIFY_amount_키_생략은_다른_필드만_바꾸고_원본_양을_유지한다() throws Exception {
+		JsonNode version = createVersion(submitReview(RAMEN_ID, 4), """
+				{
+				  "setup": {
+				    "ingredientAdjustments": [
+				      {"originalIngredientId": "%s", "type": "MODIFY",
+				       "name": "정수", "sortOrder": 0}
+				    ],
+				    "stepAdjustments": []
+				  }
+				}
+				""".formatted(ING_WATER));
+
+		JsonNode detail = getDetail(version.get("id").asString());
+		assertThat(amountAt(detail.get("ingredients"), "정수")).isEqualByComparingTo("500");
+		assertThat(detail.get("ingredientAdjustments").get(0)
+				.get("amountSpecified").asBoolean()).isFalse();
+	}
+
+	@Test
 	void 원본과_같은_값의_MODIFY는_버전을_만들지_않는다() throws Exception {
 		// 타이머를 원본과 같은 180 초로 보냈다 — 바꾼 것이 없다.
 		expectNoVersion(submitReview(RAMEN_ID, 1), """

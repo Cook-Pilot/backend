@@ -181,7 +181,43 @@
       "IngredientAdjustment" : {
         "properties" : {
           "amount" : {
-            "type" : "number"
+            "description" : "MODIFY에서 값은 양 덮어쓰기, null은 양 제거. 키 생략은 원본 양 유지",
+            "type" : [ "number", "null" ]
+          },
+          "amountSpecified" : {
+            "description" : "MODIFY에서 amount 키가 지정됐는지. null 제거와 키 생략을 구분",
+            "readOnly" : true,
+            "type" : "boolean"
+          },
+          "name" : {
+            "type" : "string"
+          },
+          "originalIngredientId" : {
+            "format" : "uuid",
+            "type" : "string"
+          },
+          "required" : {
+            "type" : "boolean"
+          },
+          "sortOrder" : {
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "type" : {
+            "enum" : [ "ADD", "MODIFY", "REMOVE" ],
+            "type" : "string"
+          },
+          "unit" : {
+            "type" : "string"
+          }
+        },
+        "type" : "object"
+      },
+      "IngredientAdjustmentInput" : {
+        "properties" : {
+          "amount" : {
+            "description" : "MODIFY에서 키 생략은 원본 양 유지, null은 양 제거, 숫자는 양 덮어쓰기",
+            "type" : [ "number", "null" ]
           },
           "name" : {
             "type" : "string"
@@ -620,7 +656,7 @@
         "properties" : {
           "ingredientAdjustments" : {
             "items" : {
-              "$ref" : "#/components/schemas/IngredientAdjustment"
+              "$ref" : "#/components/schemas/IngredientAdjustmentInput"
             },
             "type" : "array"
           },

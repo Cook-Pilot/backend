@@ -30,8 +30,9 @@ final class DiffComposer {
 	}
 
 	/**
-	 * 재료 합성: 원본을 sortOrder 순으로 돌며 REMOVE 는 빼고 MODIFY 는 non-null 필드만
-	 * 덮어쓴 뒤, ADD 를 sortOrder 순으로 뒤에 붙인다.
+	 * 재료 합성: 원본을 sortOrder 순으로 돌며 REMOVE 는 빼고 MODIFY 는 지정된 필드만
+	 * 덮어쓴 뒤, ADD 를 sortOrder 순으로 뒤에 붙인다. amount 는 명시적 null 도 지정된
+	 * 값(양 제거)이므로 amountSpecified 로 키 생략과 구분한다.
 	 */
 	static List<ComposedIngredient> composeIngredients(List<OriginalIngredient> originals,
 			List<IngredientAdjustment> adjustments) {
@@ -58,7 +59,7 @@ final class DiffComposer {
 						result.add(new ComposedIngredient(
 								original.id(),
 								adj.name() != null ? adj.name() : original.name(),
-								adj.amount() != null ? adj.amount() : original.amount(),
+								adj.amountSpecified() ? adj.amount() : original.amount(),
 								adj.unit() != null ? adj.unit() : original.unit(),
 								adj.required() != null ? adj.required() : original.required(),
 								ComposedIngredient.Origin.MODIFIED));
