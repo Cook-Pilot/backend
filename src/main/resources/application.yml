@@ -24,5 +24,10 @@ cookpilot:
   ai:
     gemini-api-key: ${GEMINI_API_KEY:}
     gemini-model: ${GEMINI_MODEL:gemini-2.5-flash}
+    # true면 안전 질문(변질/알레르기/덜 익은 육류/기름불)을 LLM에 보내기 전에 룰베이스가 가로채 답한다.
+    # 기본값 false = 판단이 필요한 질문은 전부 LLM에 던진다. 룰베이스는 삭제하지 않고 남겨 두었으므로
+    # 이 값만 true로 바꾸면 이전 동작으로 되돌아간다. 자세한 배경은
+    # docs/llm-first-coach-decision-log-2026-08-05.md 참고.
+    safety-intercept-enabled: ${COOKPILOT_SAFETY_INTERCEPT:false}
   cors:
     allowed-origin-patterns: ${COOKPILOT_ALLOWED_ORIGINS:*}
