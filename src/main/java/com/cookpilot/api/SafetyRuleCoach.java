@@ -38,13 +38,13 @@ class SafetyRuleCoach {
     if (containsAny(text, "덜익", "안익", "설익")) {
       return extend("현재 불 세기를 유지하고 1분 더 익힌 뒤 가장 두꺼운 부분을 확인하세요.", 60);
     }
-    if (containsAny(text, "짜", "짰")) {
+    if (isSaltyDescription(text)) {
       return answer("물을 한 번에 많이 넣지 말고 한 스푼씩 추가해 간을 다시 확인하세요.");
     }
     if (containsAny(text, "싱거", "간이약")) {
       return answer("양념을 한 꼬집만 추가하고 20초 더 섞은 뒤 다시 맛보세요.");
     }
-    if (containsAny(text, "타", "눌어붙")) {
+    if (isBurntDescription(text)) {
       return answer("불을 즉시 줄이고 바닥을 긁지 않은 채 윗부분만 새 팬으로 옮기세요.");
     }
     if (containsAny(text, "없어", "대신", "대체")) {
@@ -62,6 +62,38 @@ class SafetyRuleCoach {
 
   private AiFeedbackResponse answer(String text) {
     return new AiFeedbackResponse(text, text, null, true);
+  }
+
+  /**
+   * 짠맛 호소인지 판별한다. 맛/조리 맥락어가 함께 있을 때만 인정하고, `진짜`·`가짜`처럼 `짜`가 다른 단어의 조각으로
+   * 들어간 경우는 제외한다. 프론트 {@code LocalCoach._isSaltyDescription}와 같은 규칙이다.
+   */
+  private boolean isSaltyDescription(String text) {
+    if (containsAny(text, "계획을짜", "일정을짜", "각본을짜", "전략을짜")) {
+      return false;
+    }
+    if (!containsAny(
+        text, "간이", "국이", "국물", "소스", "양념", "찌개", "육수", "반찬", "음식", "요리", "너무", "좀", "조금", "약간")) {
+      return false;
+    }
+    if (containsAny(text, "짠", "짰")) {
+      return true;
+    }
+    for (int index = text.indexOf('짜'); index >= 0; index = text.indexOf('짜', index + 1)) {
+      char previous = index == 0 ? ' ' : text.charAt(index - 1);
+      if (previous != '진' && previous != '가') {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  /**
+   * 탄 것에 대한 호소인지 판별한다. `타` 한 글자는 `파스타`, `타이머`, `리코타`처럼 흔한 조리 어휘의 조각과
+   * 충돌하므로 쓰지 않고, 조각으로 나타날 수 없는 2음절 이상 형태만 인정한다.
+   */
+  private boolean isBurntDescription(String text) {
+    return containsAny(text, "눌어붙", "탄내", "타는냄새", "타버", "타고있", "탔", "까맣게");
   }
 
   private String normalize(String speech) {
