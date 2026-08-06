@@ -1,0 +1,4 @@
+{"id": "context-spicy-no-spicy-recipe", "category": "context", "user_speech": "너무 매운데 어떻게 해?", "must_convey": "계란볶음밥 원본에는 매운 재료가 없으므로, 직전 대화에서 추가한 마늘 5쪽을 매운맛의 원인으로 연결하고 완화 방법을 안내", "must_not": "이 요리는 맵지 않다며 원인 파악을 포기하거나, 추가한 마늘 맥락을 무시"}
+{"id": "context-garlic-smell", "category": "context", "user_speech": "마늘향이 너무 많이 나", "must_convey": "원본 레시피에 없는 마늘이지만 대화에서 5쪽 추가한 것을 인지하고, 향을 줄이는 실용적 안내", "must_not": "이 레시피에는 마늘이 없다고 부정하거나 되묻기"}
+{"id": "context-galic-synonym-burnt", "category": "context", "user_speech": "갈릭이 너무 많고 탄 거 같은데?", "must_convey": "갈릭=마늘로 이해하고, 탄 마늘을 건져내거나 불을 줄이는 등 대응 안내", "must_not": "갈릭이 무엇인지 모르거나 마늘이 없는 요리라고 부정"}
+{"id": "context-sliced-thing-burnt", "category": "context", "user_speech": "편으로 썰린 게 까맣게 됐어", "must_convey": "편으로 썬 것이 대화에서 추가한 마늘임을 파악하고, 탄 마늘 제거·불 조절 등 대응 안내", "must_not": "무엇이 탔는지 파악하지 못한 동문서답이나 되묻기"}
