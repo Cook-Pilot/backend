@@ -65,9 +65,10 @@ public class CookingCoachClient {
 			return speech == null || speech.isBlank() ? Optional.empty() : Optional.of(speech.trim());
 		} catch (RuntimeException exception) {
 			// 호출·역직렬화 어디서 무엇이 어긋나도 목 응답으로 흡수한다.
+			// 예외 타입만 찍으면 운영 로그에 (RuntimeException) 만 남아 원인을 못 찾는다 —
+			// 실제로 API 키 오류를 이것 때문에 오래 놓쳤다. 스택까지 남긴다.
 			// TODO: 재시도로 변경하거나 해야함.
-			log.warn("AI 조리 피드백 생성에 실패해 목 응답을 사용합니다 ({})",
-					exception.getClass().getSimpleName());
+			log.warn("AI 조리 피드백 생성에 실패해 목 응답을 사용합니다", exception);
 			return Optional.empty();
 		}
 	}
