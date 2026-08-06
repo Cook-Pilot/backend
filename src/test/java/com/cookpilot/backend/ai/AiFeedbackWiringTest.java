@@ -8,6 +8,8 @@ import org.springframework.context.ConfigurableApplicationContext;
 
 import org.springframework.ai.chat.model.ChatModel;
 
+import com.google.genai.Client;
+
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
@@ -45,5 +47,12 @@ class AiFeedbackWiringTest {
 				.getFactoryBeanName();
 
 		assertThat(factory).containsIgnoringCase(GoogleGenAiClientConfig.class.getSimpleName());
+	}
+
+	/** 빈 출처만 보면 키가 안 박힌 Client 를 못 잡는다. 값이 치환된 뒤의 것인지까지 본다. */
+	@Test
+	void Gemini_Client에_해석된_키가_박혀_있다() {
+		assertThat(context.getBean(Client.class).apiKey())
+				.isEqualTo("dummy-key-for-wiring-test");
 	}
 }
