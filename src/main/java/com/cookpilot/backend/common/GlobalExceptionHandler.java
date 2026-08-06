@@ -1,11 +1,14 @@
 package com.cookpilot.backend.common;
 
+import java.util.stream.Collectors;
+
 import org.hibernate.exception.ConstraintViolationException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ProblemDetail;
+import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 
@@ -47,6 +50,15 @@ public class GlobalExceptionHandler {
 	@ExceptionHandler(IllegalArgumentException.class)
 	public ProblemDetail handleBadRequest(IllegalArgumentException e) {
 		return ProblemDetail.forStatusAndDetail(HttpStatus.BAD_REQUEST, e.getMessage());
+	}
+
+	/** @Valid 바인딩 검증 실패. 필드별 메시지를 모아 400 ProblemDetail 로 내린다. */
+	@ExceptionHandler(MethodArgumentNotValidException.class)
+	public ProblemDetail handleValidationFailure(MethodArgumentNotValidException e) {
+		String detail = e.getBindingResult().getFieldErrors().stream()
+				.map(error -> error.getDefaultMessage())
+				.collect(Collectors.joining(" "));
+		return ProblemDetail.forStatusAndDetail(HttpStatus.BAD_REQUEST, detail);
 	}
 
 	@ExceptionHandler(IllegalStateException.class)

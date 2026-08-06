@@ -9,6 +9,8 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+import jakarta.validation.Valid;
+
 import com.cookpilot.backend.recommendation.feedback.RecommendationFeedbackResponse;
 import com.cookpilot.backend.recommendation.feedback.RecommendationFeedbackService;
 import com.cookpilot.backend.recommendation.feedback.SubmitRecommendationFeedbackRequest;
@@ -36,7 +38,7 @@ public class RecommendationController {
 	public RecommendationFeedbackResponse feedback(
 			@PathVariable UUID recipeId,
 			@PathVariable UUID recommendationId,
-			@RequestBody SubmitRecommendationFeedbackRequest request) {
+			@Valid @RequestBody SubmitRecommendationFeedbackRequest request) {
 		return feedbackService.recordFeedback(recipeId, recommendationId, request);
 	}
 }

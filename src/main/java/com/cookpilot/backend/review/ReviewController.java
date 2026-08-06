@@ -14,6 +14,8 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 
+import jakarta.validation.Valid;
+
 @RestController
 @RequestMapping("/api/v1")
 public class ReviewController {
@@ -27,16 +29,7 @@ public class ReviewController {
 	/** 프론트가 조리를 마친 뒤 결과를 넘긴다. 서버에 세션이 없으므로 recipeId를 body로 받는다. */
 	@PostMapping("/reviews")
 	@ResponseStatus(HttpStatus.CREATED)
-	public PostCookReview submit(@RequestBody SubmitReviewRequest request) {
-		if (request.clientSessionId() == null) {
-			throw new IllegalArgumentException("clientSessionId는 필수입니다.");
-		}
-		if (request.recipeId() == null) {
-			throw new IllegalArgumentException("recipeId는 필수입니다.");
-		}
-		if (request.rating() == null) {
-			throw new IllegalArgumentException("rating은 필수입니다.");
-		}
+	public PostCookReview submit(@Valid @RequestBody SubmitReviewRequest request) {
 		return reviewService.submit(request);
 	}
 
