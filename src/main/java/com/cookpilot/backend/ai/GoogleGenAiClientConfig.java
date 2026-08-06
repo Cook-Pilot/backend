@@ -38,10 +38,16 @@ import com.google.genai.types.HttpOptions;
 public class GoogleGenAiClientConfig {
 
 	/**
-	 * 호출 전체(연결+응답)의 상한. 프론트가 8초에 요청을 끊으므로 서버가 그보다 오래 기다릴 이유가
-	 * 없다 — 기다리느니 목 응답으로 떨어지는 편이 낫다. OkHttp callTimeout 으로 매핑된다.
+	 * 호출 전체(연결+응답)의 상한. OkHttp callTimeout 으로 매핑된다.
+	 *
+	 * <p>프론트는 8초에 요청을 끊고 "네트워크가 안 좋다"고 말한다. 서버 상한을 8초에 맞추면
+	 * 목 폴백이 <b>제때 도착할 수 있는 창이 없다</b> — 8초에 끊고 목을 만들어 보내봐야 프론트는 이미
+	 * 포기한 뒤다. 폴백이 의미를 가지려면 프론트 마감보다 충분히 짧아야 한다.
+	 *
+	 * <p>실측(연속 5회) 2.9~5.2초. 6초면 정상 응답은 통과시키고, 늦어지는 경우엔 목이 프론트
+	 * 마감 안에 들어간다.
 	 */
-	private static final int CALL_TIMEOUT_MILLIS = 8_000;
+	private static final int CALL_TIMEOUT_MILLIS = 6_000;
 
 	private static final String API_KEY_PROPERTY = "spring.ai.google.genai.api-key";
 
