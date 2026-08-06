@@ -21,6 +21,11 @@ services:
       DB_URL: jdbc:postgresql://db:5432/${POSTGRES_DB}
       DB_USERNAME: ${POSTGRES_USER}
       DB_PASSWORD: ${POSTGRES_PASSWORD}
+      # 조리 중 AI 피드백(Spring AI). AI_CHAT_PROVIDER 가 none 이면 LLM 을 호출하지 않고
+      # 목 응답만 나간다(기본값). 키는 F-11 추천 설명과 같은 Google AI Studio 키를 공유한다.
+      AI_CHAT_PROVIDER: ${AI_CHAT_PROVIDER:-none}
+      AI_CHAT_MODEL: ${AI_CHAT_MODEL:-gemini-3.5-flash}
+      GEMINI_API_KEY: ${GEMINI_API_KEY:-}
     depends_on:
       db:
         condition: service_healthy

@@ -32,6 +32,13 @@ dependencies {
 	// OpenAPI 스펙 자동 생성 + Swagger UI(/swagger-ui.html). 3.x 라인이 Boot 4/Framework 7 호환
 	// (2.x 는 Boot 3 전용이라 올리면 기동 실패). Boot BOM 이 버전을 관리하지 않아 명시 고정한다.
 	implementation 'org.springdoc:springdoc-openapi-starter-webmvc-ui:3.0.3'
+	// 조리 중 AI 피드백. Spring AI 2.0.x 만 Boot 4 / Jackson 3(tools.jackson) 라인에 맞는다
+	// (1.1.x 는 Boot 3 + Jackson 2 전용이라 올리면 자동설정부터 깨진다).
+	// Boot BOM 이 spring-ai 를 관리하지 않아 BOM 을 따로 가져온다.
+	implementation platform('org.springframework.ai:spring-ai-bom:2.0.0')
+	// google-genai = API 키 한 장으로 쓰는 Gemini Developer API (Vertex AI 는 GCP 자격증명 필요).
+	// F-11 추천 설명이 쓰는 GEMINI_API_KEY 를 그대로 재사용한다.
+	implementation 'org.springframework.ai:spring-ai-starter-model-google-genai'
 	runtimeOnly 'org.postgresql:postgresql'
 	// 엔티티 getter/setter 보일러플레이트 제거. 컴파일 타임 전용(런타임 의존성 아님).
 	// 엔티티에는 @Getter/@Setter 만 쓴다 — @Data/@EqualsAndHashCode/@ToString 은
