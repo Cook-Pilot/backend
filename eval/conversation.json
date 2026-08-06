@@ -1,0 +1,26 @@
+{
+  "recipe": {
+    "title": "계란볶음밥",
+    "steps": [
+      {"step_index": 0, "instruction": "대파를 잘게 썰고 계란을 풀어주세요.", "timer_seconds": 180, "caution_note": null},
+      {"step_index": 1, "instruction": "달군 팬에 계란을 넣어 부드럽게 익히세요.", "timer_seconds": 120, "caution_note": null},
+      {"step_index": 2, "instruction": "대파와 밥을 넣고 고루 볶으세요.", "timer_seconds": 240, "caution_note": "센 불에서는 밥이 탈 수 있어요"},
+      {"step_index": 3, "instruction": "간장을 가장자리에 두르고 한 번 더 볶으세요.", "timer_seconds": 60, "caution_note": null}
+    ]
+  },
+  "current_step_index": 3,
+  "history": [
+    {"role": "user", "text": "뭔가 심심한데 넣어볼 만한 거 없나?"},
+    {"role": "model", "text": "마늘이 있으면 마늘을 추가하는 게 좋아요"},
+    {"role": "user", "text": "마늘? 마늘 5개 정도 넣고 싶은데 그냥 넣으면 되나?"},
+    {"role": "model", "text": "좋아요! 대신 마늘의 꼭지를 따고 편 썰어 넣는 것이 좋아요"},
+    {"role": "user", "text": "알았어 물 마시고 편 썰어 넣을게"},
+    {"role": "model", "text": "좋아요 칼을 사용하실 때 손을 주의해주세요"},
+    {"role": "user", "text": "편으로 썬다는 게 뭐야?"},
+    {"role": "model", "text": "얇게 썰면 돼요. 바닥에 잘 고정한 뒤 얇게 썰기만 하면 돼요."},
+    {"role": "user", "text": "그냥 다지면 안돼?"},
+    {"role": "model", "text": "다져도 좋아요! 완전히 취향 차이에요"},
+    {"role": "user", "text": "안다져야겠다. 다음은 뭐해야 해?"},
+    {"role": "model", "text": "이제 간장을 가장자리에 두르고 한 번 더 볶으면 돼요."}
+  ]
+}

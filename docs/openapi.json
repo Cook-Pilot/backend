@@ -21,21 +21,11 @@
       },
       "AiFeedbackResponse" : {
         "properties" : {
-          "eventPayload" : {
-            "additionalProperties" : { },
-            "type" : "object"
-          },
           "mock" : {
             "type" : "boolean"
           },
-          "screenText" : {
-            "type" : "string"
-          },
           "speechText" : {
             "type" : "string"
-          },
-          "suggestedAction" : {
-            "$ref" : "#/components/schemas/SuggestedAction"
           }
         },
         "type" : "object"
@@ -781,18 +771,6 @@
           }
         },
         "required" : [ "clientSessionId", "rating", "recipeId" ],
-        "type" : "object"
-      },
-      "SuggestedAction" : {
-        "properties" : {
-          "seconds" : {
-            "format" : "int32",
-            "type" : "integer"
-          },
-          "type" : {
-            "type" : "string"
-          }
-        },
         "type" : "object"
       },
       "User" : {

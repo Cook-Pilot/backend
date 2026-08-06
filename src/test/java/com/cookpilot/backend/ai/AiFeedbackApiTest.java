@@ -28,12 +28,7 @@ class AiFeedbackApiTest extends PostgresApiTestBase {
 								+ "\",\"stepIndex\":0,\"userSpeech\":\"물이 안 끓어\"}"))
 				.andExpect(status().isOk())
 				.andExpect(jsonPath("$.mock").value(true))
-				.andExpect(jsonPath("$.speechText").exists())
-				.andExpect(jsonPath("$.screenText").exists())
-				.andExpect(jsonPath("$.suggestedAction.type").value("EXTEND_TIMER"))
-				.andExpect(jsonPath("$.suggestedAction.seconds").value(60))
-				.andExpect(jsonPath("$.eventPayload.currentStepIndex").value(0))
-				.andExpect(jsonPath("$.eventPayload.userSpeech").value("물이 안 끓어"));
+				.andExpect(jsonPath("$.speechText").isNotEmpty());
 	}
 
 	@Test
