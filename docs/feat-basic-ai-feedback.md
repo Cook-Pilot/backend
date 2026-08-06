@@ -84,7 +84,8 @@ httpOptions.timeout().ifPresent(t -> builder.callTimeout(...));  // 안 주면 �
 그대로 두면 Gemini 가 응답하지 않을 때 서블릿 스레드가 영구 점유돼 톰캣 스레드풀이 마른다.
 
 Spring AI 의 `googleGenAiClient` 빈이 `@ConditionalOnMissingBean` 이라, `GoogleGenAiClientConfig` 에서
-같은 타입을 먼저 등록해 자동설정을 물러나게 하고 `HttpOptions.timeout(10_000)` 을 건다.
+같은 타입을 먼저 등록해 자동설정을 물러나게 하고 `HttpOptions.timeout(8_000)` 을 건다.
+값은 프론트의 요청 타임아웃(8초)에 맞춘다 — 서버가 더 오래 기다려봐야 클라이언트는 이미 끊은 뒤다.
 
 타임아웃 초과 예외는 `GenAiIOException`(→ `BaseException extends RuntimeException`)이라
 기존 `catch (RuntimeException)` 이 그대로 잡아 목 응답으로 흡수한다.
@@ -169,7 +170,7 @@ F-11 `GeminiRecommendationExplanationClient` 와 같은 패턴이다. 조리 중
 | `build.gradle` | spring-ai-bom 2.0.0 + `spring-ai-starter-model-google-genai` |
 | `application.yml` | `spring.ai.model.chat` 기본 none, google-genai 키/모델/temperature |
 | `ai/CookingCoachClient.java` | **신규** — ChatClient 호출, 시스템 프롬프트, 빈 응답 처리 |
-| `ai/GoogleGenAiClientConfig.java` | **신규** — 호출 타임아웃 10초(SDK 기본값이 무한대라 직접 건다) |
+| `ai/GoogleGenAiClientConfig.java` | **신규** — 호출 타임아웃 8초(SDK 기본값이 무한대라 직접 건다) |
 | `ai/AiFeedbackRequest.java` | **신규** — 컨트롤러 중첩 레코드였던 요청 DTO 를 파일로 분리 + STT 전제 주석 |
 | `ai/AiFeedbackResponse.java` | `screenText`·`suggestedAction`·`eventPayload` 제거 → `{mock, speechText}` |
 | `ai/AiFeedbackService.java` | LLM 경로 추가, 실패 시 목 문장으로 fallback |

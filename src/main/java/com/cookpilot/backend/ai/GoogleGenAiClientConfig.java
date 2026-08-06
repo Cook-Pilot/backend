@@ -28,10 +28,10 @@ import com.google.genai.types.HttpOptions;
 public class GoogleGenAiClientConfig {
 
 	/**
-	 * 호출 전체(연결+응답)의 상한. 조리 중 안내라 10초를 넘기면 답이 와도 이미 쓸모가 없다 —
-	 * 기다리느니 목 응답으로 떨어지는 편이 낫다. OkHttp callTimeout 으로 매핑된다.
+	 * 호출 전체(연결+응답)의 상한. 프론트가 8초에 요청을 끊으므로 서버가 그보다 오래 기다릴 이유가
+	 * 없다 — 기다리느니 목 응답으로 떨어지는 편이 낫다. OkHttp callTimeout 으로 매핑된다.
 	 */
-	private static final int CALL_TIMEOUT_MILLIS = 10_000;
+	private static final int CALL_TIMEOUT_MILLIS = 8_000;
 
 	@Bean
 	Client googleGenAiClient(@Value("${spring.ai.google.genai.api-key}") String apiKey) {
