@@ -12,9 +12,11 @@
             "type" : "integer"
           },
           "userSpeech" : {
+            "minLength" : 1,
             "type" : "string"
           }
         },
+        "required" : [ "recipeId", "stepIndex", "userSpeech" ],
         "type" : "object"
       },
       "AiFeedbackResponse" : {
@@ -720,6 +722,7 @@
             "type" : "string"
           },
           "promptVersion" : {
+            "minLength" : 1,
             "type" : "string"
           },
           "reason" : {
@@ -732,6 +735,7 @@
             "type" : "string"
           }
         },
+        "required" : [ "decision", "explanationSource", "originalAmount", "originalIngredientId", "promptVersion", "suggestedAmount" ],
         "type" : "object"
       },
       "SubmitReviewRequest" : {
@@ -766,6 +770,7 @@
             "type" : "number"
           }
         },
+        "required" : [ "clientSessionId", "rating", "recipeId" ],
         "type" : "object"
       },
       "User" : {

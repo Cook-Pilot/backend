@@ -119,15 +119,6 @@ public class RecommendationFeedbackService {
 			UUID userId,
 			UUID recipeId,
 			SubmitRecommendationFeedbackRequest request) {
-		if (request == null || request.originalIngredientId() == null
-				|| request.decision() == null
-				|| request.originalAmount() == null
-				|| request.suggestedAmount() == null
-				|| request.explanationSource() == null
-				|| request.promptVersion() == null
-				|| request.promptVersion().isBlank()) {
-			throw new IllegalArgumentException("추천 피드백 필수값이 누락되었습니다.");
-		}
 		if (!recipeRepository.existsById(recipeId)) {
 			throw new NotFoundException("레시피를 찾을 수 없습니다: " + recipeId);
 		}

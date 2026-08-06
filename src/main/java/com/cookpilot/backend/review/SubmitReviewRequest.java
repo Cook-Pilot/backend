@@ -4,6 +4,8 @@ import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.UUID;
 
+import jakarta.validation.constraints.NotNull;
+
 /**
  * 조리 후 리뷰 저장 요청. 필드는 post_cook_reviews 컬럼과 1:1 이다.
  *
@@ -13,12 +15,12 @@ import java.util.UUID;
  * 서버가 채우는 컬럼: id, user_id, created_at, structured_feedback.
  */
 public record SubmitReviewRequest(
-		UUID clientSessionId,
-		UUID recipeId,
+		@NotNull(message = "clientSessionId는 필수입니다.") UUID clientSessionId,
+		@NotNull(message = "recipeId는 필수입니다.") UUID recipeId,
 		Instant cookedAt,
 		BigDecimal targetServings,
 		UUID sourcePersonalVersionId,
-		Integer rating,
+		@NotNull(message = "rating은 필수입니다.") Integer rating,
 		String comment,
 		String nextTimeNote
 ) {
