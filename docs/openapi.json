@@ -409,6 +409,12 @@
           "nextTimeNote" : {
             "type" : "string"
           },
+          "photoUrls" : {
+            "items" : {
+              "type" : "string"
+            },
+            "type" : "array"
+          },
           "rating" : {
             "format" : "int32",
             "type" : "integer"
@@ -753,6 +759,15 @@
           },
           "nextTimeNote" : {
             "type" : "string"
+          },
+          "photoUrls" : {
+            "items" : {
+              "minLength" : 1,
+              "type" : "string"
+            },
+            "maxItems" : 10,
+            "minItems" : 0,
+            "type" : "array"
           },
           "rating" : {
             "format" : "int32",

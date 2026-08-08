@@ -2,9 +2,12 @@ package com.cookpilot.backend.review;
 
 import java.math.BigDecimal;
 import java.time.Instant;
+import java.util.List;
 import java.util.UUID;
 
+import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Size;
 
 /**
  * 조리 후 리뷰 저장 요청. 필드는 post_cook_reviews 컬럼과 1:1 이다.
@@ -22,6 +25,9 @@ public record SubmitReviewRequest(
 		UUID sourcePersonalVersionId,
 		@NotNull(message = "rating은 필수입니다.") Integer rating,
 		String comment,
-		String nextTimeNote
+		String nextTimeNote,
+		// 사진은 외부 스토리지 URL만 받는다(파일 업로드 없음). null = 사진 없음.
+		@Size(max = 10, message = "photoUrls는 최대 10장입니다.")
+		List<@NotBlank(message = "photoUrls 항목은 비어 있을 수 없습니다.") String> photoUrls
 ) {
 }
