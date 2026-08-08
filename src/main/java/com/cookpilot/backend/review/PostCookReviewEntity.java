@@ -2,7 +2,9 @@ package com.cookpilot.backend.review;
 
 import java.math.BigDecimal;
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
@@ -69,6 +71,11 @@ public class PostCookReviewEntity {
 	@Column(name = "next_time_note")
 	private String nextTimeNote;
 
+	// 사진 원본은 외부 스토리지, 여기에는 URL 배열만(JSONB). 순서는 클라이언트가 보낸 배열 순서 그대로다.
+	@JdbcTypeCode(SqlTypes.JSON)
+	@Column(name = "photo_urls", nullable = false, columnDefinition = "jsonb")
+	private List<String> photoUrls = new ArrayList<>();
+
 	@Setter
 	@JdbcTypeCode(SqlTypes.JSON)
 	@Column(name = "structured_feedback", nullable = false, columnDefinition = "jsonb")
@@ -89,7 +96,7 @@ public class PostCookReviewEntity {
 	 * DB 가 NOT NULL 이고, 시각을 모른 채 저장하는 것보다 "서버가 받은 때"가 낫다.
 	 */
 	public static PostCookReviewEntity of(UUID userId, SubmitReviewRequest request) {
-		return new PostCookReviewEntity(
+		PostCookReviewEntity entity = new PostCookReviewEntity(
 				userId,
 				request.recipeId(),
 				request.clientSessionId(),
@@ -99,6 +106,10 @@ public class PostCookReviewEntity {
 				request.rating(),
 				request.comment(),
 				request.nextTimeNote());
+		if (request.photoUrls() != null) {
+			entity.photoUrls.addAll(request.photoUrls());
+		}
+		return entity;
 	}
 
 	public PostCookReviewEntity(UUID userId, UUID recipeId, UUID clientSessionId,

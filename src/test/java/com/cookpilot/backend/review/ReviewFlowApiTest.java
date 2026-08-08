@@ -76,6 +76,77 @@ class ReviewFlowApiTest extends PostgresApiTestBase {
 	}
 
 	@Test
+	void 사진_여러_장을_순서대로_저장하고_그대로_돌려준다() throws Exception {
+		String body = """
+				{
+				  "clientSessionId": "%s",
+				  "recipeId": "%s",
+				  "rating": 4,
+				  "photoUrls": [
+				    "https://cdn.example.com/p1.jpg",
+				    "https://cdn.example.com/p2.jpg",
+				    "https://cdn.example.com/p3.jpg"
+				  ]
+				}
+				""".formatted(UUID.randomUUID(), TestRecipeIds.FRIED_RICE_RECIPE_ID);
+		String response = mockMvc.perform(post("/api/v1/reviews")
+						.contentType(MediaType.APPLICATION_JSON)
+						.content(body))
+				.andExpect(status().isCreated())
+				.andReturn().getResponse().getContentAsString();
+		JsonNode review = objectMapper.readTree(response);
+
+		assertThat(review.get("photoUrls")).hasSize(3);
+		assertThat(review.get("photoUrls").get(0).asText()).isEqualTo("https://cdn.example.com/p1.jpg");
+		assertThat(review.get("photoUrls").get(2).asText()).isEqualTo("https://cdn.example.com/p3.jpg");
+
+		mockMvc.perform(get("/api/v1/reviews/" + review.get("id").asText()))
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$.photoUrls", hasSize(3)))
+				.andExpect(jsonPath("$.photoUrls[0]").value("https://cdn.example.com/p1.jpg"))
+				.andExpect(jsonPath("$.photoUrls[2]").value("https://cdn.example.com/p3.jpg"));
+	}
+
+	@Test
+	void 사진이_없으면_빈_배열을_돌려준다() throws Exception {
+		JsonNode review = submitReview(UUID.randomUUID(), 1);
+
+		assertThat(review.get("photoUrls").isArray()).isTrue();
+		assertThat(review.get("photoUrls")).isEmpty();
+	}
+
+	@Test
+	void 빈_URL이나_11장_초과_사진은_400() throws Exception {
+		mockMvc.perform(post("/api/v1/reviews")
+						.contentType(MediaType.APPLICATION_JSON)
+						.content("""
+								{
+								  "clientSessionId": "%s",
+								  "recipeId": "%s",
+								  "rating": 4,
+								  "photoUrls": [" "]
+								}
+								""".formatted(UUID.randomUUID(), TestRecipeIds.FRIED_RICE_RECIPE_ID)))
+				.andExpect(status().isBadRequest());
+
+		String elevenPhotos = objectMapper.writeValueAsString(
+				java.util.stream.IntStream.rangeClosed(1, 11)
+						.mapToObj(i -> "https://cdn.example.com/p" + i + ".jpg")
+						.toList());
+		mockMvc.perform(post("/api/v1/reviews")
+						.contentType(MediaType.APPLICATION_JSON)
+						.content("""
+								{
+								  "clientSessionId": "%s",
+								  "recipeId": "%s",
+								  "rating": 4,
+								  "photoUrls": %s
+								}
+								""".formatted(UUID.randomUUID(), TestRecipeIds.FRIED_RICE_RECIPE_ID, elevenPhotos)))
+				.andExpect(status().isBadRequest());
+	}
+
+	@Test
 	void 동일한_조리_세션을_재전송하면_한_번만_저장한다() throws Exception {
 		UUID clientSessionId = UUID.randomUUID();
 		JsonNode first = submitReview(clientSessionId, 1);
