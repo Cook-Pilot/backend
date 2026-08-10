@@ -2,6 +2,7 @@ package com.cookpilot.backend.review;
 
 import java.math.BigDecimal;
 import java.time.Instant;
+import java.util.List;
 import java.util.UUID;
 
 public record PostCookReview(
@@ -15,6 +16,7 @@ public record PostCookReview(
 		Integer rating,
 		String comment,
 		String nextTimeNote,
+		List<String> photoUrls,
 		UUID createdPersonalVersionId,
 		Instant createdAt
 ) {
@@ -36,6 +38,7 @@ public record PostCookReview(
 				entity.getRating(),
 				entity.getComment(),
 				entity.getNextTimeNote(),
+				List.copyOf(entity.getPhotoUrls()),
 				createdPersonalVersionId,
 				entity.getCreatedAt());
 	}
