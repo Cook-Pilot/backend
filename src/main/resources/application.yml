@@ -51,6 +51,10 @@ cookpilot:
       base-url: ${GEMINI_BASE_URL:https://generativelanguage.googleapis.com}
       connect-timeout: ${GEMINI_CONNECT_TIMEOUT:2s}
       read-timeout: ${GEMINI_READ_TIMEOUT:4s}
+    # Gemini Live 세션 토큰 발급(ephemeral token). 위와 같은 AI Studio 키를 공유한다.
+    live:
+      api-key: ${GEMINI_API_KEY:}
+      model: ${GEMINI_LIVE_MODEL:gemini-2.5-flash-native-audio-preview-09-2025}
 
 ---
 # db 프로파일: 실제 postgres. 운영/서버 배포는 SPRING_PROFILES_ACTIVE=db 로 이 설정을 쓴다.
