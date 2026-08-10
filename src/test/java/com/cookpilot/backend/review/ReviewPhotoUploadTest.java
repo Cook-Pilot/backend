@@ -2,10 +2,11 @@ package com.cookpilot.backend.review;
 
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.test.web.servlet.MockMvc;
+
+import com.cookpilot.backend.PostgresApiTestBase;
+import com.cookpilot.backend.user.UserService;
 
 import static org.hamcrest.Matchers.startsWith;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart;
@@ -13,12 +14,10 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 /**
- * POST /api/v1/reviews/photos 계약 테스트. 스토리지가 목이라 DB/Docker 불필요 —
- * 기본 프로파일 + h2 컨텍스트로 돈다.
+ * POST /api/v1/reviews/photos 계약 테스트. 업로드가 베타 사용자 세션을 요구하므로
+ * 다른 API 테스트와 동일하게 {@link PostgresApiTestBase}(db 프로파일 + 데모 사용자 헤더)를 쓴다.
  */
-@SpringBootTest
-@AutoConfigureMockMvc
-class ReviewPhotoUploadTest {
+class ReviewPhotoUploadTest extends PostgresApiTestBase {
 
 	@Autowired
 	private MockMvc mockMvc;
@@ -31,6 +30,17 @@ class ReviewPhotoUploadTest {
 		mockMvc.perform(multipart("/api/v1/reviews/photos").file(file))
 				.andExpect(status().isCreated())
 				.andExpect(jsonPath("$.url", startsWith(ReviewPhotoService.MOCK_URL_PREFIX)));
+	}
+
+	@Test
+	void 사용자_헤더가_비어_있으면_401() throws Exception {
+		MockMultipartFile file = new MockMultipartFile(
+				"file", "photo.jpg", "image/jpeg", "fake-image-bytes".getBytes());
+
+		mockMvc.perform(multipart("/api/v1/reviews/photos").file(file)
+						.header(UserService.USER_ID_HEADER, ""))
+				.andExpect(status().isUnauthorized())
+				.andExpect(jsonPath("$.code").value("USER_SESSION_REQUIRED"));
 	}
 
 	@Test
