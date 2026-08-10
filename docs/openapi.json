@@ -381,6 +381,14 @@
         },
         "type" : "object"
       },
+      "PhotoUploadResponse" : {
+        "properties" : {
+          "url" : {
+            "type" : "string"
+          }
+        },
+        "type" : "object"
+      },
       "PostCookReview" : {
         "properties" : {
           "clientSessionId" : {
@@ -1198,6 +1206,40 @@
               "*/*" : {
                 "schema" : {
                   "$ref" : "#/components/schemas/PostCookReview"
+                }
+              }
+            },
+            "description" : "Created"
+          }
+        },
+        "tags" : [ "review-controller" ]
+      }
+    },
+    "/api/v1/reviews/photos" : {
+      "post" : {
+        "operationId" : "uploadPhoto",
+        "requestBody" : {
+          "content" : {
+            "multipart/form-data" : {
+              "schema" : {
+                "properties" : {
+                  "file" : {
+                    "format" : "binary",
+                    "type" : "string"
+                  }
+                },
+                "required" : [ "file" ],
+                "type" : "object"
+              }
+            }
+          }
+        },
+        "responses" : {
+          "201" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/PhotoUploadResponse"
                 }
               }
             },
