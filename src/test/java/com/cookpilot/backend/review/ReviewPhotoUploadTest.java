@@ -3,6 +3,7 @@ package com.cookpilot.backend.review;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.mock.web.MockMultipartFile;
+import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.web.servlet.MockMvc;
 
 import com.cookpilot.backend.PostgresApiTestBase;
@@ -17,7 +18,11 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 /**
  * POST /api/v1/reviews/photos 계약 테스트. 업로드가 베타 사용자 세션을 요구하므로
  * 다른 API 테스트와 동일하게 {@link PostgresApiTestBase}(db 프로파일 + 데모 사용자 헤더)를 쓴다.
+ *
+ * 버킷을 빈 값으로 고정해 목 모드를 강제한다 — 개발자 환경에 PHOTOS_BUCKET 이 설정돼 있어도
+ * 테스트가 실제 S3 로 새지 않는다.
  */
+@TestPropertySource(properties = "cookpilot.photos.bucket=")
 class ReviewPhotoUploadTest extends PostgresApiTestBase {
 
 	@Autowired

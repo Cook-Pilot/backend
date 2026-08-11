@@ -1,7 +1,6 @@
 package com.cookpilot.backend.review;
 
 import java.io.IOException;
-import java.io.UncheckedIOException;
 import java.util.Map;
 import java.util.UUID;
 
@@ -13,6 +12,7 @@ import org.springframework.web.multipart.MultipartFile;
 
 import com.cookpilot.backend.user.UserService;
 
+import software.amazon.awssdk.core.exception.SdkException;
 import software.amazon.awssdk.core.sync.RequestBody;
 import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.s3.model.PutObjectRequest;
@@ -89,9 +89,9 @@ public class ReviewPhotoService {
 		try {
 			s3ClientProvider.getObject().putObject(
 					request, RequestBody.fromInputStream(file.getInputStream(), file.getSize()));
-		} catch (IOException exception) {
-			// IllegalStateException 은 핸들러가 409 로 매핑한다 — 저장소 장애는 서버 오류(500)여야 한다.
-			throw new UncheckedIOException("사진 업로드에 실패했습니다.", exception);
+		} catch (IOException | SdkException exception) {
+			// SdkException 까지 잡는다 — 자격증명·권한·네트워크 실패가 그대로 새면 응답 형식이 제각각이 된다.
+			throw new PhotoUploadFailedException("사진 업로드에 실패했습니다.", exception);
 		}
 		return "https://%s.s3.%s.amazonaws.com/%s".formatted(bucket, region, key);
 	}

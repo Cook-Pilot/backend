@@ -54,3 +54,13 @@
 - **삭제 경로 없음.** 리뷰가 append-only 라 사진도 지우지 않는다.
 - 트래픽이 늘면 presigned URL(클라이언트가 S3 로 직접 업로드)로 바꿔 서버 대역폭을
   아끼는 게 확장 경로다. 지금은 서버 경유가 단순해서 이대로 둔다.
+
+## AI 리뷰 반영 (Copilot)
+
+- **SDK 예외까지 잡는다.** `IOException` 만 잡고 있어 자격증명·권한·네트워크 실패(`SdkException`)가
+  그대로 새면 응답 형식이 제각각이 된다. 둘 다 `PhotoUploadFailedException` 으로 감싸 500 +
+  고정 문구로 내리고, 원인은 로그로만 남긴다(자격증명·ARN 이 클라이언트로 새지 않게).
+- **테스트에 버킷을 빈 값으로 고정**(`@TestPropertySource`). 개발자 환경에 `PHOTOS_BUCKET` 이
+  설정돼 있어도 테스트가 실제 S3 로 새지 않는다.
+- **413·500 매핑 회귀 테스트 추가**(`UploadErrorMappingTest`). MockMvc 는 multipart 파싱을
+  거치지 않아 크기 초과를 재현할 수 없어 핸들러 매핑을 직접 검증한다(실서버 11MB 실측은 별도 확인).
