@@ -2,6 +2,10 @@
 spring:
   application:
     name: backend
+  servlet:
+    multipart:
+      max-file-size: 10MB      # 리뷰 사진 업로드(POST /reviews/photos). 기본 1MB는 사진에 부족.
+      max-request-size: 10MB
   flyway:
     enabled: false      # 마이그레이션은 db 프로파일에서만 실행
   jpa:
