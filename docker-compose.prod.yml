@@ -21,6 +21,10 @@ services:
       DB_URL: jdbc:postgresql://db:5432/${POSTGRES_DB}
       DB_USERNAME: ${POSTGRES_USER}
       DB_PASSWORD: ${POSTGRES_PASSWORD}
+      # 리뷰 사진 버킷. 비우면 업로드 없이 목 URL 을 돌려준다.
+      # 자격증명은 넣지 않는다 — EC2 인스턴스 역할을 SDK 가 자동으로 집는다.
+      PHOTOS_BUCKET: ${PHOTOS_BUCKET:-}
+      PHOTOS_REGION: ${PHOTOS_REGION:-ap-northeast-2}
       # 조리 중 AI 피드백(Spring AI). AI_CHAT_PROVIDER 가 none 이면 LLM 을 호출하지 않고
       # 목 응답만 나간다(기본값). 키는 F-11 추천 설명과 같은 Google AI Studio 키를 공유한다.
       AI_CHAT_PROVIDER: ${AI_CHAT_PROVIDER:-none}

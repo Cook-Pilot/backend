@@ -55,6 +55,10 @@ cookpilot:
       base-url: ${GEMINI_BASE_URL:https://generativelanguage.googleapis.com}
       connect-timeout: ${GEMINI_CONNECT_TIMEOUT:2s}
       read-timeout: ${GEMINI_READ_TIMEOUT:4s}
+  # 리뷰 사진 저장소. 버킷이 비어 있으면 업로드 없이 목 URL 을 돌려준다(로컬 개발 기본값).
+  photos:
+    bucket: ${PHOTOS_BUCKET:}
+    region: ${PHOTOS_REGION:ap-northeast-2}
 
 ---
 # db 프로파일: 실제 postgres. 운영/서버 배포는 SPRING_PROFILES_ACTIVE=db 로 이 설정을 쓴다.

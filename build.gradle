@@ -39,6 +39,10 @@ dependencies {
 	// google-genai = API 키 한 장으로 쓰는 Gemini Developer API (Vertex AI 는 GCP 자격증명 필요).
 	// F-11 추천 설명이 쓰는 GEMINI_API_KEY 를 그대로 재사용한다.
 	implementation 'org.springframework.ai:spring-ai-starter-model-google-genai'
+	// 리뷰 사진 저장(S3). 자격증명은 EC2 인스턴스 역할이 default provider chain 으로 주입한다
+	// — 키를 코드/환경변수에 두지 않는다. BOM 은 Boot 가 관리하지 않아 버전을 명시한다.
+	implementation platform('software.amazon.awssdk:bom:2.35.9')
+	implementation 'software.amazon.awssdk:s3'
 	runtimeOnly 'org.postgresql:postgresql'
 	// 엔티티 getter/setter 보일러플레이트 제거. 컴파일 타임 전용(런타임 의존성 아님).
 	// 엔티티에는 @Getter/@Setter 만 쓴다 — @Data/@EqualsAndHashCode/@ToString 은

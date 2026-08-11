@@ -3,11 +3,13 @@ package com.cookpilot.backend.review;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.mock.web.MockMultipartFile;
+import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.web.servlet.MockMvc;
 
 import com.cookpilot.backend.PostgresApiTestBase;
 import com.cookpilot.backend.user.UserService;
 
+import static org.hamcrest.Matchers.endsWith;
 import static org.hamcrest.Matchers.startsWith;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -16,7 +18,11 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 /**
  * POST /api/v1/reviews/photos 계약 테스트. 업로드가 베타 사용자 세션을 요구하므로
  * 다른 API 테스트와 동일하게 {@link PostgresApiTestBase}(db 프로파일 + 데모 사용자 헤더)를 쓴다.
+ *
+ * 버킷을 빈 값으로 고정해 목 모드를 강제한다 — 개발자 환경에 PHOTOS_BUCKET 이 설정돼 있어도
+ * 테스트가 실제 S3 로 새지 않는다.
  */
+@TestPropertySource(properties = "cookpilot.photos.bucket=")
 class ReviewPhotoUploadTest extends PostgresApiTestBase {
 
 	@Autowired
@@ -59,6 +65,25 @@ class ReviewPhotoUploadTest extends PostgresApiTestBase {
 
 		mockMvc.perform(multipart("/api/v1/reviews/photos").file(text))
 				.andExpect(status().isBadRequest());
+	}
+
+	@Test
+	void 화이트리스트에_없는_이미지_형식은_400() throws Exception {
+		MockMultipartFile gif = new MockMultipartFile(
+				"file", "photo.gif", "image/gif", "fake-image-bytes".getBytes());
+
+		mockMvc.perform(multipart("/api/v1/reviews/photos").file(gif))
+				.andExpect(status().isBadRequest());
+	}
+
+	@Test
+	void url에는_content_type에_맞는_확장자가_붙는다() throws Exception {
+		MockMultipartFile file = new MockMultipartFile(
+				"file", "photo.png", "image/png", "fake-image-bytes".getBytes());
+
+		mockMvc.perform(multipart("/api/v1/reviews/photos").file(file))
+				.andExpect(status().isCreated())
+				.andExpect(jsonPath("$.url", endsWith(".png")));
 	}
 
 	@Test

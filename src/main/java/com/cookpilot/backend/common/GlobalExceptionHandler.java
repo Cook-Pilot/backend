@@ -11,7 +11,9 @@ import org.springframework.http.ProblemDetail;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.multipart.MaxUploadSizeExceededException;
 
+import com.cookpilot.backend.review.PhotoUploadFailedException;
 import com.cookpilot.backend.user.MissingUserSessionException;
 import com.cookpilot.backend.user.UserNotFoundException;
 
@@ -64,6 +66,21 @@ public class GlobalExceptionHandler {
 	@ExceptionHandler(IllegalStateException.class)
 	public ProblemDetail handleConflict(IllegalStateException e) {
 		return ProblemDetail.forStatusAndDetail(HttpStatus.CONFLICT, e.getMessage());
+	}
+
+	/** 업로드 파일이 spring.servlet.multipart 한도를 넘음. 안 잡으면 500 으로 나간다. */
+	@ExceptionHandler(MaxUploadSizeExceededException.class)
+	public ProblemDetail handlePayloadTooLarge(MaxUploadSizeExceededException e) {
+		return ProblemDetail.forStatusAndDetail(
+				HttpStatus.PAYLOAD_TOO_LARGE, "파일이 너무 큽니다. 한 장에 10MB 까지 올릴 수 있습니다.");
+	}
+
+	/** 저장소 장애. 클라이언트가 고칠 수 없으니 재시도 안내만 하고 원인은 로그로 남긴다. */
+	@ExceptionHandler(PhotoUploadFailedException.class)
+	public ProblemDetail handlePhotoUploadFailed(PhotoUploadFailedException e) {
+		log.error("사진 업로드 실패", e);
+		return ProblemDetail.forStatusAndDetail(
+				HttpStatus.INTERNAL_SERVER_ERROR, "사진을 저장하지 못했습니다. 잠시 후 다시 시도해 주세요.");
 	}
 
 	/**
