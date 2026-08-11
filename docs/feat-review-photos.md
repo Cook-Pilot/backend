@@ -30,12 +30,11 @@
 - **한 장씩 받는다.** 여러 장이면 장수만큼 반복 호출. 이유: 실패/재시도 단위가
   장 단위로 깔끔하고(여러 장 multipart는 부분 실패 응답이 애매), 클라이언트가
   병렬로 쏘면 속도 손해도 없다. 단점은 왕복 N번뿐 — 사진 몇 장 수준에선 무시.
-- **S3 미확정 → 목 구현.** `ReviewPhotoService`가 저장 없이
-  `https://mock-storage.cookpilot.local/review-photos/{uuid}`를 돌려준다.
-  AI 목 패턴과 동일한 `TODO(S3 확정 후)` 방식. 클라이언트는 업로드→URL→리뷰 제출
-  흐름을 지금부터 붙일 수 있다.
-- 검증: 빈 파일·비이미지 content-type → 400. 파일당 10MB
-  (`spring.servlet.multipart.max-file-size`, 스프링 기본 1MB는 사진에 부족).
+- ~~**S3 미확정 → 목 구현.**~~ → **이슈 #52에서 실제 S3 업로드로 전환.** 버킷이 설정되지
+  않은 환경(로컬·CI)에서만 목 URL을 돌려준다. 상세는 `docs/feat-review-photos-s3.md`.
+- 검증: 빈 파일 → 400, content-type 화이트리스트(jpeg/png/webp/heic) 외 → 400.
+  파일당 10MB(`spring.servlet.multipart.max-file-size`, 스프링 기본 1MB는 사진에 부족),
+  초과 시 413.
 
 ## 스키마/API 변경
 
@@ -48,9 +47,9 @@
 
 ## 알려진 약점·후속
 
-- 스토리지 미확정: S3 확정되면 `ReviewPhotoService` 목을 실제 업로드로 교체하고
-  URL 도메인 화이트리스트 검증 추가 고려.
-- 업로드된 사진과 리뷰의 연결 검증 없음: 목 단계라 어떤 URL이든 photoUrls에 넣을 수
-  있다. 실제 스토리지 붙일 때 같이 판단.
+- ~~스토리지 미확정~~ → 이슈 #52에서 S3 전환 완료. photoUrls의 URL 도메인 화이트리스트
+  검증은 여전히 없다(임의 URL을 넣을 수 있다).
+- 업로드된 사진과 리뷰의 연결 검증 없음: 업로드한 사람과 리뷰 작성자가 같은지,
+  올린 URL을 실제로 썼는지 확인하지 않는다. 상세는 `docs/feat-review-photos-s3.md`.
 - `GET /cooking-history`(`CookingHistoryItem`)에는 사진을 넣지 않았다 — 요청 범위 밖.
   필요해지면 추가.

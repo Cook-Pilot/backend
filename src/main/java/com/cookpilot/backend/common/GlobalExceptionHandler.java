@@ -11,6 +11,7 @@ import org.springframework.http.ProblemDetail;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.multipart.MaxUploadSizeExceededException;
 
 import com.cookpilot.backend.user.MissingUserSessionException;
 import com.cookpilot.backend.user.UserNotFoundException;
@@ -64,6 +65,13 @@ public class GlobalExceptionHandler {
 	@ExceptionHandler(IllegalStateException.class)
 	public ProblemDetail handleConflict(IllegalStateException e) {
 		return ProblemDetail.forStatusAndDetail(HttpStatus.CONFLICT, e.getMessage());
+	}
+
+	/** 업로드 파일이 spring.servlet.multipart 한도를 넘음. 안 잡으면 500 으로 나간다. */
+	@ExceptionHandler(MaxUploadSizeExceededException.class)
+	public ProblemDetail handlePayloadTooLarge(MaxUploadSizeExceededException e) {
+		return ProblemDetail.forStatusAndDetail(
+				HttpStatus.PAYLOAD_TOO_LARGE, "파일이 너무 큽니다. 한 장에 10MB 까지 올릴 수 있습니다.");
 	}
 
 	/**

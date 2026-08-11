@@ -8,6 +8,7 @@ import org.springframework.test.web.servlet.MockMvc;
 import com.cookpilot.backend.PostgresApiTestBase;
 import com.cookpilot.backend.user.UserService;
 
+import static org.hamcrest.Matchers.endsWith;
 import static org.hamcrest.Matchers.startsWith;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -59,6 +60,25 @@ class ReviewPhotoUploadTest extends PostgresApiTestBase {
 
 		mockMvc.perform(multipart("/api/v1/reviews/photos").file(text))
 				.andExpect(status().isBadRequest());
+	}
+
+	@Test
+	void 화이트리스트에_없는_이미지_형식은_400() throws Exception {
+		MockMultipartFile gif = new MockMultipartFile(
+				"file", "photo.gif", "image/gif", "fake-image-bytes".getBytes());
+
+		mockMvc.perform(multipart("/api/v1/reviews/photos").file(gif))
+				.andExpect(status().isBadRequest());
+	}
+
+	@Test
+	void url에는_content_type에_맞는_확장자가_붙는다() throws Exception {
+		MockMultipartFile file = new MockMultipartFile(
+				"file", "photo.png", "image/png", "fake-image-bytes".getBytes());
+
+		mockMvc.perform(multipart("/api/v1/reviews/photos").file(file))
+				.andExpect(status().isCreated())
+				.andExpect(jsonPath("$.url", endsWith(".png")));
 	}
 
 	@Test

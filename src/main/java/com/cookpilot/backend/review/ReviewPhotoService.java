@@ -1,32 +1,64 @@
 package com.cookpilot.backend.review;
 
+import java.io.IOException;
+import java.io.UncheckedIOException;
+import java.util.Map;
 import java.util.UUID;
 
+import org.springframework.beans.factory.ObjectProvider;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
+import org.springframework.util.StringUtils;
 import org.springframework.web.multipart.MultipartFile;
 
 import com.cookpilot.backend.user.UserService;
 
+import software.amazon.awssdk.core.sync.RequestBody;
+import software.amazon.awssdk.services.s3.S3Client;
+import software.amazon.awssdk.services.s3.model.PutObjectRequest;
+
 /**
- * 리뷰 사진 업로드. 스토리지(S3)가 아직 없어 파일을 저장하지 않고 목 URL만 돌려준다.
- * 클라이언트는 이 URL을 받아 {@code POST /reviews} 의 photoUrls 에 넣는 흐름을 지금부터 태울 수 있다.
+ * 리뷰 사진 업로드. 클라이언트가 받은 URL 을 {@code POST /reviews} 의 photoUrls 에 넣는다.
  *
  * 여러 장은 이 업로드를 장수만큼 반복한다 — 장당 한 요청이라 실패한 장만 재시도하면 된다.
  *
- * 다른 개인화 API 와 동일하게 베타 사용자 세션을 요구한다. 실제 스토리지가 붙으면
- * 업로드 비용이 발생하므로 무인증 호출을 지금부터 막아 프론트 계약도 인증 포함으로 고정한다.
+ * 다른 개인화 API 와 동일하게 베타 사용자 세션을 요구한다. 업로드는 과금 지점이라
+ * 무인증 호출을 막는다.
  *
- * TODO(S3 확정 후): 실제 업로드로 교체. 버킷/키 규칙, URL 도메인 확정.
+ * 버킷이 설정되지 않으면 저장 없이 목 URL 을 돌려준다 — 로컬 개발은 AWS 자격증명 없이
+ * 그대로 돌아간다(Gemini 키 미설정 시 폴백과 같은 방식).
  */
 @Service
 public class ReviewPhotoService {
 
 	static final String MOCK_URL_PREFIX = "https://mock-storage.cookpilot.local/review-photos/";
 
-	private final UserService userService;
+	static final String KEY_PREFIX = "review-photos/";
 
-	public ReviewPhotoService(UserService userService) {
+	/**
+	 * 허용 이미지 형식과 저장 확장자. content-type 은 클라이언트 신고값이라 위조할 수 있지만,
+	 * 화이트리스트로 최소한 스크립트·실행파일이 이미지인 척 올라오는 건 막는다.
+	 */
+	private static final Map<String, String> ALLOWED_TYPES = Map.of(
+			"image/jpeg", "jpg",
+			"image/png", "png",
+			"image/webp", "webp",
+			"image/heic", "heic");
+
+	private final UserService userService;
+	private final ObjectProvider<S3Client> s3ClientProvider;
+	private final String bucket;
+	private final String region;
+
+	public ReviewPhotoService(
+			UserService userService,
+			ObjectProvider<S3Client> s3ClientProvider,
+			@Value("${cookpilot.photos.bucket:}") String bucket,
+			@Value("${cookpilot.photos.region:ap-northeast-2}") String region) {
 		this.userService = userService;
+		this.s3ClientProvider = s3ClientProvider;
+		this.bucket = bucket;
+		this.region = region;
 	}
 
 	public String upload(MultipartFile file) {
@@ -34,11 +66,34 @@ public class ReviewPhotoService {
 		if (file == null || file.isEmpty()) {
 			throw new IllegalArgumentException("파일이 비어 있습니다.");
 		}
-		String contentType = file.getContentType();
-		if (contentType == null || !contentType.startsWith("image/")) {
-			throw new IllegalArgumentException("이미지 파일만 업로드할 수 있습니다.");
+		String extension = ALLOWED_TYPES.get(file.getContentType());
+		if (extension == null) {
+			throw new IllegalArgumentException(
+					"지원하지 않는 이미지 형식입니다: " + file.getContentType()
+							+ " (jpeg, png, webp, heic 만 업로드할 수 있습니다)");
 		}
-		return MOCK_URL_PREFIX + UUID.randomUUID();
+
+		String key = KEY_PREFIX + UUID.randomUUID() + "." + extension;
+		if (!StringUtils.hasText(bucket)) {
+			return MOCK_URL_PREFIX + key.substring(KEY_PREFIX.length());
+		}
+		return putObject(file, key);
+	}
+
+	private String putObject(MultipartFile file, String key) {
+		PutObjectRequest request = PutObjectRequest.builder()
+				.bucket(bucket)
+				.key(key)
+				.contentType(file.getContentType())
+				.build();
+		try {
+			s3ClientProvider.getObject().putObject(
+					request, RequestBody.fromInputStream(file.getInputStream(), file.getSize()));
+		} catch (IOException exception) {
+			// IllegalStateException 은 핸들러가 409 로 매핑한다 — 저장소 장애는 서버 오류(500)여야 한다.
+			throw new UncheckedIOException("사진 업로드에 실패했습니다.", exception);
+		}
+		return "https://%s.s3.%s.amazonaws.com/%s".formatted(bucket, region, key);
 	}
 
 }
