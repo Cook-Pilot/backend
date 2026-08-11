@@ -11,7 +11,7 @@ import org.springframework.boot.context.properties.bind.DefaultValue;
 @ConfigurationProperties("cookpilot.ai.live")
 public record AiLiveProperties(
 		@DefaultValue("") String apiKey,
-		@DefaultValue("gemini-2.5-flash-native-audio-preview-09-2025") String model,
+		@DefaultValue("gemini-3.1-flash-live-preview") String model,
 		@DefaultValue("https://generativelanguage.googleapis.com") String baseUrl
 ) {
 
