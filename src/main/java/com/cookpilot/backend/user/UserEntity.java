@@ -27,8 +27,16 @@ public class UserEntity {
 	@GeneratedValue(strategy = GenerationType.UUID)
 	private UUID id;
 
-	@Column(name = "email", unique = true)
+	@Column(name = "email")
 	private String email;
+
+	/** 소셜 제공자(GOOGLE/KAKAO/APPLE/DEV). 익명 사용자는 null. */
+	@Column(name = "provider")
+	private String provider;
+
+	/** 제공자가 부여한 계정 식별자. (provider, provider_user_id) 가 신원의 유일 키다. */
+	@Column(name = "provider_user_id")
+	private String providerUserId;
 
 	@Setter
 	@Column(name = "display_name")
@@ -71,6 +79,14 @@ public class UserEntity {
 		this.displayName = displayName;
 		this.anonymous = anonymous;
 		this.anonymousInstallationId = anonymousInstallationId;
+	}
+
+	/** 소셜 로그인으로 만들어지는 계정. */
+	public static UserEntity ofSocial(String provider, String providerUserId, String email, String displayName) {
+		UserEntity entity = new UserEntity(email, displayName, false, null);
+		entity.provider = provider;
+		entity.providerUserId = providerUserId;
+		return entity;
 	}
 
 	/**

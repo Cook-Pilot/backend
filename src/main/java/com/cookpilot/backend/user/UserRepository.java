@@ -15,6 +15,9 @@ public interface UserRepository extends JpaRepository<UserEntity, UUID> {
 
 	Optional<UserEntity> findByEmail(String email);
 
+	/** 소셜 계정 식별. 이메일이 아니라 이 조합이 신원의 유일 키다. */
+	Optional<UserEntity> findByProviderAndProviderUserId(String provider, String providerUserId);
+
 	Optional<UserEntity> findByAnonymousInstallationId(UUID anonymousInstallationId);
 
 	@Lock(LockModeType.PESSIMISTIC_WRITE)

@@ -30,6 +30,25 @@
         },
         "type" : "object"
       },
+      "AuthResponse" : {
+        "properties" : {
+          "displayName" : {
+            "type" : "string"
+          },
+          "expiresAt" : {
+            "format" : "date-time",
+            "type" : "string"
+          },
+          "token" : {
+            "type" : "string"
+          },
+          "userId" : {
+            "format" : "uuid",
+            "type" : "string"
+          }
+        },
+        "type" : "object"
+      },
       "ComposedIngredient" : {
         "properties" : {
           "amount" : {
@@ -139,6 +158,16 @@
             "type" : "string"
           }
         },
+        "type" : "object"
+      },
+      "DevLoginRequest" : {
+        "properties" : {
+          "secret" : {
+            "minLength" : 1,
+            "type" : "string"
+          }
+        },
+        "required" : [ "secret" ],
         "type" : "object"
       },
       "FavoriteRecipeResponse" : {
@@ -675,6 +704,16 @@
         },
         "type" : "object"
       },
+      "SocialLoginRequest" : {
+        "properties" : {
+          "token" : {
+            "minLength" : 1,
+            "type" : "string"
+          }
+        },
+        "required" : [ "token" ],
+        "type" : "object"
+      },
       "StepAdjustment" : {
         "properties" : {
           "cautionNote" : {
@@ -853,6 +892,70 @@
           }
         },
         "tags" : [ "ai-feedback-controller" ]
+      }
+    },
+    "/api/v1/auth/dev" : {
+      "post" : {
+        "operationId" : "loginAsDeveloper",
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/DevLoginRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/AuthResponse"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "auth-controller" ]
+      }
+    },
+    "/api/v1/auth/{provider}" : {
+      "post" : {
+        "operationId" : "login",
+        "parameters" : [ {
+          "in" : "path",
+          "name" : "provider",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/SocialLoginRequest"
+              }
+            }
+          },
+          "required" : true
+        },
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/AuthResponse"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "auth-controller" ]
       }
     },
     "/api/v1/cooking-history" : {

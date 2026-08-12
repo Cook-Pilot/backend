@@ -2,10 +2,15 @@ package com.cookpilot.backend.user;
 
 import java.util.UUID;
 
+import org.springframework.http.HttpHeaders;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.context.request.RequestContextHolder;
+import org.springframework.util.StringUtils;
 import org.springframework.web.context.request.ServletRequestAttributes;
+
+import com.cookpilot.backend.auth.InvalidTokenException;
+import com.cookpilot.backend.auth.JwtService;
 
 import jakarta.persistence.EntityManager;
 import jakarta.servlet.http.HttpServletRequest;
@@ -17,14 +22,18 @@ import jakarta.servlet.http.HttpServletRequest;
 public class UserService {
 
 	public static final String USER_ID_HEADER = "X-CookPilot-User-Id";
+
+	private static final String BEARER_PREFIX = "Bearer ";
 	public static final String IDEMPOTENCY_KEY_HEADER = "Idempotency-Key";
 
 	private final UserRepository userRepository;
 	private final EntityManager entityManager;
+	private final JwtService jwtService;
 
-	public UserService(UserRepository userRepository, EntityManager entityManager) {
+	public UserService(UserRepository userRepository, EntityManager entityManager, JwtService jwtService) {
 		this.userRepository = userRepository;
 		this.entityManager = entityManager;
+		this.jwtService = jwtService;
 	}
 
 	@Transactional
@@ -79,10 +88,27 @@ public class UserService {
 						"사용자를 찾을 수 없습니다: " + userId));
 	}
 
+	/**
+	 * 세션 토큰(Authorization: Bearer)을 우선 본다. 없으면 익명 발급 헤더로 떨어진다 —
+	 * 프론트가 소셜 로그인으로 옮겨가는 동안 두 방식이 함께 살아 있어야 앱이 깨지지 않는다.
+	 *
+	 * TODO(소셜 로그인 전환 완료 후): 헤더 폴백과 익명 발급 API 제거.
+	 */
 	private UUID currentUserId() {
-		String userIdValue = currentRequestUserId();
+		HttpServletRequest request = currentRequest();
+		if (request != null) {
+			String authorization = request.getHeader(HttpHeaders.AUTHORIZATION);
+			if (StringUtils.hasText(authorization)) {
+				if (!authorization.regionMatches(true, 0, BEARER_PREFIX, 0, BEARER_PREFIX.length())) {
+					throw new InvalidTokenException("Authorization 헤더 형식이 올바르지 않습니다.");
+				}
+				return jwtService.verify(authorization.substring(BEARER_PREFIX.length()).trim());
+			}
+		}
+
+		String userIdValue = request == null ? null : request.getHeader(USER_ID_HEADER);
 		if (userIdValue == null || userIdValue.isBlank()) {
-			throw new MissingUserSessionException("베타 사용자 세션이 필요합니다.");
+			throw new MissingUserSessionException("로그인이 필요합니다.");
 		}
 		try {
 			return UUID.fromString(userIdValue);
@@ -91,12 +117,11 @@ public class UserService {
 		}
 	}
 
-	private String currentRequestUserId() {
+	private HttpServletRequest currentRequest() {
 		if (!(RequestContextHolder.getRequestAttributes() instanceof ServletRequestAttributes attributes)) {
 			return null;
 		}
-		HttpServletRequest request = attributes.getRequest();
-		return request.getHeader(USER_ID_HEADER);
+		return attributes.getRequest();
 	}
 
 	private User toUser(UserEntity entity) {
