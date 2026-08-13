@@ -71,7 +71,10 @@ cp "$REPO_DIR/infra/docker-compose.override.yml" "$APP_DIR/"
 install -m 755 "$REPO_DIR/infra/backup.sh" "$APP_DIR/backup.sh"
 # 19:00 UTC = 04:00 KST. 서버 시간대는 UTC 다.
 CRON_LINE="0 19 * * * $APP_DIR/backup.sh >> $APP_DIR/backup.log 2>&1"
-( crontab -l 2>/dev/null | grep -v 'backup.sh' ; echo "$CRON_LINE" ) | crontab -
+# crontab 이 비어 있으면 crontab -l 이, 일치가 없으면 grep 이 각각 1 을 낸다.
+# set -e/pipefail 아래에서는 그 순간 서브셸이 죽어 cron 이 등록되지 않은 채(=빈 crontab)
+# 스크립트가 중단된다 — 복구한 서버에서 백업이 영영 안 도는 조용한 실패였다.
+{ crontab -l 2>/dev/null | grep -v 'backup.sh' || true; echo "$CRON_LINE"; } | crontab -
 echo "   $APP_DIR 구성 완료, 백업 cron 등록(매일 04:00 KST)"
 
 echo
