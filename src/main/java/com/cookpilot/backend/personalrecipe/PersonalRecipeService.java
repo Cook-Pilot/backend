@@ -128,8 +128,8 @@ public class PersonalRecipeService {
 	 * amount 는 조리 인분 기준으로 오므로 1인분 기준으로 되돌린 뒤, 되돌린 결과가 원본과
 	 * 같아진 MODIFY 를 버린다 — 인분만 바꾼 조리가 여기서 빈 diff 가 된다.
 	 *
-	 * 검증은 되돌리기 전에 한다 — normalize 는 요청 본문을 그대로 훑으므로 검증이 뒤면
-	 * 깨진 입력(리스트 안의 null 등)이 검증 전에 NPE 로 터져 400 대신 500 이 된다.
+	 * 필드 단독 검증(null 항목·type 누락·공백·음수)은 @Valid 가 컨트롤러에서 끝냈다.
+	 * 여기 validate 는 type 조건부 규칙과 원본 대조를 되돌리기 전에 한다 —
 	 * 되돌리기는 부호와 null 여부를 바꾸지 않아 검증 결과도 달라지지 않는다.
 	 *
 	 * 재료를 건드리면 리뷰에 targetServings 가 있어야 한다. 없으면 조리 인분 기준 양이 1인분
@@ -160,7 +160,9 @@ public class PersonalRecipeService {
 	 *  - 프롬프트의 "현재 상태"는 diff 가 아니라 DiffComposer 로 합성한 결과여야 한다
 	 *    (모델은 MODIFY(amount=1.5) 를 못 읽고 "고추장 1.5스푼" 은 읽는다)
 	 *  - 모델 출력의 원본 참조는 UUID 가 아니라 원본 행 번호로 받고 서버가 매핑한다
-	 *  - 결과는 validate/dropNoOpModifies 를 다시 통과시킨다 (LLM 은 신뢰 경계 밖)
+	 *  - 결과는 validate/dropNoOpModifies 를 다시 통과시킨다 (LLM 은 신뢰 경계 밖).
+	 *    단 필드 단독 검증(null 항목·공백·음수)은 요청 DTO 어노테이션으로 옮겨져 여기서는
+	 *    안 돈다 — LLM 출력에는 Validator 를 프로그램적으로 돌리거나 별도 검사가 필요하다
 	 * 배관이 없는 동안은 앞 층 결과를 그대로 통과시킨다.
 	 */
 	private Diff applyCooking(Originals originals, Diff base, RecipeEditRequest.Cooking cooking) {
@@ -410,11 +412,13 @@ public class PersonalRecipeService {
 	/**
 	 * 층 출력이 저장 가능한 diff 인지. 층마다 출력 타입이 같으므로 층마다 이걸 통과시킨다.
 	 *
+	 * 필드 단독 검증(null 항목, type 누락, 공백 문자열, 음수 timer)은 요청 DTO 의
+	 * Bean Validation 이 컨트롤러에서 이미 잡았다 — 여기는 type 조건부 규칙과 원본 대조만 본다.
+	 *
 	 * DB CHECK 와 겹치는 검사가 있지만 여기서 잡아야 400 이 된다 — DB 가 잡으면
 	 * DataIntegrityViolationException 이라 500 이다. DB 가 아예 모르는 검사도 있다 —
-	 * "원본 참조가 이 레시피 것인지"(FK 는 존재만 본다), 값의 범위(음수 amount/timer,
-	 * 공백 문자열), 한 원본 행에 조정이 둘 이상인지(UNIQUE 가 없고, 있어도 합성 결과가
-	 * 어느 쪽인지 정해지지 않는다). 이것들은 여기서만 잡힌다.
+	 * "원본 참조가 이 레시피 것인지"(FK 는 존재만 본다), 한 원본 행에 조정이 둘 이상인지
+	 * (UNIQUE 가 없고, 있어도 합성 결과가 어느 쪽인지 정해지지 않는다). 이것들은 여기서만 잡힌다.
 	 */
 	private void validate(Originals originals, Diff diff) {
 		validateIngredientAdjustments(originals.ingredients(), diff.ingredients());
@@ -426,18 +430,6 @@ public class PersonalRecipeService {
 			List<IngredientAdjustment> adjustments) {
 		Set<UUID> referenced = new HashSet<>();
 		for (IngredientAdjustment adj : adjustments) {
-			if (adj == null) {
-				throw new IllegalArgumentException("재료 조정에 빈 항목이 있습니다.");
-			}
-			if (adj.type() == null) {
-				throw new IllegalArgumentException("재료 조정에 type은 필수입니다.");
-			}
-			if (adj.name() != null && adj.name().isBlank()) {
-				throw new IllegalArgumentException("재료 조정의 name은 공백일 수 없습니다.");
-			}
-			if (adj.amount() != null && adj.amount().signum() < 0) {
-				throw new IllegalArgumentException("재료 조정의 amount는 0 이상이어야 합니다.");
-			}
 			if (adj.type() == AdjustmentType.ADD) {
 				if (adj.originalIngredientId() != null) {
 					throw new IllegalArgumentException("ADD 재료 조정은 원본 재료를 참조할 수 없습니다.");
@@ -465,18 +457,6 @@ public class PersonalRecipeService {
 			Map<UUID, DiffComposer.OriginalStep> originals, List<StepAdjustment> adjustments) {
 		Set<UUID> referenced = new HashSet<>();
 		for (StepAdjustment adj : adjustments) {
-			if (adj == null) {
-				throw new IllegalArgumentException("단계 조정에 빈 항목이 있습니다.");
-			}
-			if (adj.type() == null) {
-				throw new IllegalArgumentException("단계 조정에 type은 필수입니다.");
-			}
-			if (adj.instruction() != null && adj.instruction().isBlank()) {
-				throw new IllegalArgumentException("단계 조정의 instruction은 공백일 수 없습니다.");
-			}
-			if (adj.timerSeconds() != null && adj.timerSeconds() < 0) {
-				throw new IllegalArgumentException("단계 조정의 timerSeconds는 0 이상이어야 합니다.");
-			}
 			if (adj.type() == AdjustmentType.ADD) {
 				if (adj.originalStepId() != null) {
 					throw new IllegalArgumentException("ADD 단계 조정은 원본 단계를 참조할 수 없습니다.");
@@ -484,7 +464,7 @@ public class PersonalRecipeService {
 				if (adj.instruction() == null) {
 					throw new IllegalArgumentException("ADD 단계 조정에 instruction은 필수입니다.");
 				}
-				if (adj.insertAfterStepIndex() == null || adj.insertAfterStepIndex() < -1) {
+				if (adj.insertAfterStepIndex() == null) {
 					throw new IllegalArgumentException("ADD 단계 조정에 insertAfterStepIndex(-1 이상)는 필수입니다.");
 				}
 			} else {

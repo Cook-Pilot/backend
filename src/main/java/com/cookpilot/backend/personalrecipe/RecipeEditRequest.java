@@ -2,6 +2,9 @@ package com.cookpilot.backend.personalrecipe;
 
 import java.util.List;
 
+import jakarta.validation.Valid;
+import jakarta.validation.constraints.NotNull;
+
 /**
  * 한 번의 조리에서 나온 레시피 수정 요청 전체.
  *
@@ -22,7 +25,7 @@ import java.util.List;
  * 발화라 마찬가지다. review 층의 입력(comment / next_time_note)은 리뷰 행에서 읽는다.
  */
 public record RecipeEditRequest(
-		Setup setup,
+		@Valid Setup setup,
 		Cooking cooking
 ) {
 
@@ -37,15 +40,15 @@ public record RecipeEditRequest(
 	 * 되돌려 저장한다 — 인분 자체는 diff 에 들어가지 않는다(레시피 속성이 아니라 실행 파라미터).
 	 */
 	public record Setup(
-			List<IngredientAdjustmentInput> ingredientAdjustments,
-			List<StepAdjustment> stepAdjustments
+			List<@Valid @NotNull(message = "재료 조정에 빈 항목이 있습니다.") IngredientAdjustmentInput> ingredientAdjustments,
+			List<@Valid @NotNull(message = "단계 조정에 빈 항목이 있습니다.") StepAdjustment> stepAdjustments
 	) {
 
 		public List<IngredientAdjustment> ingredientAdjustmentsOrEmpty() {
 			return ingredientAdjustments == null
 					? List.of()
 					: ingredientAdjustments.stream()
-							.map(input -> input == null ? null : input.toAdjustment())
+							.map(IngredientAdjustmentInput::toAdjustment)
 							.toList();
 		}
 

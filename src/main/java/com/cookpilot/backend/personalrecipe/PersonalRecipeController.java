@@ -11,6 +11,8 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
+
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 
 @RestController
@@ -37,11 +39,12 @@ public class PersonalRecipeController {
 	 * 레시피·인분·부모 버전은 본문에 없다 — 그 리뷰 행에서 읽는다.
 	 *
 	 * 수정이 결과적으로 원본과 같으면 버전을 만들지 않는다 → 204. 무엇이 수정으로
-	 * 인정되는지(각 층의 판정)는 서비스가 소유한다. 검증도 전부 서비스에 있다.
+	 * 인정되는지(각 층의 판정)는 서비스가 소유한다. 필드 단독 검증은 @Valid 가,
+	 * type 조건부 규칙과 원본 대조는 서비스가 잡는다.
 	 */
 	@PostMapping("/reviews/{reviewId}/personal-versions")
 	public ResponseEntity<PersonalRecipeVersion> create(
-			@PathVariable UUID reviewId, @RequestBody RecipeEditRequest request) {
+			@PathVariable UUID reviewId, @Valid @RequestBody RecipeEditRequest request) {
 		return personalRecipeService.createFromEdits(reviewId, request)
 				.map(version -> ResponseEntity.status(HttpStatus.CREATED).body(version))
 				.orElseGet(() -> ResponseEntity.noContent().build());
