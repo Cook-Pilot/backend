@@ -464,8 +464,9 @@ public class PersonalRecipeService {
 				if (adj.instruction() == null) {
 					throw new IllegalArgumentException("ADD 단계 조정에 instruction은 필수입니다.");
 				}
-				if (adj.insertAfterStepIndex() == null) {
-					throw new IllegalArgumentException("ADD 단계 조정에 insertAfterStepIndex(-1 이상)는 필수입니다.");
+				if (adj.insertAfterStepIndex() == null || adj.insertAfterStepIndex() < -1) {
+					throw new IllegalArgumentException(
+							"ADD 단계 조정에 insertAfterStepIndex(-1 이상)는 필수입니다.");
 				}
 			} else {
 				if (adj.originalStepId() == null) {
