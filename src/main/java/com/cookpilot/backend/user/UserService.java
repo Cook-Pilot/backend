@@ -9,11 +9,13 @@ import org.springframework.web.context.request.ServletRequestAttributes;
 
 import jakarta.persistence.EntityManager;
 import jakarta.servlet.http.HttpServletRequest;
+import lombok.RequiredArgsConstructor;
 
 /**
  * 실제 인증 도입 전 폐쇄 베타용 사용자 식별을 담당한다.
  */
 @Service
+@RequiredArgsConstructor
 public class UserService {
 
 	public static final String USER_ID_HEADER = "X-CookPilot-User-Id";
@@ -21,11 +23,6 @@ public class UserService {
 
 	private final UserRepository userRepository;
 	private final EntityManager entityManager;
-
-	public UserService(UserRepository userRepository, EntityManager entityManager) {
-		this.userRepository = userRepository;
-		this.entityManager = entityManager;
-	}
 
 	@Transactional
 	public User createAnonymousUser(String idempotencyKey) {

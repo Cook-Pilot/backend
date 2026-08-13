@@ -34,6 +34,7 @@ import com.cookpilot.backend.recommendation.profile.RecipeFlavorProfileEntity;
 import com.cookpilot.backend.recommendation.profile.RecipeFlavorProfileRepository;
 import com.cookpilot.backend.review.PostCookReviewEntity;
 import com.cookpilot.backend.review.PostCookReviewRepository;
+import lombok.RequiredArgsConstructor;
 
 /**
  * 추천 후보(Draft) 산출에 필요한 조회를 전부 담당한다.
@@ -44,6 +45,7 @@ import com.cookpilot.backend.review.PostCookReviewRepository;
  * {@link RecommendationRuleEngine}(순수 함수) 가 갖는다.
  */
 @Component
+@RequiredArgsConstructor
 class RecommendationDraftLoader {
 
 	private final RecipeRepository recipeRepository;
@@ -53,23 +55,6 @@ class RecommendationDraftLoader {
 	private final PersonalIngredientAdjustmentRepository adjustmentRepository;
 	private final PostCookReviewRepository reviewRepository;
 	private final RecommendationFeedbackService feedbackService;
-
-	RecommendationDraftLoader(
-			RecipeRepository recipeRepository,
-			RecipeIngredientRepository recipeIngredientRepository,
-			RecipeFlavorProfileRepository profileRepository,
-			PersonalRecipeVersionRepository versionRepository,
-			PersonalIngredientAdjustmentRepository adjustmentRepository,
-			PostCookReviewRepository reviewRepository,
-			RecommendationFeedbackService feedbackService) {
-		this.recipeRepository = recipeRepository;
-		this.recipeIngredientRepository = recipeIngredientRepository;
-		this.profileRepository = profileRepository;
-		this.versionRepository = versionRepository;
-		this.adjustmentRepository = adjustmentRepository;
-		this.reviewRepository = reviewRepository;
-		this.feedbackService = feedbackService;
-	}
 
 	/** 대상 레시피 제목 + 확정된 추천 후보. 후보가 없으면 drafts 가 빈 목록이다. */
 	record DraftBundle(String targetRecipeTitle, List<RecommendationRuleEngine.Draft> drafts) {

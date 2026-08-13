@@ -10,6 +10,7 @@ import org.springframework.stereotype.Service;
 import com.cookpilot.backend.recommendation.explanation.RecommendationExplanationContext;
 import com.cookpilot.backend.recommendation.explanation.RecommendationExplanationService;
 import com.cookpilot.backend.user.UserService;
+import lombok.RequiredArgsConstructor;
 
 /**
  * 다음 조리 추천 조합. 조회는 {@link RecommendationDraftLoader}(트랜잭션),
@@ -20,20 +21,12 @@ import com.cookpilot.backend.user.UserService;
  * DB 커넥션을 붙잡고 있으면 동시 요청 몇 건으로 풀이 마른다.
  */
 @Service
+@RequiredArgsConstructor
 public class RecommendationService {
 
 	private final RecommendationDraftLoader draftLoader;
 	private final RecommendationExplanationService explanationService;
 	private final UserService userService;
-
-	public RecommendationService(
-			RecommendationDraftLoader draftLoader,
-			RecommendationExplanationService explanationService,
-			UserService userService) {
-		this.draftLoader = draftLoader;
-		this.explanationService = explanationService;
-		this.userService = userService;
-	}
 
 	public NextCookRecommendationResponse recommend(UUID recipeId) {
 		UUID userId = userService.getCurrentUser().id();

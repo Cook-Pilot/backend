@@ -16,25 +16,17 @@ import com.cookpilot.backend.personalrecipe.PersonalRecipeVersion;
 import com.cookpilot.backend.recipe.RecipeEntity;
 import com.cookpilot.backend.recipe.RecipeRepository;
 import com.cookpilot.backend.user.UserService;
+import lombok.RequiredArgsConstructor;
 
 @Service
 @Transactional(readOnly = true)
+@RequiredArgsConstructor
 public class FavoriteService {
 
 	private final RecipeFavoriteRepository recipeFavoriteRepository;
 	private final RecipeRepository recipeRepository;
 	private final PersonalRecipeService personalRecipeService;
 	private final UserService userService;
-
-	public FavoriteService(RecipeFavoriteRepository recipeFavoriteRepository,
-			RecipeRepository recipeRepository,
-			PersonalRecipeService personalRecipeService,
-			UserService userService) {
-		this.recipeFavoriteRepository = recipeFavoriteRepository;
-		this.recipeRepository = recipeRepository;
-		this.personalRecipeService = personalRecipeService;
-		this.userService = userService;
-	}
 
 	public List<FavoriteRecipeResponse> findAll() {
 		UUID userId = userService.getCurrentUser().id();

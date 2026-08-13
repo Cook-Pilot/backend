@@ -23,6 +23,7 @@ import com.cookpilot.backend.recipe.RecipeStepRepository;
 import com.cookpilot.backend.review.PostCookReviewEntity;
 import com.cookpilot.backend.review.PostCookReviewRepository;
 import com.cookpilot.backend.user.UserService;
+import lombok.RequiredArgsConstructor;
 
 /**
  * 개인 레시피 버전(JPA 영속). 조정값은 관계형 diff 로 저장한다.
@@ -34,6 +35,7 @@ import com.cookpilot.backend.user.UserService;
  *  - 원본과 개인 버전 중 무엇을 쓸지는 사용자가 조리 전에 직접 선택한다.
  */
 @Service
+@RequiredArgsConstructor
 public class PersonalRecipeService {
 
 	private final PersonalRecipeVersionRepository versionRepository;
@@ -44,24 +46,6 @@ public class PersonalRecipeService {
 	private final RecipeStepRepository recipeStepRepository;
 	private final PostCookReviewRepository reviewRepository;
 	private final UserService userService;
-
-	public PersonalRecipeService(PersonalRecipeVersionRepository versionRepository,
-			PersonalIngredientAdjustmentRepository ingredientAdjustmentRepository,
-			PersonalStepAdjustmentRepository stepAdjustmentRepository,
-			RecipeRepository recipeRepository,
-			RecipeIngredientRepository recipeIngredientRepository,
-			RecipeStepRepository recipeStepRepository,
-			PostCookReviewRepository reviewRepository,
-			UserService userService) {
-		this.versionRepository = versionRepository;
-		this.ingredientAdjustmentRepository = ingredientAdjustmentRepository;
-		this.stepAdjustmentRepository = stepAdjustmentRepository;
-		this.recipeRepository = recipeRepository;
-		this.recipeIngredientRepository = recipeIngredientRepository;
-		this.recipeStepRepository = recipeStepRepository;
-		this.reviewRepository = reviewRepository;
-		this.userService = userService;
-	}
 
 	/**
 	 * 한 번의 조리에서 나온 수정 사항(setup/cooking/review 층)으로 원본 기준 누적 diff 버전을

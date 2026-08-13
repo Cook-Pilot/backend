@@ -17,9 +17,11 @@ import com.cookpilot.backend.recipe.RecipeRepository;
 import com.cookpilot.backend.review.PostCookReviewEntity;
 import com.cookpilot.backend.review.PostCookReviewRepository;
 import com.cookpilot.backend.user.UserService;
+import lombok.RequiredArgsConstructor;
 
 @Service
 @Transactional(readOnly = true)
+@RequiredArgsConstructor
 public class HomeRecipeService {
 
 	private static final int RECENT_RECIPE_LIMIT = 10;
@@ -29,18 +31,6 @@ public class HomeRecipeService {
 	private final PersonalRecipeService personalRecipeService;
 	private final FavoriteService favoriteService;
 	private final UserService userService;
-
-	public HomeRecipeService(PostCookReviewRepository postCookReviewRepository,
-			RecipeRepository recipeRepository,
-			PersonalRecipeService personalRecipeService,
-			FavoriteService favoriteService,
-			UserService userService) {
-		this.postCookReviewRepository = postCookReviewRepository;
-		this.recipeRepository = recipeRepository;
-		this.personalRecipeService = personalRecipeService;
-		this.favoriteService = favoriteService;
-		this.userService = userService;
-	}
 
 	public List<RecentRecipeResponse> findRecentRecipes() {
 		UUID userId = userService.getCurrentUser().id();

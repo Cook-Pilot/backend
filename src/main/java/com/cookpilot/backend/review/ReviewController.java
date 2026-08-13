@@ -18,18 +18,15 @@ import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.multipart.MultipartFile;
 
 import jakarta.validation.Valid;
+import lombok.RequiredArgsConstructor;
 
 @RestController
 @RequestMapping("/api/v1")
+@RequiredArgsConstructor
 public class ReviewController {
 
 	private final ReviewService reviewService;
 	private final ReviewPhotoService reviewPhotoService;
-
-	public ReviewController(ReviewService reviewService, ReviewPhotoService reviewPhotoService) {
-		this.reviewService = reviewService;
-		this.reviewPhotoService = reviewPhotoService;
-	}
 
 	/** 프론트가 조리를 마친 뒤 결과를 넘긴다. 서버에 세션이 없으므로 recipeId를 body로 받는다. */
 	@PostMapping("/reviews")

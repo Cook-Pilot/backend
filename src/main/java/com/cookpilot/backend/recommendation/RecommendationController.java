@@ -14,20 +14,15 @@ import jakarta.validation.Valid;
 import com.cookpilot.backend.recommendation.feedback.RecommendationFeedbackResponse;
 import com.cookpilot.backend.recommendation.feedback.RecommendationFeedbackService;
 import com.cookpilot.backend.recommendation.feedback.SubmitRecommendationFeedbackRequest;
+import lombok.RequiredArgsConstructor;
 
 @RestController
 @RequestMapping("/api/v1/recipes/{recipeId}")
+@RequiredArgsConstructor
 public class RecommendationController {
 
 	private final RecommendationService recommendationService;
 	private final RecommendationFeedbackService feedbackService;
-
-	public RecommendationController(
-			RecommendationService recommendationService,
-			RecommendationFeedbackService feedbackService) {
-		this.recommendationService = recommendationService;
-		this.feedbackService = feedbackService;
-	}
 
 	@GetMapping("/next-cook-recommendations")
 	public NextCookRecommendationResponse recommend(@PathVariable UUID recipeId) {

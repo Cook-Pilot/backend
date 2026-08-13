@@ -18,6 +18,7 @@ import com.cookpilot.backend.personalrecipe.PersonalRecipeVersionRepository;
 import com.cookpilot.backend.recipe.RecipeEntity;
 import com.cookpilot.backend.recipe.RecipeRepository;
 import com.cookpilot.backend.user.UserService;
+import lombok.RequiredArgsConstructor;
 
 /**
  * 조리 후 피드백(JPA 영속). 리뷰 저장과 개인 레시피 버전 생성은 분리돼 있다 —
@@ -28,6 +29,7 @@ import com.cookpilot.backend.user.UserService;
  * 프론트가 조리를 마친 뒤 recipeId와 함께 결과를 넘기면 그것이 조리 1회의 기록이 된다.
  */
 @Service
+@RequiredArgsConstructor
 public class ReviewService {
 
 	private final PostCookReviewRepository reviewRepository;
@@ -35,17 +37,6 @@ public class ReviewService {
 	private final PersonalRecipeService personalRecipeService;
 	private final PersonalRecipeVersionRepository personalRecipeVersionRepository;
 	private final UserService userService;
-
-	public ReviewService(PostCookReviewRepository reviewRepository, RecipeRepository recipeRepository,
-			PersonalRecipeService personalRecipeService,
-			PersonalRecipeVersionRepository personalRecipeVersionRepository,
-			UserService userService) {
-		this.reviewRepository = reviewRepository;
-		this.recipeRepository = recipeRepository;
-		this.personalRecipeService = personalRecipeService;
-		this.personalRecipeVersionRepository = personalRecipeVersionRepository;
-		this.userService = userService;
-	}
 
 	@Transactional
 	public PostCookReview submit(SubmitReviewRequest request) {

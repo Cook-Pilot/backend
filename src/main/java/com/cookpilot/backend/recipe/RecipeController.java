@@ -13,22 +13,16 @@ import org.springframework.web.bind.annotation.RestController;
 import com.cookpilot.backend.favorite.FavoriteService;
 import com.cookpilot.backend.personalrecipe.PersonalRecipeService;
 import com.cookpilot.backend.personalrecipe.PersonalRecipeVersion;
+import lombok.RequiredArgsConstructor;
 
 @RestController
 @RequestMapping("/api/v1/recipes")
+@RequiredArgsConstructor
 public class RecipeController {
 
 	private final RecipeService recipeService;
 	private final PersonalRecipeService personalRecipeService;
 	private final FavoriteService favoriteService;
-
-	public RecipeController(RecipeService recipeService,
-			PersonalRecipeService personalRecipeService,
-			FavoriteService favoriteService) {
-		this.recipeService = recipeService;
-		this.personalRecipeService = personalRecipeService;
-		this.favoriteService = favoriteService;
-	}
 
 	@GetMapping
 	public List<RecipeSummaryResponse> list() {

@@ -4,8 +4,10 @@ import java.math.BigDecimal;
 import java.util.List;
 
 import org.springframework.stereotype.Service;
+import lombok.RequiredArgsConstructor;
 
 @Service
+@RequiredArgsConstructor
 public class RecommendationExplanationService {
 
 	/**
@@ -16,11 +18,6 @@ public class RecommendationExplanationService {
 	public static final String PROMPT_VERSION = "nextcook-reason-v1";
 
 	private final RecommendationExplanationClient explanationClient;
-
-	public RecommendationExplanationService(
-			RecommendationExplanationClient explanationClient) {
-		this.explanationClient = explanationClient;
-	}
 
 	public List<Explanation> explainAll(
 			List<RecommendationExplanationContext> contexts) {

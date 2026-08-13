@@ -7,22 +7,16 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import com.cookpilot.backend.common.NotFoundException;
+import lombok.RequiredArgsConstructor;
 
 @Service
 @Transactional(readOnly = true)
+@RequiredArgsConstructor
 public class RecipeService {
 
 	private final RecipeRepository recipeRepository;
 	private final RecipeIngredientRepository recipeIngredientRepository;
 	private final RecipeStepRepository recipeStepRepository;
-
-	public RecipeService(RecipeRepository recipeRepository,
-			RecipeIngredientRepository recipeIngredientRepository,
-			RecipeStepRepository recipeStepRepository) {
-		this.recipeRepository = recipeRepository;
-		this.recipeIngredientRepository = recipeIngredientRepository;
-		this.recipeStepRepository = recipeStepRepository;
-	}
 
 	public List<RecipeOverview> findAll() {
 		return recipeRepository.findByStatusOrderByTitleAscIdAsc("active").stream()

@@ -10,15 +10,13 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
+import lombok.RequiredArgsConstructor;
 
 @RestController
+@RequiredArgsConstructor
 public class FavoriteController {
 
 	private final FavoriteService favoriteService;
-
-	public FavoriteController(FavoriteService favoriteService) {
-		this.favoriteService = favoriteService;
-	}
 
 	@GetMapping("/api/v1/favorites")
 	public List<FavoriteRecipeResponse> list() {

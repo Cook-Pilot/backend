@@ -17,6 +17,7 @@ import com.cookpilot.backend.recipe.RecipeIngredientRepository;
 import com.cookpilot.backend.recipe.RecipeRepository;
 import com.cookpilot.backend.review.PostCookReviewRepository;
 import com.cookpilot.backend.user.UserService;
+import lombok.RequiredArgsConstructor;
 
 /**
  * 추천 피드백 기록과 조회. 추천 생성(읽기 전용)과 트랜잭션 성격이 달라 분리했다.
@@ -25,6 +26,7 @@ import com.cookpilot.backend.user.UserService;
  * 수락·거절·수정 기록만이 추천 정책을 평가할 유일한 자료다.
  */
 @Service
+@RequiredArgsConstructor
 public class RecommendationFeedbackService {
 
 	private static final int MAX_REASON_LENGTH = 500;
@@ -36,19 +38,6 @@ public class RecommendationFeedbackService {
 	private final RecipeIngredientRepository recipeIngredientRepository;
 	private final PostCookReviewRepository reviewRepository;
 	private final UserService userService;
-
-	public RecommendationFeedbackService(
-			RecommendationFeedbackRepository feedbackRepository,
-			RecipeRepository recipeRepository,
-			RecipeIngredientRepository recipeIngredientRepository,
-			PostCookReviewRepository reviewRepository,
-			UserService userService) {
-		this.feedbackRepository = feedbackRepository;
-		this.recipeRepository = recipeRepository;
-		this.recipeIngredientRepository = recipeIngredientRepository;
-		this.reviewRepository = reviewRepository;
-		this.userService = userService;
-	}
 
 	/**
 	 * 재료별 "가장 최근 피드백이 거절인 경우"의 거절 시각.

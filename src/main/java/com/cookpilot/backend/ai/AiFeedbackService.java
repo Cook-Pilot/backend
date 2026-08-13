@@ -9,6 +9,7 @@ import com.cookpilot.backend.common.NotFoundException;
 import com.cookpilot.backend.recipe.Recipe;
 import com.cookpilot.backend.recipe.RecipeService;
 import com.cookpilot.backend.recipe.RecipeStep;
+import lombok.RequiredArgsConstructor;
 
 /**
  * 조리 중 AI 피드백. {@link CookingCoachClient} 가 호출 가능하면 LLM 응답(mock=false), 아니면
@@ -22,6 +23,7 @@ import com.cookpilot.backend.recipe.RecipeStep;
  * TODO(AI 확정 후): STT/TTS 경계 확정, 타이머·최근 이벤트 컨텍스트 전달.
  */
 @Service
+@RequiredArgsConstructor
 public class AiFeedbackService {
 
 	private static final String MOCK_SPEECH =
@@ -29,11 +31,6 @@ public class AiFeedbackService {
 
 	private final RecipeService recipeService;
 	private final CookingCoachClient coachClient;
-
-	public AiFeedbackService(RecipeService recipeService, CookingCoachClient coachClient) {
-		this.recipeService = recipeService;
-		this.coachClient = coachClient;
-	}
 
 	public AiFeedbackResponse feedback(UUID recipeId, int stepIndex, String userSpeech) {
 		Recipe recipe = recipeService.findById(recipeId);

@@ -6,16 +6,14 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import jakarta.validation.Valid;
+import lombok.RequiredArgsConstructor;
 
 @RestController
 @RequestMapping("/api/v1/ai-feedback")
+@RequiredArgsConstructor
 public class AiFeedbackController {
 
 	private final AiFeedbackService aiFeedbackService;
-
-	public AiFeedbackController(AiFeedbackService aiFeedbackService) {
-		this.aiFeedbackService = aiFeedbackService;
-	}
 
 	@PostMapping
 	public AiFeedbackResponse feedback(@Valid @RequestBody AiFeedbackRequest request) {
