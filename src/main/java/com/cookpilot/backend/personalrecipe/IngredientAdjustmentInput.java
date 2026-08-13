@@ -23,7 +23,7 @@ public record IngredientAdjustmentInput(
 		UUID originalIngredientId,
 		@NotNull(message = "재료 조정에 type은 필수입니다.")
 		AdjustmentType type,
-		@Pattern(regexp = ".*\\S.*", flags = Pattern.Flag.DOTALL,
+		@Pattern(regexp = ".*\\P{javaWhitespace}.*", flags = Pattern.Flag.DOTALL,
 				message = "재료 조정의 name은 공백일 수 없습니다.")
 		String name,
 		@Schema(implementation = BigDecimal.class, types = {"number", "null"},
