@@ -50,6 +50,8 @@ class RecipeCatalogNormalizationMigrationTest extends PostgresApiTestBase {
 		insertIngredient(jdbc, "f2000000-0000-0000-0000-000000000004", "물(300㎖)", 3);
 		insertIngredient(jdbc, "f2000000-0000-0000-0000-000000000005", "소금(약간)", 4);
 		insertIngredient(jdbc, "f2000000-0000-0000-0000-000000000006", "육수(100~200ml)", 5);
+		insertIngredient(jdbc, "f2000000-0000-0000-0000-000000000007", "물(1,000ml)", 6);
+		insertIngredient(jdbc, "f2000000-0000-0000-0000-000000000008", "레몬즙(1,5ml)", 7);
 
 		jdbc.update("""
 				INSERT INTO recipes (id, title, status)
@@ -70,6 +72,8 @@ class RecipeCatalogNormalizationMigrationTest extends PostgresApiTestBase {
 		assertIngredient(jdbc, "f2000000-0000-0000-0000-000000000004", "물", "300", "ml");
 		assertIngredient(jdbc, "f2000000-0000-0000-0000-000000000005", "소금", null, "약간");
 		assertIngredient(jdbc, "f2000000-0000-0000-0000-000000000006", "육수(100~200ml)", null, null);
+		assertIngredient(jdbc, "f2000000-0000-0000-0000-000000000007", "물(1,000ml)", null, null);
+		assertIngredient(jdbc, "f2000000-0000-0000-0000-000000000008", "레몬즙", "1.5", "ml");
 
 		assertThat(jdbc.queryForObject(
 				"SELECT status FROM recipes WHERE id = ?", String.class, DUPLICATE_RECIPE_ID))

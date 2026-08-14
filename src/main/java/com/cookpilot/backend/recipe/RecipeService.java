@@ -33,8 +33,8 @@ public class RecipeService {
 	}
 
 	public Page<RecipeOverview> search(String title, String ingredient, int page, int size) {
-		String normalizedTitle = title == null ? "" : title.trim();
-		String normalizedIngredient = ingredient == null ? "" : ingredient.trim();
+		String normalizedTitle = escapeLikePattern(title == null ? "" : title.trim());
+		String normalizedIngredient = escapeLikePattern(ingredient == null ? "" : ingredient.trim());
 		int normalizedPage = Math.max(page, 1);
 		int normalizedSize = Math.min(Math.max(size, 1), 50);
 		Page<RecipeEntity> result = recipeRepository.search(
@@ -51,6 +51,13 @@ public class RecipeService {
 					PageRequest.of(lastPage - 1, normalizedSize));
 		}
 		return result.map(this::toOverview);
+	}
+
+	private String escapeLikePattern(String value) {
+		return value
+				.replace("\\", "\\\\")
+				.replace("%", "\\%")
+				.replace("_", "\\_");
 	}
 
 	public Recipe findById(UUID recipeId) {

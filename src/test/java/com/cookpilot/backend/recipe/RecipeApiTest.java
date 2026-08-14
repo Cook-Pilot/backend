@@ -199,6 +199,28 @@ class RecipeApiTest extends PostgresApiTestBase {
 	}
 
 	@Test
+	void 검색어의_LIKE_기호는_와일드카드가_아닌_문자로_검색한다() throws Exception {
+		RecipeEntity literalSymbols = recipeRepository.save(new RecipeEntity(
+				"검색기호 %_ 레시피", "LIKE 기호 검색 검증", BigDecimal.ONE));
+		ingredientRepository.save(new RecipeIngredientEntity(
+				literalSymbols.getId(), "100%_카카오", BigDecimal.ONE, "조각", true, 0));
+
+		mockMvc.perform(get("/api/v1/recipes/search")
+				.param("title", "%_")
+				.param("size", "9"))
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$.items", hasSize(1)))
+				.andExpect(jsonPath("$.items[0].id").value(literalSymbols.getId().toString()));
+
+		mockMvc.perform(get("/api/v1/recipes/search")
+				.param("ingredient", "%_")
+				.param("size", "9"))
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$.items", hasSize(1)))
+				.andExpect(jsonPath("$.items[0].id").value(literalSymbols.getId().toString()));
+	}
+
+	@Test
 	void 없는_레시피는_404를_반환한다() throws Exception {
 		mockMvc.perform(get("/api/v1/recipes/99999999-0000-0000-0000-000000000000"))
 				.andExpect(status().isNotFound());

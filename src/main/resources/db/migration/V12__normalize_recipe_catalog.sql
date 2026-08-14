@@ -14,7 +14,7 @@ WITH parsed AS (
   FROM recipe_ingredients ri
   CROSS JOIN LATERAL regexp_matches(
     ri.name,
-    E'^(.*[^[:space:]])[[:space:]]*\\([[:space:]]*([0-9]+(?:[.,][0-9]+)?)[[:space:]]*(kg|g|mg|ml|cc|컵|큰술|작은술|스푼|숟가락|티스푼|개|마리|장|쪽|톨|포기|단|대|줌|꼬집|봉|캔|팩|병|알|줄기|송이|조각|인분|공기)[[:space:]]*\\)[[:space:]]*$',
+    E'^(.*[^[:space:]])[[:space:]]*\\([[:space:]]*([0-9]+(?:\\.[0-9]+|,[0-9]{1,2})?)[[:space:]]*(kg|g|mg|ml|cc|컵|큰술|작은술|스푼|숟가락|티스푼|개|마리|장|쪽|톨|포기|단|대|줌|꼬집|봉|캔|팩|병|알|줄기|송이|조각|인분|공기)[[:space:]]*\\)[[:space:]]*$',
     'i'
   ) AS captured(match)
   WHERE ri.amount IS NULL
@@ -38,7 +38,7 @@ WITH parsed AS (
   FROM recipe_ingredients ri
   CROSS JOIN LATERAL regexp_matches(
     ri.name,
-    E'^(.*[^[:space:]])[[:space:]]*\\([[:space:]]*([0-9]+(?:[.,][0-9]+)?)[[:space:]]*Ts[[:space:]]*\\)[[:space:]]*$'
+    E'^(.*[^[:space:]])[[:space:]]*\\([[:space:]]*([0-9]+(?:\\.[0-9]+|,[0-9]{1,2})?)[[:space:]]*Ts[[:space:]]*\\)[[:space:]]*$'
   ) AS captured(match)
   WHERE ri.amount IS NULL
     AND ri.unit IS NULL
@@ -60,7 +60,7 @@ WITH parsed AS (
   FROM recipe_ingredients ri
   CROSS JOIN LATERAL regexp_matches(
     ri.name,
-    E'^(.*[^[:space:]])[[:space:]]*\\([[:space:]]*([0-9]+(?:[.,][0-9]+)?)[[:space:]]*ts[[:space:]]*\\)[[:space:]]*$'
+    E'^(.*[^[:space:]])[[:space:]]*\\([[:space:]]*([0-9]+(?:\\.[0-9]+|,[0-9]{1,2})?)[[:space:]]*ts[[:space:]]*\\)[[:space:]]*$'
   ) AS captured(match)
   WHERE ri.amount IS NULL
     AND ri.unit IS NULL
@@ -83,7 +83,7 @@ WITH parsed AS (
   FROM recipe_ingredients ri
   CROSS JOIN LATERAL regexp_matches(
     ri.name,
-    E'^(.*[^[:space:]])[[:space:]]*\\([[:space:]]*([0-9]+(?:[.,][0-9]+)?)[[:space:]]*㎖[[:space:]]*\\)[[:space:]]*$'
+    E'^(.*[^[:space:]])[[:space:]]*\\([[:space:]]*([0-9]+(?:\\.[0-9]+|,[0-9]{1,2})?)[[:space:]]*㎖[[:space:]]*\\)[[:space:]]*$'
   ) AS captured(match)
   WHERE ri.amount IS NULL
     AND ri.unit IS NULL
