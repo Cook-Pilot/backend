@@ -5,8 +5,10 @@ import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 
+import org.springframework.data.domain.Page;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
@@ -33,6 +35,28 @@ public class RecipeController {
 	@GetMapping
 	public List<RecipeSummaryResponse> list() {
 		List<RecipeOverview> recipes = recipeService.findAll();
+		return summarize(recipes);
+	}
+
+	@GetMapping("/search")
+	public RecipeSearchResponse search(
+			@RequestParam(defaultValue = "") String title,
+			@RequestParam(defaultValue = "") String ingredient,
+			@RequestParam(defaultValue = "1") int page,
+			@RequestParam(defaultValue = "9") int size) {
+		Page<RecipeOverview> result = recipeService.search(title, ingredient, page, size);
+		return new RecipeSearchResponse(
+				summarize(result.getContent()),
+				result.getNumber() + 1,
+				result.getSize(),
+				result.getTotalPages(),
+				result.getTotalElements());
+	}
+
+	private List<RecipeSummaryResponse> summarize(List<RecipeOverview> recipes) {
+		if (recipes.isEmpty()) {
+			return List.of();
+		}
 		Map<UUID, PersonalRecipeVersion> latestByRecipe = personalRecipeService.findLatestByRecipes(
 				recipes.stream().map(RecipeOverview::id).toList());
 		Set<UUID> favoriteRecipeIds = favoriteService.findFavoriteRecipeIds(
@@ -51,6 +75,14 @@ public class RecipeController {
 					);
 				})
 				.toList();
+	}
+
+	public record RecipeSearchResponse(
+			List<RecipeSummaryResponse> items,
+			int page,
+			int pageSize,
+			int totalPages,
+			long totalItems) {
 	}
 
 	@GetMapping("/{recipeId}")
