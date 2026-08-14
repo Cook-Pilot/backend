@@ -27,8 +27,8 @@ Cook-Pilot의 Backend 레포입니다.
 ## 실행
 
 ```bash
-# 애플리케이션 실행
-./gradlew bootRun
+# 애플리케이션 실행 (PostgreSQL 필요)
+./gradlew bootRun --args='--spring.profiles.active=db'
 
 # 빌드
 ./gradlew build
@@ -39,12 +39,8 @@ Cook-Pilot의 Backend 레포입니다.
 
 - 기본 포트: `8080`
 - Health 체크: `curl http://localhost:8080/actuator/health` → `{"status":"UP"}`
-- 기본 실행은 DB 없이 컨텍스트와 health를 확인하기 위한 용도입니다.
-  레시피·리뷰·개인 버전 등 DB API를 사용하려면 PostgreSQL과 `db` 프로파일이 필요합니다.
-
-```bash
-./gradlew bootRun --args='--spring.profiles.active=db'
-```
+- 애플리케이션 실행에는 PostgreSQL과 `db` 프로파일이 필요합니다.
+- H2는 테스트 런타임에서만 사용하므로 프로파일 없는 `./gradlew bootRun`은 기동하지 않습니다.
 
 ## 컨테이너 실행
 
@@ -56,7 +52,7 @@ DB 접속 정보는 전부 환경변수로 주입되므로 이미지 재빌드 �
 
 | 환경변수 | 기본값 | 설명 |
 |---|---|---|
-| `SPRING_PROFILES_ACTIVE` | `db` | `db` 프로파일 활성화. 비우면 DB 없이 동작 |
+| `SPRING_PROFILES_ACTIVE` | `db` | PostgreSQL·Flyway·JPA를 사용하는 애플리케이션 프로파일 |
 | `DB_URL` | `jdbc:postgresql://db:5432/cookpilot` | JDBC URL |
 | `DB_USERNAME` | `cookpilot` | 계정 |
 | `DB_PASSWORD` | `cookpilot` | 비밀번호 |
@@ -121,8 +117,9 @@ com.cookpilot.backend
 └── common/          공통 예외 처리 (ProblemDetail)
 ```
 
-- API 명세와 확정 결정 사항: [`docs/08_mvp_api.md`](docs/08_mvp_api.md)
-- 기획/설계 문서: [`docs/`](docs/README.md)
+- API 명세: [`docs/openapi.json`](docs/openapi.json) (로컬 실행 후 `/swagger-ui.html`에서도 확인)
+- 브랜치별 기획/설계 문서: [`docs/`](docs/)
+- 운영 인프라·재해 복구: [`infra/README.md`](infra/README.md)
 
 ---
 
