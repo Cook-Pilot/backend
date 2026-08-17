@@ -29,6 +29,7 @@ public record StepAdjustment(
 		int sortOrder,
 		@Pattern(regexp = ".*\\P{javaWhitespace}.*", flags = Pattern.Flag.DOTALL,
 				message = "단계 조정의 instruction은 공백일 수 없습니다.")
+		String instruction,
 		@PositiveOrZero(message = "단계 조정의 timerSeconds는 0 이상이어야 합니다.")
 		Integer timerSeconds,
 		String cautionNote
