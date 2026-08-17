@@ -212,6 +212,7 @@
             "type" : [ "number", "null" ]
           },
           "name" : {
+            "pattern" : ".*\\P{javaWhitespace}.*",
             "type" : "string"
           },
           "originalIngredientId" : {
@@ -233,6 +234,7 @@
             "type" : "string"
           }
         },
+        "required" : [ "type" ],
         "type" : "object"
       },
       "NextCookRecommendation" : {
@@ -682,9 +684,11 @@
           },
           "insertAfterStepIndex" : {
             "format" : "int32",
+            "minimum" : -1,
             "type" : "integer"
           },
           "instruction" : {
+            "pattern" : ".*\\P{javaWhitespace}.*",
             "type" : "string"
           },
           "originalStepId" : {
@@ -704,6 +708,7 @@
             "type" : "string"
           }
         },
+        "required" : [ "type" ],
         "type" : "object"
       },
       "SubmitRecommendationFeedbackRequest" : {
