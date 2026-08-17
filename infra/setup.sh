@@ -1,6 +1,8 @@
 #!/bin/bash
 # 새 EC2(Ubuntu)를 운영 서버 상태로 만든다. 여러 번 실행해도 안전하다(멱등).
 #
+#   레포는 반드시 /home/ubuntu/backend 에 둔다 — CI 의 SSM 배포가 그 경로를 pull 한다.
+#     git clone https://github.com/Cook-Pilot/backend.git ~/backend
 #   sudo 가 필요한 명령이 있으므로 sudo 가 되는 계정으로 실행한다.
 #   실행:  cd ~/backend && ./infra/setup.sh
 #
@@ -67,7 +69,6 @@ fi
 echo "== 6/6 앱 디렉터리와 백업 cron =="
 mkdir -p "$APP_DIR"
 cp "$REPO_DIR/docker-compose.prod.yml" "$APP_DIR/"
-cp "$REPO_DIR/infra/docker-compose.override.yml" "$APP_DIR/"
 install -m 755 "$REPO_DIR/infra/backup.sh" "$APP_DIR/backup.sh"
 # 19:00 UTC = 04:00 KST. 서버 시간대는 UTC 다.
 CRON_LINE="0 19 * * * $APP_DIR/backup.sh >> $APP_DIR/backup.log 2>&1"
@@ -89,7 +90,7 @@ else
 	echo "     기존 DB 를 복원할 거라면 비밀번호는 그때 쓰던 값이어야 한다."
 fi
 echo "  2) 기동:"
-echo "       cd $APP_DIR && sudo docker compose -f docker-compose.prod.yml -f docker-compose.override.yml up -d"
+echo "       cd $APP_DIR && sudo docker compose -f docker-compose.prod.yml up -d"
 echo "  3) 확인:  curl localhost:8080/actuator/health"
 echo "  4) DB 복원이 필요하면 infra/README.md 의 '재해 복구' 절 참고"
 echo "==============================================="
