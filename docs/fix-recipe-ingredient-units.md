@@ -72,10 +72,24 @@ SQL은 [2026-08-17-recipe-ingredient-units.sql](../infra/maintenance/2026-08-17-
 
 마지막에 `unit IS NULL AND amount IS NOT NULL`이 0행인지 확인하고 커밋한다.
 
+## 안전 조치
+
+적용 직전 전체 덤프를 회전에서 빠지는 위치에 별도 보관했다.
+
+`s3://cookpilot-backup-167403240280/manual/cookpilot-pre-unit-backfill-20260817T094249Z.sql.gz`
+
+**자동 백업(`db/`)만 믿으면 안 되는 상황이었다.** 적용 시점에 `db/`의 최신 덤프는
+`20260816-190001`이고, `manual/`의 `pre-recipe-cleanup`도 이름 그대로 카탈로그 정리 **이전**
+상태였다. 즉 레시피 1,150건인 현재 상태를 담은 덤프가 하나도 없어서, 롤백하면 카탈로그 정리까지
+되돌아갈 판이었다. 그래서 새로 떴다.
+
+덤프는 받아서 검증했다 — `gzip -t` 통과, `PostgreSQL database dump complete` 표식 존재,
+테이블 12개, `recipes` 1,150행 / `recipe_ingredients` 13,064행으로 라이브와 일치.
+
 ## 검증
 
-운영 DB에서 읽어온 1,150개 레시피 / 13,064개 재료 행을 로컬 PostgreSQL 17.6에 그대로 재현해
-전제조건과 결과를 확인했다.
+먼저 운영 DB에서 읽어온 1,150개 레시피 / 13,064개 재료 행을 로컬 PostgreSQL 17.6에 그대로
+재현해 전제조건과 결과를 확인했다.
 
 - 정상 경로: `UPDATE 210` → 잔여 결손 0행, `unit='g'` 11,281 → 11,491행
 - 재실행: `210행에 이미 unit 이 채워져 있다`로 중단
@@ -83,6 +97,28 @@ SQL은 [2026-08-17-recipe-ingredient-units.sql](../infra/maintenance/2026-08-17-
 - 대상 행 삭제: `백필 대상 1행이 recipe_ingredients 에 없다`로 중단
 - 목록 밖 결손 주입: `백필 목록 밖에 unit 결손이 11281행 더 있다`로 중단
 - 실패한 경우 데이터는 변경되지 않음(트랜잭션 롤백)
+
+## 실행 결과
+
+2026-08-17, `aws ssm send-command`로 운영 서버(`i-0068e3a496881f57e`)의 `cookpilot-db-1`
+컨테이너에 적용했다. 앞선 카탈로그 정리와 같이 **같은 운영 DB에서 먼저 전체 트랜잭션을
+`ROLLBACK`으로 리허설**한 뒤 동일한 SQL을 `COMMIT`했다.
+
+- 리허설: 전제조건 6종 통과, `UPDATE 210`, `ROLLBACK` 후 결손 210건 그대로 → 무변경 확인
+- 적용: `UPDATE 210`, `COMMIT`
+- 적용 후 `unit IS NULL AND amount IS NOT NULL` = **0행**
+- `unit='g'`: 11,281 → **11,491행**(+210)
+- 레시피 1,150건 / 재료 13,064행 — 변동 없음
+- 앱 헬스체크 `UP`
+
+**전수 회귀 검사.** 적용 전후로 1,150개 레시피 상세를 모두 API로 받아 재료의
+`name`/`amount`/`unit`/`required`와 레시피의 `title`/`description`/`baseServings`/`imageUrl`을
+대조했다. 차이는 **정확히 210건이고 전부 `unit: null → g`**였다. 그 외 필드 변경, 재료 행
+추가·삭제, 레시피 증감은 0건이다. 기존에 단위가 있던 행은 하나도 건드려지지 않았다.
+
+```
+가자미쑥국  가자미 50g · 모시조개 15g · 쑥 20g · 물 200g · 된장 9g · 대파 4g · 들깨가루 6g
+```
 
 ## 함께 발견한 것 — 이번 범위 아님
 
