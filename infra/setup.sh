@@ -3,6 +3,7 @@
 #
 #   레포는 반드시 /home/ubuntu/backend 에 둔다 — CI 의 SSM 배포가 그 경로를 pull 한다.
 #     git clone https://github.com/Cook-Pilot/backend.git ~/backend
+#   sudo 가 필요한 명령이 있으므로 sudo 가 되는 계정으로 실행한다.
 #   실행:  cd ~/backend && ./infra/setup.sh
 #
 # 이 스크립트가 하지 않는 것:
@@ -71,7 +72,10 @@ cp "$REPO_DIR/docker-compose.prod.yml" "$APP_DIR/"
 install -m 755 "$REPO_DIR/infra/backup.sh" "$APP_DIR/backup.sh"
 # 19:00 UTC = 04:00 KST. 서버 시간대는 UTC 다.
 CRON_LINE="0 19 * * * $APP_DIR/backup.sh >> $APP_DIR/backup.log 2>&1"
-( crontab -l 2>/dev/null | grep -v 'backup.sh' ; echo "$CRON_LINE" ) | crontab -
+# crontab 이 비어 있으면 crontab -l 이, 일치가 없으면 grep 이 각각 1 을 낸다.
+# set -e/pipefail 아래에서는 그 순간 서브셸이 죽어 cron 이 등록되지 않은 채(=빈 crontab)
+# 스크립트가 중단된다 — 복구한 서버에서 백업이 영영 안 도는 조용한 실패였다.
+{ crontab -l 2>/dev/null | grep -v 'backup.sh' || true; echo "$CRON_LINE"; } | crontab -
 echo "   $APP_DIR 구성 완료, 백업 cron 등록(매일 04:00 KST)"
 
 echo
@@ -86,7 +90,7 @@ else
 	echo "     기존 DB 를 복원할 거라면 비밀번호는 그때 쓰던 값이어야 한다."
 fi
 echo "  2) 기동:"
-echo "       cd $APP_DIR && docker compose -f docker-compose.prod.yml up -d"
+echo "       cd $APP_DIR && sudo docker compose -f docker-compose.prod.yml up -d"
 echo "  3) 확인:  curl localhost:8080/actuator/health"
 echo "  4) DB 복원이 필요하면 infra/README.md 의 '재해 복구' 절 참고"
 echo "==============================================="

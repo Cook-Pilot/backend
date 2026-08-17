@@ -138,7 +138,10 @@ jobs:
           cp docker-compose.prod.yml /home/ubuntu/cookpilot/
           cd /home/ubuntu/cookpilot
           docker compose -f docker-compose.prod.yml pull --quiet app
-          docker compose -f docker-compose.prod.yml up -d
+          # --remove-orphans: compose 에서 사라진 서비스의 컨테이너(watchtower)를 정리한다.
+          # 없으면 옛 watchtower 가 계속 돌며 SSM 배포와 함께 컨테이너를 교체하려 든다.
+          # 프로젝트(cookpilot) 범위라 다른 스택(web-preview 등)은 건드리지 않는다.
+          docker compose -f docker-compose.prod.yml up -d --remove-orphans
           EOF
 
           CMD_ID=$(aws ssm send-command \
