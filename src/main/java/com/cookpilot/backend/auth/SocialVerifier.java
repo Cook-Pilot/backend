@@ -8,8 +8,8 @@ package com.cookpilot.backend.auth;
  */
 public interface SocialVerifier {
 
-	/** 이 검증기가 담당하는 제공자({@link SocialIdentity#provider} 와 같은 값). */
-	String provider();
+	/** 이 검증기가 담당하는 제공자. */
+	AuthProvider provider();
 
 	SocialIdentity verify(String token);
 }

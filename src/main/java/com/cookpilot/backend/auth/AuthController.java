@@ -24,7 +24,7 @@ public class AuthController {
 	 */
 	@PostMapping("/{provider}")
 	public AuthResponse login(@PathVariable String provider, @Valid @RequestBody SocialLoginRequest request) {
-		return authService.login(provider.toUpperCase(), request.token());
+		return authService.login(AuthProvider.from(provider), request.token());
 	}
 
 	/** 개발자 로그인. 서버에 시크릿이 설정돼 있을 때만 동작한다. */

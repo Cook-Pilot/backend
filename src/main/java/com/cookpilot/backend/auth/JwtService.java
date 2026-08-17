@@ -1,5 +1,6 @@
 package com.cookpilot.backend.auth;
 
+import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.Date;
@@ -33,7 +34,9 @@ public class JwtService {
 	public JwtService(
 			@Value("${cookpilot.auth.jwt-secret}") String secret,
 			@Value("${cookpilot.auth.jwt-validity:P14D}") Duration validity) {
-		byte[] bytes = secret.getBytes();
+		// 플랫폼 기본 charset 에 맡기면 런타임 로케일에 따라 키 바이트가 달라져
+		// 같은 시크릿인데도 기존 토큰이 전부 무효가 될 수 있다.
+		byte[] bytes = secret.getBytes(StandardCharsets.UTF_8);
 		if (bytes.length < 32) {
 			// HS256 은 키가 짧으면 서명 자체가 거부된다. 기동 시점에 알려야 운영에서 안 터진다.
 			throw new IllegalStateException(

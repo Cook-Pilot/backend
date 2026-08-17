@@ -29,8 +29,8 @@ public class KakaoVerifier implements SocialVerifier {
 	}
 
 	@Override
-	public String provider() {
-		return "KAKAO";
+	public AuthProvider provider() {
+		return AuthProvider.KAKAO;
 	}
 
 	@Override

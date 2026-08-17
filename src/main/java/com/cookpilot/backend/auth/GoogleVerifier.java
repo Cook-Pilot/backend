@@ -49,8 +49,8 @@ public class GoogleVerifier implements SocialVerifier {
 	}
 
 	@Override
-	public String provider() {
-		return "GOOGLE";
+	public AuthProvider provider() {
+		return AuthProvider.GOOGLE;
 	}
 
 	@Override

@@ -94,6 +94,38 @@ class AuthApiTest extends PostgresApiTestBase {
 				.andExpect(status().isBadRequest());
 	}
 
+	@Test
+	void 제공자_이름은_대소문자를_가리지_않는다() throws Exception {
+		// 경로 변수는 ASCII 식별자라 Locale.ROOT 로 해석한다. 검증기가 없는 DEV 는
+		// 소셜 경로로 들어오면 400 이어야 한다(개발자 로그인은 /auth/dev 전용).
+		mockMvc.perform(post("/api/v1/auth/DEV")
+						.contentType(MediaType.APPLICATION_JSON)
+						.content("{\"token\":\"whatever\"}"))
+				.andExpect(status().isBadRequest());
+	}
+
+	@Test
+	void 같은_신원으로_동시에_로그인해도_계정은_하나만_생긴다() throws Exception {
+		// (provider, providerUserId) UNIQUE 제약에 경쟁이 붙으면 한쪽 INSERT 가 실패한다.
+		// 그때 상대가 만든 행을 재조회해 같은 계정으로 수렴해야 한다(로그인은 멱등).
+		int attempts = 4;
+		java.util.concurrent.ExecutorService pool =
+				java.util.concurrent.Executors.newFixedThreadPool(attempts);
+		try {
+			java.util.List<java.util.concurrent.Future<String>> results = new java.util.ArrayList<>();
+			for (int i = 0; i < attempts; i++) {
+				results.add(pool.submit(() -> objectMapper.readTree(loginBody()).get("userId").asText()));
+			}
+			java.util.Set<String> userIds = new java.util.HashSet<>();
+			for (java.util.concurrent.Future<String> result : results) {
+				userIds.add(result.get(20, java.util.concurrent.TimeUnit.SECONDS));
+			}
+			assertThat(userIds).hasSize(1);
+		} finally {
+			pool.shutdownNow();
+		}
+	}
+
 	private String issueDevToken() throws Exception {
 		return objectMapper.readTree(loginBody()).get("token").asText();
 	}
