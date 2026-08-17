@@ -128,40 +128,36 @@ jobs:
         env:
           INSTANCE_ID: ${{ vars.EC2_INSTANCE_ID }}
         run: |
-          # 서버에서 도는 명령. root 로 실행되므로 runuser 로 ubuntu 권한에서 돌린다
-          # (git 소유권 경고 회피 + docker 그룹 사용).
-          read -r -d '' REMOTE <<'EOF' || true
-          set -euo pipefail
-          cd /home/ubuntu/backend
-          git fetch --quiet origin main
-          git reset --hard --quiet origin/main
-          cp docker-compose.prod.yml /home/ubuntu/cookpilot/
-          cd /home/ubuntu/cookpilot
-          docker compose -f docker-compose.prod.yml pull --quiet app
-          # --remove-orphans: compose 에서 사라진 서비스의 컨테이너(watchtower)를 정리한다.
-          # 없으면 옛 watchtower 가 계속 돌며 SSM 배포와 함께 컨테이너를 교체하려 든다.
-          # 프로젝트(cookpilot) 범위라 다른 스택(web-preview 등)은 건드리지 않는다.
-          docker compose -f docker-compose.prod.yml up -d --remove-orphans
-          EOF
+          # 파라미터를 파일로 넘긴다. 인라인 문자열로 넣으면 따옴표·줄바꿈이 깨져
+          # 서버에 리터럴 "\n" 이 전달된다(첫 배포가 이걸로 실패했다).
+          # 레포 갱신과 배포를 분리하는 이유는 infra/deploy.sh 주석 참고.
+          cat > /tmp/ssm-params.json <<'JSON'
+          {
+            "commands": [
+              "runuser -l ubuntu -c 'cd /home/ubuntu/backend && git fetch --quiet origin main && git reset --hard --quiet origin/main'",
+              "runuser -l ubuntu -c /home/ubuntu/backend/infra/deploy.sh"
+            ]
+          }
+          JSON
 
           CMD_ID=$(aws ssm send-command \
             --instance-ids "$INSTANCE_ID" \
             --document-name AWS-RunShellScript \
             --comment "deploy ${GITHUB_SHA:0:7}" \
             --timeout-seconds 600 \
-            --parameters commands="[$(printf '%s' "runuser -l ubuntu -c '$REMOTE'" | python3 -c 'import json,sys; print(json.dumps(sys.stdin.read()))')]" \
+            --parameters file:///tmp/ssm-params.json \
             --query Command.CommandId --output text)
 
           echo "SSM 명령 전송: $CMD_ID"
 
           # 완료까지 폴링. waiter 는 대기 한도가 짧아 이미지 pull 이 길어지면 먼저 끊긴다.
+          STATUS=Pending
           for _ in $(seq 1 60); do
             STATUS=$(aws ssm get-command-invocation \
               --command-id "$CMD_ID" --instance-id "$INSTANCE_ID" \
               --query Status --output text 2>/dev/null || echo Pending)
             case "$STATUS" in
-              Success) break ;;
-              Failed|Cancelled|TimedOut) break ;;
+              Success|Failed|Cancelled|TimedOut) break ;;
             esac
             sleep 10
           done
