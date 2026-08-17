@@ -117,6 +117,13 @@ ssh -i cookpilot-key.pem -L 5432:localhost:5432 ubuntu@13.209.243.235
 # 그다음 IDE 에서 localhost:5432 로 접속
 ```
 
+**디스크는 배포할 때마다 정리된다.** `infra/deploy.sh` 가 배포 후 dangling 이미지와 빌드 캐시를 지운다. Docker 29 는 이미지를 `/var/lib/containerd` 에 두는데, 이게 쌓여 디스크를 65% 까지 채운 적이 있다(2026-08-17, 13GB 회수). 배포가 오래 없어 디스크가 걱정되면 수동으로도 된다:
+
+```bash
+sudo docker image prune -f && sudo docker builder prune -f
+df -h /
+```
+
 ## 알려진 이슈
 
 - **서버 시간대가 UTC** 다. 로그 시각과 cron(`0 19` = KST 04:00)을 볼 때 9시간 차이를 감안한다.
