@@ -100,6 +100,8 @@ cd ~/backend && git pull && cp docker-compose.prod.yml ~/cookpilot/
 cd ~/cookpilot && sudo docker compose -f docker-compose.prod.yml up -d
 ```
 
+**필수 환경변수가 빠지면 배포가 멈춘다.** `docker-compose.prod.yml` 에서 `JWT_SECRET` 같은 필수 값은 `${VAR:?메시지}` 로 표시해 두었다. 빈 값을 주입하면(`${VAR:-}`) 앱은 "값이 있다"고 보고 기본값을 쓰지 않아 **컨테이너를 교체한 뒤에야 기동 실패로 드러난다**(실제로 운영 장애를 겪었다). `:?` 는 compose 가 파일을 읽는 시점에 멈추므로 기존 컨테이너가 살아 있는 채 배포만 실패한다. 새 필수 env 를 추가할 때는 **서버 `.env` 를 먼저 채우고 머지**한다.
+
 **`.env` 를 바꾸면 재기동이 필요하다.** 서버에만 있는 파일이라 배포로는 반영되지 않는다(위 명령의 마지막 줄).
 
 **로그 보기**

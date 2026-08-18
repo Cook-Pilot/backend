@@ -22,7 +22,12 @@ services:
       DB_USERNAME: ${POSTGRES_USER}
       DB_PASSWORD: ${POSTGRES_PASSWORD}
       # 소셜 로그인. JWT_SECRET 이 바뀌면 발급된 토큰이 전부 무효가 된다.
-      JWT_SECRET: ${JWT_SECRET:-}
+      #
+      # :? 로 필수 표시한다. 빈 값을 주입하면(${JWT_SECRET:-}) 앱은 "값이 있다"고 보고
+      # application.yml 의 기본값을 쓰지 않아, 컨테이너를 교체한 뒤에야 기동 실패로
+      # 드러난다(= 운영 장애. 실제로 겪었다). :? 는 compose 가 파일을 읽는 시점에 멈추므로
+      # 기존 컨테이너가 그대로 살아 있는 채로 배포만 실패한다.
+      JWT_SECRET: ${JWT_SECRET:?.env 에 JWT_SECRET 이 필요합니다 (openssl rand -base64 48)}
       GOOGLE_CLIENT_IDS: ${GOOGLE_CLIENT_IDS:-}
       DEV_LOGIN_SECRET: ${DEV_LOGIN_SECRET:-}
       # 리뷰 사진 버킷. 비우면 업로드 없이 목 URL 을 돌려준다.
