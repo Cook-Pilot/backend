@@ -56,7 +56,8 @@ public class GoogleVerifier implements SocialVerifier {
 	@Override
 	public SocialIdentity verify(String token) {
 		if (allowedAudiences.isEmpty()) {
-			throw new IllegalStateException(
+			// IllegalStateException 은 핸들러가 409 로 매핑한다 — 설정 누락은 서버 오류(500)다.
+			throw new ProviderNotConfiguredException(
 					"구글 클라이언트 ID 가 없습니다. GOOGLE_CLIENT_IDS 를 설정하세요.");
 		}
 		JWTClaimsSet claims;

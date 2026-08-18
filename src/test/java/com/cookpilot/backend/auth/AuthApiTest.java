@@ -95,6 +95,18 @@ class AuthApiTest extends PostgresApiTestBase {
 	}
 
 	@Test
+	void 제공자_설정이_없으면_500이고_설정_내용을_노출하지_않는다() throws Exception {
+		// 구글 클라이언트 ID 미설정 상태. 클라이언트 잘못이 아니므로 4xx 가 아니고,
+		// 어떤 키가 비었는지는 응답에 드러나면 안 된다(로그에만).
+		mockMvc.perform(post("/api/v1/auth/google")
+						.contentType(MediaType.APPLICATION_JSON)
+						.content("{\"token\":\"whatever\"}"))
+				.andExpect(status().isInternalServerError())
+				.andExpect(jsonPath("$.detail").value(org.hamcrest.Matchers.not(
+						org.hamcrest.Matchers.containsString("GOOGLE_CLIENT_IDS"))));
+	}
+
+	@Test
 	void 제공자_이름은_대소문자를_가리지_않는다() throws Exception {
 		// 경로 변수는 ASCII 식별자라 Locale.ROOT 로 해석한다. 검증기가 없는 DEV 는
 		// 소셜 경로로 들어오면 400 이어야 한다(개발자 로그인은 /auth/dev 전용).
