@@ -1,5 +1,6 @@
 package com.cookpilot.backend.user;
 
+import java.time.Instant;
 import java.util.UUID;
 
 public record User(
@@ -7,6 +8,9 @@ public record User(
 		String email,
 		String displayName,
 		long betaNumber,
-		boolean anonymous
+		boolean anonymous,
+		String gender,
+		Integer ageGroup,
+		Instant profileAskedAt
 ) {
 }

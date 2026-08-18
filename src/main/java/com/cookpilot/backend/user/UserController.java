@@ -2,7 +2,9 @@ package com.cookpilot.backend.user;
 
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.http.HttpStatus;
+import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.ResponseStatus;
@@ -21,6 +23,12 @@ public class UserController {
 	@GetMapping("/me")
 	public User me() {
 		return userService.getCurrentUser();
+	}
+
+	/** 온보딩 프로필 저장. 빈 body({})는 건너뛰기 — 물어봤다는 기록만 남는다. */
+	@PatchMapping("/me")
+	public User updateProfile(@RequestBody UpdateProfileRequest request) {
+		return userService.updateProfile(request);
 	}
 
 	@PostMapping("/anonymous")
