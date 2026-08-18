@@ -25,11 +25,11 @@ public class UserController {
 		return userService.getCurrentUser();
 	}
 
-	/** 온보딩 프로필 저장. 빈 body({})는 건너뛰기 — 물어봤다는 기록만 남는다. */
-	@PatchMapping("/me")
-	public User updateProfile(@RequestBody UpdateProfileRequest request) {
-		return userService.updateProfile(request);
-	}
+/** 온보딩 프로필 저장. 빈 body({})는 건너뛰기 — 물어봤다는 기록만 남는다. */
+@PatchMapping("/me")
+public User updateProfile(@RequestBody(required = false) UpdateProfileRequest request) {
+	return userService.updateProfile(request == null ? new UpdateProfileRequest(null, null) : request);
+}
 
 	@PostMapping("/anonymous")
 	@ResponseStatus(HttpStatus.CREATED)
