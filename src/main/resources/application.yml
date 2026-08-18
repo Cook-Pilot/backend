@@ -55,6 +55,16 @@ cookpilot:
       base-url: ${GEMINI_BASE_URL:https://generativelanguage.googleapis.com}
       connect-timeout: ${GEMINI_CONNECT_TIMEOUT:2s}
       read-timeout: ${GEMINI_READ_TIMEOUT:4s}
+  # 소셜 로그인. jwt-secret 은 운영에서 반드시 주입한다(기본값은 로컬 전용 더미).
+  auth:
+    jwt-secret: ${JWT_SECRET:local-development-only-secret-change-me-32bytes+}
+    jwt-validity: ${JWT_VALIDITY:P14D}
+    # 안드로이드·iOS·웹이 서로 다른 클라이언트 ID 를 쓴다. 쉼표로 나열한다.
+    google:
+      client-ids: ${GOOGLE_CLIENT_IDS:}
+    # 비우면 개발자 로그인이 꺼진다.
+    dev-login-secret: ${DEV_LOGIN_SECRET:}
+
   # 리뷰 사진 저장소. 버킷이 비어 있으면 업로드 없이 목 URL 을 돌려준다(로컬 개발 기본값).
   photos:
     bucket: ${PHOTOS_BUCKET:}

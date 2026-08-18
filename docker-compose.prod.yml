@@ -21,6 +21,10 @@ services:
       DB_URL: jdbc:postgresql://db:5432/${POSTGRES_DB}
       DB_USERNAME: ${POSTGRES_USER}
       DB_PASSWORD: ${POSTGRES_PASSWORD}
+      # 소셜 로그인. JWT_SECRET 이 바뀌면 발급된 토큰이 전부 무효가 된다.
+      JWT_SECRET: ${JWT_SECRET:-}
+      GOOGLE_CLIENT_IDS: ${GOOGLE_CLIENT_IDS:-}
+      DEV_LOGIN_SECRET: ${DEV_LOGIN_SECRET:-}
       # 리뷰 사진 버킷. 비우면 업로드 없이 목 URL 을 돌려준다.
       # 자격증명은 넣지 않는다 — EC2 인스턴스 역할을 SDK 가 자동으로 집는다.
       PHOTOS_BUCKET: ${PHOTOS_BUCKET:-}
