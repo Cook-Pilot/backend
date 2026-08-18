@@ -63,7 +63,7 @@ class RecipeCatalogNormalizationMigrationTest extends PostgresApiTestBase {
 				""", UPSCALED_RECIPE_ID);
 
 		ResourceDatabasePopulator migration = new ResourceDatabasePopulator(
-				new ClassPathResource("db/migration/V12__normalize_recipe_catalog.sql"));
+				new ClassPathResource("db/migration/V14__normalize_recipe_catalog.sql"));
 		migration.execute(dataSource);
 
 		assertIngredient(jdbc, "f2000000-0000-0000-0000-000000000001", "가지", "90", "g");
