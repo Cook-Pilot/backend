@@ -48,3 +48,4 @@ docs/schema-snapshot.sql
 ### Claude Code ###
 .claude/
 __pycache__/
+.gstack/
