@@ -11,7 +11,7 @@
 
 ## 스키마
 
-`V12__add_recipe_ingredient_group.sql` — `recipe_ingredients.ingredient_group TEXT` 추가.
+`V13__add_recipe_ingredient_group.sql` — `recipe_ingredients.ingredient_group TEXT` 추가.
 `NULL`은 그룹 없음이고, 원문에 머리말이 없는 재료가 대부분이라 `NULL`이 정상 상태다.
 `(recipe_id, ingredient_group)` 인덱스도 함께 만든다.
 
@@ -67,8 +67,8 @@
 운영에서 읽어온 1,150개 레시피 / 13,056개 재료 행을 로컬 PostgreSQL 17.6에 재현해 확인했다.
 
 - 정상 경로: `UPDATE 2957` → 그룹 2,957행 / 163종
-- V12 단독 실행(새 환경): 컬럼·인덱스 생성 확인
-- V12 재실행(컬럼 있는 상태): `IF NOT EXISTS`로 무해하게 통과
+- V13 단독 실행(새 환경): 컬럼·인덱스 생성 확인
+- V13 재실행(컬럼 있는 상태): `IF NOT EXISTS`로 무해하게 통과
 - 재실행 가드: `ingredient_group 이 이미 2957행 채워져 있다`로 중단
 
 ## 실행 결과

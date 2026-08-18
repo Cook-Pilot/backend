@@ -1,7 +1,7 @@
 -- CookPilot 운영 레시피 재료 그룹 백필 (2026-08-17).
 --
 -- 재료를 묶는 그룹 이름(주재료/양념장/소스/국물…)을 원문에서 다시 뽑아 채운다.
--- V12__add_recipe_ingredient_group.sql 이 만드는 ingredient_group 컬럼을 채우는 작업이다.
+-- V13__add_recipe_ingredient_group.sql 이 만드는 ingredient_group 컬럼을 채우는 작업이다.
 --
 -- 이 정보는 원래 원문 RCP_PARTS_DTLS 에 있었는데, 담을 컬럼이 없어서
 -- 재료 이름 오염 복구(2026-08-17-recipe-ingredient-names.sql) 때 버렸다.
@@ -45,7 +45,7 @@ BEGIN;
 
 LOCK TABLE recipe_ingredients IN SHARE ROW EXCLUSIVE MODE;
 
--- 운영에는 배포 전에 컬럼을 먼저 넣는다. 배포 때 V12 가 IF NOT EXISTS 로 지나간다.
+-- 운영에는 배포 전에 컬럼을 먼저 넣는다. 배포 때 V13 이 IF NOT EXISTS 로 지나간다.
 ALTER TABLE recipe_ingredients ADD COLUMN IF NOT EXISTS ingredient_group TEXT;
 CREATE INDEX IF NOT EXISTS idx_recipe_ingredients_group
   ON recipe_ingredients(recipe_id, ingredient_group);
