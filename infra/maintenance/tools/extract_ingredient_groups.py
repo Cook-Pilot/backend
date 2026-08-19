@@ -6,7 +6,7 @@
      일치할 때만. 하나라도 어긋나면 그 레시피 전체를 건너뛴다.
 """
 import json, uuid, re
-from parse_parts import parse
+from parse_recipe_parts import parse
 
 NS = uuid.uuid5(uuid.NAMESPACE_URL, "https://cookpilot.app/recipe-ingredient")
 

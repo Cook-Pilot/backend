@@ -1,5 +1,5 @@
 import json, re, collections
-from parse_parts import parse, GROUP_WORDS
+from parse_recipe_parts import parse, GROUP_WORDS
 
 det = json.load(open("details.json"))
 src = {r["RCP_NM"]: r for r in json.load(open("source.json"))}
