@@ -35,16 +35,18 @@ public class ReviewService {
 	private final PersonalRecipeService personalRecipeService;
 	private final PersonalRecipeVersionRepository personalRecipeVersionRepository;
 	private final UserService userService;
+	private final ReviewPhotoService reviewPhotoService;
 
 	public ReviewService(PostCookReviewRepository reviewRepository, RecipeRepository recipeRepository,
 			PersonalRecipeService personalRecipeService,
 			PersonalRecipeVersionRepository personalRecipeVersionRepository,
-			UserService userService) {
+			UserService userService, ReviewPhotoService reviewPhotoService) {
 		this.reviewRepository = reviewRepository;
 		this.recipeRepository = recipeRepository;
 		this.personalRecipeService = personalRecipeService;
 		this.personalRecipeVersionRepository = personalRecipeVersionRepository;
 		this.userService = userService;
+		this.reviewPhotoService = reviewPhotoService;
 	}
 
 	@Transactional
@@ -72,14 +74,14 @@ public class ReviewService {
 		if (existing != null) {
 			// 재시도. 그 사이 수정 파이프라인이 버전을 만들었을 수 있으므로 역참조로 확인한다.
 			UUID versionId = personalRecipeService.findCreatedVersionId(existing.getId()).orElse(null);
-			return PostCookReview.from(existing, versionId);
+			return PostCookReview.from(existing, versionId, photoUrlsOf(existing));
 		}
 
 		PostCookReviewEntity review = reviewRepository.save(PostCookReviewEntity.of(userId, request));
 
 		// 개인 버전은 여기서 만들지 않는다. 리뷰는 조리 기록일 뿐이고,
 		// 버전 생성은 수정 파이프라인(setup/cooking/review 층)이 소유한다.
-		return PostCookReview.from(review, null);
+		return PostCookReview.from(review, null, photoUrlsOf(review));
 	}
 
 	@Transactional(readOnly = true)
@@ -87,7 +89,8 @@ public class ReviewService {
 		UUID userId = userService.getCurrentUser().id();
 		PostCookReviewEntity review = reviewRepository.findByIdAndUserId(reviewId, userId)
 				.orElseThrow(() -> new NotFoundException("피드백을 찾을 수 없습니다: " + reviewId));
-		return PostCookReview.from(review, personalRecipeService.findCreatedVersionId(reviewId).orElse(null));
+		return PostCookReview.from(review, personalRecipeService.findCreatedVersionId(reviewId).orElse(null),
+				photoUrlsOf(review));
 	}
 
 	@Transactional(readOnly = true)
@@ -98,8 +101,19 @@ public class ReviewService {
 		Map<UUID, UUID> versionIdByReviewId = findVersionIdsByReviewIds(
 				reviews.stream().map(PostCookReviewEntity::getId).toList());
 		return reviews.stream()
-				.map(review -> PostCookReview.from(review, versionIdByReviewId.get(review.getId())))
+				.map(review -> PostCookReview.from(review, versionIdByReviewId.get(review.getId()),
+						photoUrlsOf(review)))
 				.toList();
+	}
+
+	/**
+	 * DB 에 있는 건 버킷 키다. 열람은 짧은 수명의 서명 URL 로만 내보낸다.
+	 *
+	 * 소유자로 리뷰의 user_id 를 넘긴다 — 이 서비스의 조회는 전부 현재 사용자로 필터링하므로
+	 * 그 값이 곧 열람자다. 현재 사용자를 매번 다시 읽으면 목록 조회에서 리뷰 수만큼 조회가 붙는다.
+	 */
+	private List<String> photoUrlsOf(PostCookReviewEntity review) {
+		return reviewPhotoService.presign(review.getUserId(), review.getPhotoUrls());
 	}
 
 	/** 리뷰 → 그 리뷰에서 파생된 개인 버전 id. 버전이 리뷰를 역참조하므로 한 번에 모아 읽는다. */
