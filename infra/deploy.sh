@@ -20,4 +20,11 @@ docker compose -f docker-compose.prod.yml pull --quiet app
 # 프로젝트(cookpilot) 범위라 다른 스택(web-preview 등)은 건드리지 않는다.
 docker compose -f docker-compose.prod.yml up -d --remove-orphans
 
-echo "deployed: $(git -C "$REPO_DIR" rev-parse --short HEAD)"
+# 방금 새 이미지를 받았으니 이전 이미지는 참조가 끊긴다(dangling). Docker 29 는 이미지를
+# containerd 스토어에 두는데 이게 쌓여 디스크를 65% 까지 채운 적이 있다(08-17, 13GB).
+# 배포마다 정리해 누적을 막는다. 실행 중인 컨테이너의 이미지는 대상이 아니고,
+# 정리 실패가 배포를 깨지 않도록 실패는 무시한다.
+docker image prune -f > /dev/null 2>&1 || true
+docker builder prune -f > /dev/null 2>&1 || true
+
+echo "deployed: $(git -C "$REPO_DIR" rev-parse --short HEAD) (disk: $(df -h / | awk 'NR==2 {print $5}'))"
