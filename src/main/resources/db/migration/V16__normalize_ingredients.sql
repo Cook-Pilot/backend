@@ -1,4 +1,4 @@
--- V15: 재료 정규화 (#70).
+-- V16: 재료 정규화 (#70).
 -- 재료 이름이 recipe_ingredients / personal_ingredient_adjustments 행마다 TEXT 로 중복
 -- 저장되어 같은 재료("양파")가 쓰인 곳 수만큼 증식하던 문제를 마스터 테이블 ingredients 로
 -- 해결한다. 이름은 마스터에만 1행 존재하고, 나머지 테이블은 ingredient_id FK 로만 참조한다.
