@@ -1493,8 +1493,7 @@
                 "$ref" : "#/components/schemas/UpdateProfileRequest"
               }
             }
-          },
-          "required" : true
+          }
         },
         "responses" : {
           "200" : {
