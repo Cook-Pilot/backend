@@ -177,4 +177,71 @@ class RecipeTagSchemaTest {
 				"SELECT count(*) FROM recipe_tags WHERE recipe_id = ?::uuid", Integer.class, throwaway))
 				.isZero();
 	}
+
+	// ── V16 ─────────────────────────────────────────────────────────────────
+
+	/** match_rule 이 채워진 파생 태그. 시드에는 하나도 없어서 테스트마다 만든다. */
+	private void seedDerivedTag(String code, String axisCode) {
+		jdbc.update("""
+				INSERT INTO tags (code, axis_code, label_ko, match_rule, is_assignable)
+				VALUES (?, ?, '파생 확인용', '{"kind":"ingredient","name":"두부"}'::jsonb, FALSE)
+				""", code, axisCode);
+	}
+
+	@Test
+	void 파생_태그는_레시피에_붙일_수_없다() {
+		// match_rule 이 있는 태그는 조회 시점에 계산한다. 행으로 저장되면 재료가 바뀔 때
+		// 어긋나고 계산된 칩과 중복된다. V14 의 FK 는 이걸 막지 못했다.
+		seedDerivedTag("OCCASION_DERIVED_PROBE", "OCCASION");
+
+		assertThatThrownBy(() -> attach(RECIPE, "OCCASION_DERIVED_PROBE", "OCCASION", "RULE"))
+				.isInstanceOf(DataIntegrityViolationException.class);
+	}
+
+	@Test
+	void 저장형_태그는_그대로_붙는다() {
+		// 위 제약이 파생 태그만 막고 평범한 부여까지 막지는 않는지 확인한다.
+		attach(RECIPE, "DISH_SIDE", "DISH", "IMPORT");
+
+		assertThat(jdbc.queryForObject("""
+				SELECT count(*) FROM recipe_tags WHERE recipe_id = ?::uuid AND tag_code = 'DISH_SIDE'
+				""", Integer.class, RECIPE)).isEqualTo(1);
+	}
+
+	@Test
+	void 부여된_태그를_파생으로_바꿀_수_없다() {
+		// 이미 붙어 있는 태그에 match_rule 을 채우면 그 행들이 조용히 무효가 된다.
+		// FK 가 따라 내려가 recipe_tags 의 CHECK 에 걸려 실패해야 한다.
+		attach(RECIPE, "OCCASION_LUNCHBOX", "OCCASION", "MANUAL");
+
+		assertThatThrownBy(() -> jdbc.update("""
+				UPDATE tags SET match_rule = '{"kind":"ingredient","name":"두부"}'::jsonb,
+				                is_assignable = FALSE
+				WHERE code = 'OCCASION_LUNCHBOX'
+				"""))
+				.isInstanceOf(DataIntegrityViolationException.class);
+	}
+
+	@Test
+	void 사전의_is_assignable_은_match_rule_과_어긋날_수_없다() {
+		assertThatThrownBy(() -> jdbc.update("""
+				INSERT INTO tags (code, axis_code, label_ko, match_rule, is_assignable)
+				VALUES ('OCCASION_MISMATCH_PROBE', 'OCCASION', '불일치 확인용', NULL, FALSE)
+				"""))
+				.isInstanceOf(DataIntegrityViolationException.class);
+	}
+
+	@Test
+	void 태그_코드를_바꾸면_부여된_행이_따라온다() {
+		// 자연키(code 가 PK)를 택한 대가를 ON UPDATE CASCADE 로 되사온 부분.
+		// 이게 없으면 개명이 FK 에 막혀 아예 불가능하다.
+		attach(RECIPE, "DISH_RICE", "DISH", "IMPORT");
+
+		jdbc.update("UPDATE tags SET code = 'DISH_RICE_RENAMED' WHERE code = 'DISH_RICE'");
+
+		assertThat(jdbc.queryForObject("""
+				SELECT count(*) FROM recipe_tags
+				WHERE recipe_id = ?::uuid AND tag_code = 'DISH_RICE_RENAMED'
+				""", Integer.class, RECIPE)).isEqualTo(1);
+	}
 }
