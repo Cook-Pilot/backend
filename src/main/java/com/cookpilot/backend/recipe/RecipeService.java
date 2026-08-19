@@ -3,6 +3,8 @@ package com.cookpilot.backend.recipe;
 import java.util.List;
 import java.util.UUID;
 
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -28,6 +30,34 @@ public class RecipeService {
 		return recipeRepository.findByStatusOrderByTitleAscIdAsc("active").stream()
 				.map(this::toOverview)
 				.toList();
+	}
+
+	public Page<RecipeOverview> search(String title, String ingredient, int page, int size) {
+		String normalizedTitle = escapeLikePattern(title == null ? "" : title.trim());
+		String normalizedIngredient = escapeLikePattern(ingredient == null ? "" : ingredient.trim());
+		int normalizedPage = Math.max(page, 1);
+		int normalizedSize = Math.min(Math.max(size, 1), 50);
+		Page<RecipeEntity> result = recipeRepository.search(
+				"active",
+				normalizedTitle,
+				normalizedIngredient,
+				PageRequest.of(normalizedPage - 1, normalizedSize));
+		int lastPage = Math.max(result.getTotalPages(), 1);
+		if (normalizedPage > lastPage) {
+			result = recipeRepository.search(
+					"active",
+					normalizedTitle,
+					normalizedIngredient,
+					PageRequest.of(lastPage - 1, normalizedSize));
+		}
+		return result.map(this::toOverview);
+	}
+
+	private String escapeLikePattern(String value) {
+		return value
+				.replace("\\", "\\\\")
+				.replace("%", "\\%")
+				.replace("_", "\\_");
 	}
 
 	public Recipe findById(UUID recipeId) {

@@ -134,6 +134,93 @@ class RecipeApiTest extends PostgresApiTestBase {
 	}
 
 	@Test
+	void 요리명과_재료명으로_레시피를_페이지_검색한다() throws Exception {
+		RecipeEntity basilPasta = recipeRepository.save(new RecipeEntity(
+				"검색전용 바질 파스타", "요리명 검색 검증", BigDecimal.valueOf(2)));
+		ingredientRepository.save(new RecipeIngredientEntity(
+				basilPasta.getId(), "생바질", BigDecimal.valueOf(10), "g", true, 0));
+		RecipeEntity tomatoSoup = recipeRepository.save(new RecipeEntity(
+				"검색전용 토마토 수프", "재료명 검색 검증", BigDecimal.valueOf(2)));
+		ingredientRepository.save(new RecipeIngredientEntity(
+				tomatoSoup.getId(), "완숙 토마토", BigDecimal.valueOf(2), "개", true, 0));
+		RecipeEntity inactiveBasil = new RecipeEntity(
+				"검색전용 바질 폐기본", "중복 숨김 검증", BigDecimal.valueOf(2));
+		inactiveBasil.setStatus("inactive");
+		inactiveBasil = recipeRepository.save(inactiveBasil);
+		ingredientRepository.save(new RecipeIngredientEntity(
+				inactiveBasil.getId(), "생바질", BigDecimal.ONE, "g", true, 0));
+
+		mockMvc.perform(get("/api/v1/recipes/search")
+				.param("title", "바질 파스타")
+				.param("page", "1")
+				.param("size", "9"))
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$.items", hasSize(1)))
+				.andExpect(jsonPath("$.items[0].id").value(basilPasta.getId().toString()))
+				.andExpect(jsonPath("$.page").value(1))
+				.andExpect(jsonPath("$.totalItems").value(1));
+
+		mockMvc.perform(get("/api/v1/recipes/search")
+				.param("ingredient", "토마토")
+				.param("page", "1")
+				.param("size", "9"))
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$.items[0].id").value(tomatoSoup.getId().toString()));
+
+		mockMvc.perform(get("/api/v1/recipes/search")
+				.param("title", "검색전용")
+				.param("ingredient", "바질")
+				.param("page", "1")
+				.param("size", "1"))
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$.items", hasSize(1)))
+				.andExpect(jsonPath("$.items[0].id").value(basilPasta.getId().toString()))
+				.andExpect(jsonPath("$.totalPages").value(1));
+
+		mockMvc.perform(get("/api/v1/recipes/search")
+				.param("title", "검색전용")
+				.param("page", "999")
+				.param("size", "1"))
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$.items", hasSize(1)))
+				.andExpect(jsonPath("$.page").value(2))
+				.andExpect(jsonPath("$.totalPages").value(2))
+				.andExpect(jsonPath("$.totalItems").value(2));
+
+		mockMvc.perform(get("/api/v1/recipes/search")
+				.param("title", "검색결과없음")
+				.param("page", "999")
+				.param("size", "9"))
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$.items", hasSize(0)))
+				.andExpect(jsonPath("$.page").value(1))
+				.andExpect(jsonPath("$.totalPages").value(0))
+				.andExpect(jsonPath("$.totalItems").value(0));
+	}
+
+	@Test
+	void 검색어의_LIKE_기호는_와일드카드가_아닌_문자로_검색한다() throws Exception {
+		RecipeEntity literalSymbols = recipeRepository.save(new RecipeEntity(
+				"검색기호 %_ 레시피", "LIKE 기호 검색 검증", BigDecimal.ONE));
+		ingredientRepository.save(new RecipeIngredientEntity(
+				literalSymbols.getId(), "100%_카카오", BigDecimal.ONE, "조각", true, 0));
+
+		mockMvc.perform(get("/api/v1/recipes/search")
+				.param("title", "%_")
+				.param("size", "9"))
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$.items", hasSize(1)))
+				.andExpect(jsonPath("$.items[0].id").value(literalSymbols.getId().toString()));
+
+		mockMvc.perform(get("/api/v1/recipes/search")
+				.param("ingredient", "%_")
+				.param("size", "9"))
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$.items", hasSize(1)))
+				.andExpect(jsonPath("$.items[0].id").value(literalSymbols.getId().toString()));
+	}
+
+	@Test
 	void 없는_레시피는_404를_반환한다() throws Exception {
 		mockMvc.perform(get("/api/v1/recipes/99999999-0000-0000-0000-000000000000"))
 				.andExpect(status().isNotFound());

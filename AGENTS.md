@@ -11,8 +11,7 @@ CookPilot backend — the server for a voice-driven cooking assistant (Flutter c
 ```bash
 ./gradlew build                                          # compile + test
 ./gradlew test                                           # all tests
-./gradlew test --tests '*PersonalRecipeDeriveTest'       # single test class
-./gradlew bootRun                                        # run, no DB (default profile)
+./gradlew test --tests '*DiffComposerTest'               # single test class
 ./gradlew bootRun --args='--spring.profiles.active=db'   # run against postgres
 docker compose up --build                                # app + postgres together
 ```
@@ -21,9 +20,9 @@ Health check: `curl http://localhost:8080/actuator/health` → `{"status":"UP"}`
 
 Tests that hit the DB (`*ApiTest`, `CoreSchemaPersistenceTest`) use Testcontainers and **need a running Docker daemon**. `./gradlew test` runs each test class exactly once. Do not run `MainApplicationTests` via Gradle — it is a `@Suite` for one-click "run everything" in the IDE only, and `build.gradle` excludes it from the Gradle `test` task to avoid double execution.
 
-## Two-profile design (important)
+## Runtime and test database design (important)
 
-The default (no-profile) context **runs without a database** — Flyway off, JPA `ddl-auto: none`, tests use an embedded H2 just to boot the web context for mock/web tests. Real schema work happens only under the `db` profile: Flyway runs the migrations and JPA is `validate` (mapping vs. real schema, never mutating). Server/prod deploy always sets `SPRING_PROFILES_ACTIVE=db`.
+The application runtime requires PostgreSQL and the `db` profile. Flyway runs the migrations and JPA is `validate` (mapping vs. real schema, never mutating). The default **test** context uses an embedded H2 database only to boot mock/web tests; H2 is test-runtime-only, so no-profile `bootRun` does not start the application. Server/prod deploy always sets `SPRING_PROFILES_ACTIVE=db`.
 
 **Flyway is the source of truth for the schema; JPA entities only validate against it.** When you change an entity's mapping you must add a matching migration under `src/main/resources/db/migration` — a mismatch fails startup under `db` with `SchemaManagementException` (that's why `build.gradle` sets `testLogging.exceptionFormat = 'full'`, so the failing column is visible).
 
@@ -34,8 +33,8 @@ Package-by-feature under `com.cookpilot.backend`, each feature a thin `Controlle
 - **recipe** — original recipes/ingredients/steps. Read-only; originals are immutable seed data.
 - **review** — post-cook reviews (JPA). Saved first; a personal version back-references it via `source_review_id`.
 - **personalrecipe** — the heart of the app (see below).
-- **ai** — `AiFeedbackService` returns **fixed mock data**. STT/TTS/LLM is unconfirmed; no real LLM call, no server-side cook session (the client owns session/timer state and posts only the result). Look for `TODO(AI 확정 후)`.
-- **user** — `UserService.getCurrentUser()` returns **one hardcoded mock user** (`00000000-0000-0000-0000-000000000001`). No auth yet.
+- **ai** — `AiFeedbackService` calls Gemini through Spring AI when configured and falls back to fixed mock data when it is disabled or fails. There is still no server-side cook session: the client owns session/timer state and sends STT text plus the current step.
+- **user** — closed-beta anonymous users. `POST /users/anonymous` issues a user and personalized routes resolve `X-CookPilot-User-Id`; this header is an identifier, not authentication.
 - **common** — `GlobalExceptionHandler` maps exceptions to RFC-7807 `ProblemDetail`: `NotFoundException`→404, `IllegalArgumentException`→400, `IllegalStateException`→409. Throw these; don't build error responses by hand.
 
 ### Personal recipe versioning — the diff model
@@ -43,14 +42,14 @@ Package-by-feature under `com.cookpilot.backend`, each feature a thin `Controlle
 A personal version does **not** snapshot the whole recipe. It stores a **relational diff** against the original recipe in `personal_ingredient_adjustments` / `personal_step_adjustments`, each row typed `ADD` / `MODIFY` / `REMOVE`:
 
 - **Diffs are always cumulative against the ORIGINAL recipe** — never a parent chain. Rendering a version = original + that version's diff only. `DiffComposer` is the pure function that composes them (no DB, no parent replay). `MODIFY` overrides specified fields; omitted fields retain the original. `amount` additionally treats an explicit JSON `null` as removing the amount. `ADD` carries its own full data with no original reference; `REMOVE`/`MODIFY` must FK-reference an original row (enforced by DB `CHECK` and re-validated in the service).
-- **Deriving** a new version copies the parent's diffs, applies edits, saves with `parent_version_id` for lineage. Versions stack `v1, v2, v3…` per `(user, recipe)`; the newest becomes `is_default` (previous default is demoted).
+- **Creating** a new version starts from an idempotent review and accepts the client's complete, original-relative diff at `POST /reviews/{reviewId}/personal-versions`. The selected source version is stored as `parent_version_id` for lineage; the server does not replay or copy the parent diff.
 - The tree is **append-only and immutable**: there are no edit/delete APIs for a version by design — a change is a new derived leaf. The diff contract is **explicit**: the client/AI declares `ADD`/`MODIFY`/`REMOVE`; the server validates but never name-matches. Duplicate-name `ADD` is allowed ("one more egg").
 
-`PersonalRecipeService.derive()` exists at the service level; its public HTTP route is deliberately not finalized yet.
+Versions stack `v1, v2, v3…` per `(user, recipe)`. The newest version is available in list/search summaries, but the service does not auto-promote `is_default`; the user chooses the source version for a cook.
 
 ## API conventions
 
-All routes under `/api/v1`. Plain DTO JSON in/out (Java `record` DTOs, distinct from JPA `*Entity` classes). Errors are `ProblemDetail`. Existing endpoints: `GET /users/me`, `GET /recipes`, `GET /recipes/{id}`, `POST /reviews`, `GET /reviews/{id}`, `GET /recipes/{id}/reviews`, `GET /recipes/{id}/personal-versions`, `GET /personal-versions/{id}`, `POST /ai-feedback`.
+All application routes live under `/api/v1`. Plain DTO JSON in/out (Java `record` DTOs, distinct from JPA `*Entity` classes). Errors are `ProblemDetail`. The committed API reference is `docs/openapi.json`; regenerate it with `OpenApiDocsTest` whenever a controller or DTO changes. Recipe catalog routes are `GET /recipes`, paged `GET /recipes/search`, and `GET /recipes/{id}`.
 
 ## Gotchas (Spring Boot 4 / Jackson 3 / Testcontainers 2)
 
