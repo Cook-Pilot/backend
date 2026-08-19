@@ -14,6 +14,7 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.multipart.MaxUploadSizeExceededException;
 
 import com.cookpilot.backend.auth.InvalidTokenException;
+import com.cookpilot.backend.auth.ProviderNotConfiguredException;
 import com.cookpilot.backend.review.PhotoUploadFailedException;
 import com.cookpilot.backend.user.MissingUserSessionException;
 import com.cookpilot.backend.user.UserNotFoundException;
@@ -82,6 +83,14 @@ public class GlobalExceptionHandler {
 	public ProblemDetail handlePayloadTooLarge(MaxUploadSizeExceededException e) {
 		return ProblemDetail.forStatusAndDetail(
 				HttpStatus.PAYLOAD_TOO_LARGE, "파일이 너무 큽니다. 한 장에 10MB 까지 올릴 수 있습니다.");
+	}
+
+	/** 로그인 제공자 설정 누락. 어떤 키가 비었는지는 로그에만 남긴다(서버 구성 노출 방지). */
+	@ExceptionHandler(ProviderNotConfiguredException.class)
+	public ProblemDetail handleProviderNotConfigured(ProviderNotConfiguredException e) {
+		log.error("로그인 제공자 설정 누락", e);
+		return ProblemDetail.forStatusAndDetail(
+				HttpStatus.INTERNAL_SERVER_ERROR, "로그인을 처리하지 못했습니다. 잠시 후 다시 시도해 주세요.");
 	}
 
 	/** 저장소 장애. 클라이언트가 고칠 수 없으니 재시도 안내만 하고 원인은 로그로 남긴다. */
