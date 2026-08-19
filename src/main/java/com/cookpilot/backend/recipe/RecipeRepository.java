@@ -19,10 +19,10 @@ public interface RecipeRepository extends JpaRepository<RecipeEntity, UUID> {
 			WHERE recipe.status = :status
 			  AND (:title = '' OR LOWER(recipe.title) LIKE LOWER(CONCAT('%', :title, '%')) ESCAPE '\\')
 			  AND (:ingredient = '' OR EXISTS (
-				SELECT ingredient.id
-				FROM RecipeIngredientEntity ingredient
-				WHERE ingredient.recipeId = recipe.id
-				  AND LOWER(ingredient.name) LIKE LOWER(CONCAT('%', :ingredient, '%')) ESCAPE '\\'
+				SELECT recipeIngredient.id
+				FROM RecipeIngredientEntity recipeIngredient
+				WHERE recipeIngredient.recipeId = recipe.id
+				  AND LOWER(recipeIngredient.ingredient.name) LIKE LOWER(CONCAT('%', :ingredient, '%')) ESCAPE '\\'
 			  ))
 			ORDER BY recipe.title ASC, recipe.id ASC
 			""", countQuery = """
@@ -31,10 +31,10 @@ public interface RecipeRepository extends JpaRepository<RecipeEntity, UUID> {
 			WHERE recipe.status = :status
 			  AND (:title = '' OR LOWER(recipe.title) LIKE LOWER(CONCAT('%', :title, '%')) ESCAPE '\\')
 			  AND (:ingredient = '' OR EXISTS (
-				SELECT ingredient.id
-				FROM RecipeIngredientEntity ingredient
-				WHERE ingredient.recipeId = recipe.id
-				  AND LOWER(ingredient.name) LIKE LOWER(CONCAT('%', :ingredient, '%')) ESCAPE '\\'
+				SELECT recipeIngredient.id
+				FROM RecipeIngredientEntity recipeIngredient
+				WHERE recipeIngredient.recipeId = recipe.id
+				  AND LOWER(recipeIngredient.ingredient.name) LIKE LOWER(CONCAT('%', :ingredient, '%')) ESCAPE '\\'
 			  ))
 			""")
 	Page<RecipeEntity> search(

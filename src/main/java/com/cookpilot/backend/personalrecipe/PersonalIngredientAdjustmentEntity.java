@@ -10,8 +10,12 @@ import jakarta.persistence.Enumerated;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
+import jakarta.persistence.JoinColumn;
+import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
 import lombok.Getter;
+
+import com.cookpilot.backend.recipe.IngredientEntity;
 
 /**
  * personal_ingredient_adjustments 테이블 매핑.
@@ -20,6 +24,8 @@ import lombok.Getter;
  * 렌더링은 원본 재료 + 이 행들만으로 끝난다.
  * ADD 는 originalIngredientId 없이 자기 데이터를 가지고, MODIFY/REMOVE 는 원본을 가리킨다
  * (조합은 DB CHECK 로 강제).
+ * 재료 이름은 ingredients 마스터 FK 로만 참조한다(#70) — ADD 는 필수, MODIFY 는 교체
+ * 오버라이드(NULL = 원본 유지), REMOVE 는 안 쓴다.
  */
 @Entity
 @Table(name = "personal_ingredient_adjustments")
@@ -40,8 +46,9 @@ public class PersonalIngredientAdjustmentEntity {
 	@Column(name = "adjustment_type", nullable = false)
 	private AdjustmentType adjustmentType;
 
-	@Column(name = "name")
-	private String name;
+	@ManyToOne
+	@JoinColumn(name = "ingredient_id")
+	private IngredientEntity ingredient;
 
 	@Column(name = "amount")
 	private BigDecimal amount;
@@ -64,25 +71,29 @@ public class PersonalIngredientAdjustmentEntity {
 	}
 
 	public PersonalIngredientAdjustmentEntity(UUID personalVersionId, UUID originalIngredientId,
-			AdjustmentType adjustmentType, String name, BigDecimal amount, String unit,
+			AdjustmentType adjustmentType, IngredientEntity ingredient, BigDecimal amount, String unit,
 			Boolean required, int sortOrder) {
-		this(personalVersionId, originalIngredientId, adjustmentType, name, amount, unit,
+		this(personalVersionId, originalIngredientId, adjustmentType, ingredient, amount, unit,
 				required, sortOrder,
 				adjustmentType == AdjustmentType.MODIFY && amount != null);
 	}
 
 	public PersonalIngredientAdjustmentEntity(UUID personalVersionId, UUID originalIngredientId,
-			AdjustmentType adjustmentType, String name, BigDecimal amount, String unit,
+			AdjustmentType adjustmentType, IngredientEntity ingredient, BigDecimal amount, String unit,
 			Boolean required, int sortOrder, boolean amountOverridePresent) {
 		this.personalVersionId = personalVersionId;
 		this.originalIngredientId = originalIngredientId;
 		this.adjustmentType = adjustmentType;
-		this.name = name;
+		this.ingredient = ingredient;
 		this.amount = amount;
 		this.amountOverridePresent = adjustmentType == AdjustmentType.MODIFY
 				&& (amountOverridePresent || amount != null);
 		this.unit = unit;
 		this.required = required;
 		this.sortOrder = sortOrder;
+	}
+
+	public String getName() {
+		return ingredient == null ? null : ingredient.getName();
 	}
 }

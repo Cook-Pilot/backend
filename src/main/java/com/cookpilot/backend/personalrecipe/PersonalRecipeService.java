@@ -16,6 +16,8 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import com.cookpilot.backend.common.NotFoundException;
+import com.cookpilot.backend.recipe.IngredientEntity;
+import com.cookpilot.backend.recipe.IngredientRepository;
 import com.cookpilot.backend.recipe.RecipeEntity;
 import com.cookpilot.backend.recipe.RecipeIngredientRepository;
 import com.cookpilot.backend.recipe.RecipeRepository;
@@ -42,6 +44,7 @@ public class PersonalRecipeService {
 	private final RecipeRepository recipeRepository;
 	private final RecipeIngredientRepository recipeIngredientRepository;
 	private final RecipeStepRepository recipeStepRepository;
+	private final IngredientRepository ingredientRepository;
 	private final PostCookReviewRepository reviewRepository;
 	private final UserService userService;
 
@@ -51,6 +54,7 @@ public class PersonalRecipeService {
 			RecipeRepository recipeRepository,
 			RecipeIngredientRepository recipeIngredientRepository,
 			RecipeStepRepository recipeStepRepository,
+			IngredientRepository ingredientRepository,
 			PostCookReviewRepository reviewRepository,
 			UserService userService) {
 		this.versionRepository = versionRepository;
@@ -59,6 +63,7 @@ public class PersonalRecipeService {
 		this.recipeRepository = recipeRepository;
 		this.recipeIngredientRepository = recipeIngredientRepository;
 		this.recipeStepRepository = recipeStepRepository;
+		this.ingredientRepository = ingredientRepository;
 		this.reviewRepository = reviewRepository;
 		this.userService = userService;
 	}
@@ -127,8 +132,9 @@ public class PersonalRecipeService {
 
 		ingredientAdjustmentRepository.saveAll(diff.ingredients().stream()
 				.map(adj -> new PersonalIngredientAdjustmentEntity(saved.getId(),
-						adj.originalIngredientId(), adj.type(), adj.name(), adj.amount(),
-						adj.unit(), adj.required(), adj.sortOrder(), adj.amountSpecified()))
+						adj.originalIngredientId(), adj.type(), resolveIngredient(adj.name()),
+						adj.amount(), adj.unit(), adj.required(), adj.sortOrder(),
+						adj.amountSpecified()))
 				.toList());
 		stepAdjustmentRepository.saveAll(diff.steps().stream()
 				.map(adj -> new PersonalStepAdjustmentEntity(saved.getId(), adj.originalStepId(),
@@ -291,6 +297,18 @@ public class PersonalRecipeService {
 		UUID userId = userService.getCurrentUser().id();
 		return versionRepository.findByIdAndUserId(versionId, userId)
 				.orElseThrow(() -> new NotFoundException("개인 레시피 버전을 찾을 수 없습니다: " + versionId));
+	}
+
+	/**
+	 * diff 의 재료 이름을 ingredients 마스터 행으로 바꾼다(없으면 생성). 이름 정규화(trim,
+	 * 동의어 통합)는 후속 이슈. NULL 은 "재료 지정 없음"(MODIFY 유지/REMOVE)이라 그대로 둔다.
+	 */
+	private IngredientEntity resolveIngredient(String name) {
+		if (name == null) {
+			return null;
+		}
+		return ingredientRepository.findByName(name)
+				.orElseGet(() -> ingredientRepository.save(new IngredientEntity(name)));
 	}
 
 	private int nextVersionNumber(UUID userId, UUID recipeId) {

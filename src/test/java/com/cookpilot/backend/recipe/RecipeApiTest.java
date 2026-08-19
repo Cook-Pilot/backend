@@ -33,6 +33,9 @@ class RecipeApiTest extends PostgresApiTestBase {
 	private RecipeIngredientRepository ingredientRepository;
 
 	@Autowired
+	private IngredientRepository masterIngredientRepository;
+
+	@Autowired
 	private RecipeStepRepository stepRepository;
 
 	@Autowired
@@ -104,9 +107,9 @@ class RecipeApiTest extends PostgresApiTestBase {
 				"DB 전용 된장국", "하드코딩 Map에는 없는 레시피", BigDecimal.valueOf(2),
 				"https://cdn.cookpilot.app/recipes/doenjang.png"));
 		ingredientRepository.save(new RecipeIngredientEntity(
-				recipe.getId(), "물", BigDecimal.valueOf(500), "ml", true, 1));
+				recipe.getId(), ingredient("물"), BigDecimal.valueOf(500), "ml", true, 1));
 		ingredientRepository.save(new RecipeIngredientEntity(
-				recipe.getId(), "된장", BigDecimal.ONE, "큰술", true, 0));
+				recipe.getId(), ingredient("된장"), BigDecimal.ONE, "큰술", true, 0));
 		stepRepository.save(new RecipeStepEntity(
 				recipe.getId(), 1, "두부를 넣고 마저 끓여요.", 180, "냄비가 뜨거워요"));
 		stepRepository.save(new RecipeStepEntity(
@@ -138,17 +141,17 @@ class RecipeApiTest extends PostgresApiTestBase {
 		RecipeEntity basilPasta = recipeRepository.save(new RecipeEntity(
 				"검색전용 바질 파스타", "요리명 검색 검증", BigDecimal.valueOf(2)));
 		ingredientRepository.save(new RecipeIngredientEntity(
-				basilPasta.getId(), "생바질", BigDecimal.valueOf(10), "g", true, 0));
+				basilPasta.getId(), ingredient("생바질"), BigDecimal.valueOf(10), "g", true, 0));
 		RecipeEntity tomatoSoup = recipeRepository.save(new RecipeEntity(
 				"검색전용 토마토 수프", "재료명 검색 검증", BigDecimal.valueOf(2)));
 		ingredientRepository.save(new RecipeIngredientEntity(
-				tomatoSoup.getId(), "완숙 토마토", BigDecimal.valueOf(2), "개", true, 0));
+				tomatoSoup.getId(), ingredient("완숙 토마토"), BigDecimal.valueOf(2), "개", true, 0));
 		RecipeEntity inactiveBasil = new RecipeEntity(
 				"검색전용 바질 폐기본", "중복 숨김 검증", BigDecimal.valueOf(2));
 		inactiveBasil.setStatus("inactive");
 		inactiveBasil = recipeRepository.save(inactiveBasil);
 		ingredientRepository.save(new RecipeIngredientEntity(
-				inactiveBasil.getId(), "생바질", BigDecimal.ONE, "g", true, 0));
+				inactiveBasil.getId(), ingredient("생바질"), BigDecimal.ONE, "g", true, 0));
 
 		mockMvc.perform(get("/api/v1/recipes/search")
 				.param("title", "바질 파스타")
@@ -203,7 +206,7 @@ class RecipeApiTest extends PostgresApiTestBase {
 		RecipeEntity literalSymbols = recipeRepository.save(new RecipeEntity(
 				"검색기호 %_ 레시피", "LIKE 기호 검색 검증", BigDecimal.ONE));
 		ingredientRepository.save(new RecipeIngredientEntity(
-				literalSymbols.getId(), "100%_카카오", BigDecimal.ONE, "조각", true, 0));
+				literalSymbols.getId(), ingredient("100%_카카오"), BigDecimal.ONE, "조각", true, 0));
 
 		mockMvc.perform(get("/api/v1/recipes/search")
 				.param("title", "%_")
@@ -224,5 +227,11 @@ class RecipeApiTest extends PostgresApiTestBase {
 	void 없는_레시피는_404를_반환한다() throws Exception {
 		mockMvc.perform(get("/api/v1/recipes/99999999-0000-0000-0000-000000000000"))
 				.andExpect(status().isNotFound());
+	}
+
+	/** ingredients 마스터에서 이름으로 찾거나 만든다 — 컨테이너가 클래스 간 공유라 UNIQUE 충돌 방지. */
+	private IngredientEntity ingredient(String name) {
+		return masterIngredientRepository.findByName(name)
+				.orElseGet(() -> masterIngredientRepository.save(new IngredientEntity(name)));
 	}
 }
