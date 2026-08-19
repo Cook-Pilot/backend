@@ -835,8 +835,25 @@
         "required" : [ "clientSessionId", "rating", "recipeId" ],
         "type" : "object"
       },
+      "UpdateProfileRequest" : {
+        "properties" : {
+          "ageGroup" : {
+            "format" : "int32",
+            "type" : "integer"
+          },
+          "gender" : {
+            "enum" : [ "M", "F", "N" ],
+            "type" : "string"
+          }
+        },
+        "type" : "object"
+      },
       "User" : {
         "properties" : {
+          "ageGroup" : {
+            "format" : "int32",
+            "type" : "integer"
+          },
           "anonymous" : {
             "type" : "boolean"
           },
@@ -850,8 +867,16 @@
           "email" : {
             "type" : "string"
           },
+          "gender" : {
+            "enum" : [ "M", "F", "N" ],
+            "type" : "string"
+          },
           "id" : {
             "format" : "uuid",
+            "type" : "string"
+          },
+          "profileAskedAt" : {
+            "format" : "date-time",
             "type" : "string"
           }
         },
@@ -1445,6 +1470,32 @@
     "/api/v1/users/me" : {
       "get" : {
         "operationId" : "me",
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/User"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "user-controller" ]
+      },
+      "patch" : {
+        "operationId" : "updateProfile",
+        "requestBody" : {
+          "content" : {
+            "application/json" : {
+              "schema" : {
+                "$ref" : "#/components/schemas/UpdateProfileRequest"
+              }
+            }
+          },
+          "required" : true
+        },
         "responses" : {
           "200" : {
             "content" : {
