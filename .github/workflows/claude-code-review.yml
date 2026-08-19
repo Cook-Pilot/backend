@@ -1,0 +1,44 @@
+# PR 자동 리뷰. PR 이 열리거나 draft 에서 ready 가 되면 Claude 가 리뷰를 단다.
+# 매 push 재리뷰를 원하면 types 에 synchronize 를 추가한다(구독 사용량 소모 주의).
+name: Claude Auto Review
+
+on:
+  pull_request:
+    types: [opened, ready_for_review]
+
+jobs:
+  review:
+    # draft 는 리뷰하지 않는다.
+    if: '!github.event.pull_request.draft'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+      id-token: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Claude review
+        uses: anthropics/claude-code-action@v1
+        with:
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          prompt: |
+            REPO: ${{ github.repository }}
+            PR NUMBER: ${{ github.event.pull_request.number }}
+
+            이 PR 을 리뷰해줘. 한국어로 작성한다. 초점:
+            - 실제로 동작이 틀어지는 버그·경계 조건 (추측성 지적은 확신도를 명시)
+            - 보안·개인정보 (이 서비스는 개인정보처리방침과 코드 일치를 중시한다)
+            - 트랜잭션 경계·멱등성·재시도 안전성 (이 레포의 반복 관심사)
+            - 기존 컨벤션과의 불일치
+
+            PR 브랜치는 이미 체크아웃되어 있다.
+            전체 총평은 `gh pr comment` 로 한 번만 남기고,
+            특정 라인 지적은 `mcp__github_inline_comment__create_inline_comment` (confirmed: true) 를 쓴다.
+            칭찬 나열은 생략하고, 지적이 없으면 "지적 없음"이라고 짧게 남긴다.
+
+          claude_args: |
+            --allowedTools "mcp__github_inline_comment__create_inline_comment,Bash(gh pr comment:*),Bash(gh pr diff:*),Bash(gh pr view:*)"
