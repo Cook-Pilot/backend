@@ -37,7 +37,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 @Import(PostgresApiTestBase.MockMvcDefaults.class)
 public abstract class PostgresApiTestBase {
 
-	private static final String DEMO_USER_ID =
+	protected static final String DEMO_USER_ID =
 			"00000000-0000-0000-0000-000000000001";
 
 	static final PostgreSQLContainer POSTGRES = new PostgreSQLContainer("postgres:16-alpine");
