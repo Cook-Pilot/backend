@@ -9,7 +9,7 @@ public record User(
 		String displayName,
 		long betaNumber,
 		boolean anonymous,
-		String gender,
+		Gender gender,
 		Integer ageGroup,
 		Instant profileAskedAt
 ) {

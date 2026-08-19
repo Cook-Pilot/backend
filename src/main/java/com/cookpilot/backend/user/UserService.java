@@ -27,7 +27,6 @@ public class UserService {
 	private static final String BEARER_PREFIX = "Bearer ";
 	public static final String IDEMPOTENCY_KEY_HEADER = "Idempotency-Key";
 
-	private static final Set<String> GENDERS = Set.of("M", "F", "N");
 	private static final Set<Integer> AGE_GROUPS = Set.of(10, 20, 30, 40, 50, 60);
 
 	private final UserRepository userRepository;
@@ -89,9 +88,6 @@ public class UserService {
 	 */
 	@Transactional
 	public User updateProfile(UpdateProfileRequest request) {
-		if (request.gender() != null && !GENDERS.contains(request.gender())) {
-			throw new IllegalArgumentException("성별 값이 올바르지 않습니다: " + request.gender());
-		}
 		if (request.ageGroup() != null && !AGE_GROUPS.contains(request.ageGroup())) {
 			throw new IllegalArgumentException("연령대 값이 올바르지 않습니다: " + request.ageGroup());
 		}

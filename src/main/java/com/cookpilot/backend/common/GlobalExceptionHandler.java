@@ -8,6 +8,7 @@ import org.slf4j.LoggerFactory;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ProblemDetail;
+import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
@@ -61,6 +62,13 @@ public class GlobalExceptionHandler {
 	@ExceptionHandler(IllegalArgumentException.class)
 	public ProblemDetail handleBadRequest(IllegalArgumentException e) {
 		return ProblemDetail.forStatusAndDetail(HttpStatus.BAD_REQUEST, e.getMessage());
+	}
+
+	/** 본문 역직렬화 실패(깨진 JSON, enum 에 없는 값 등). 안 잡으면 ProblemDetail 없이 400 만 나간다. */
+	@ExceptionHandler(HttpMessageNotReadableException.class)
+	public ProblemDetail handleUnreadableBody(HttpMessageNotReadableException e) {
+		return ProblemDetail.forStatusAndDetail(
+				HttpStatus.BAD_REQUEST, "요청 본문을 읽을 수 없습니다. 필드 값 형식을 확인해 주세요.");
 	}
 
 	/** @Valid 바인딩 검증 실패. 필드별 메시지를 모아 400 ProblemDetail 로 내린다. */
