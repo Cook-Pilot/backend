@@ -10,7 +10,7 @@
 | 주소 | 탄력적 IP `13.209.243.235` (재부팅해도 유지) |
 | 보안 그룹 | 22(관리자 IP만) / 80 / 443. **8080·5432 는 열지 않는다** |
 | 접속 | SSH 키 또는 **AWS 콘솔 → EC2 → 연결 → Session Manager**(키·IP 불필요) |
-| 컨테이너 | `app`(Spring) + `db`(Postgres 16) + `watchtower` |
+| 컨테이너 | `app`(Spring) + `db`(Postgres 16) |
 | 사진 버킷 | `cookpilot-photos-167403240280` (`review-photos/*` 만 공개 읽기) |
 | 백업 버킷 | `cookpilot-backup-167403240280` (완전 비공개) |
 | IAM 역할 | `cookpilot-ec2-ssm` (SSM + S3). **자격증명 키는 서버에 두지 않는다** |
@@ -21,7 +21,6 @@
 infra/
 ├── setup.sh                     새 서버를 운영 상태로 만드는 멱등 스크립트
 ├── backup.sh                    DB 백업(pg_dump → gzip → S3, 최근 14개 유지)
-├── docker-compose.override.yml  watchtower 임시 조치(아래 "알려진 이슈")
 ├── docker/daemon.json           도커 로그 로테이션(10MB × 3)
 └── nginx/
     ├── cookpilot.conf           80 → 8080 리버스 프록시
@@ -32,6 +31,7 @@ infra/
 
 ```bash
 # 1. EC2 생성 (위 "운영 환경 요약"대로) 후 접속
+#    경로 고정: CI 의 SSM 배포가 /home/ubuntu/backend 를 pull 한다
 git clone https://github.com/Cook-Pilot/backend.git ~/backend
 cd ~/backend && ./infra/setup.sh
 # 2. 스크립트가 안내하는 .env 생성 → 기동
@@ -93,13 +93,14 @@ sudo install -m 644 infra/nginx/cookpilot.conf /etc/nginx/sites-available/defaul
 sudo nginx -t && sudo systemctl reload nginx
 ```
 
-**`docker-compose.prod.yml` 이 바뀌면 서버 파일도 갱신해야 한다.** Watchtower 는 **이미지만** 교체하고 compose 파일은 건드리지 않는다. 실제로 `PHOTOS_BUCKET` 을 추가했을 때 서버 파일이 낡아서 환경변수가 먹지 않은 적이 있다.
-
-**환경변수를 바꾸면 재기동이 필요하다.** 이미지 교체와 달리 자동 반영되지 않는다.
+**배포는 main 머지로 한다.** CI 의 `deploy` 잡이 SSM 으로 서버에서 `git pull` + `compose up` 을 실행하므로, 이미지와 `docker-compose.prod.yml` 변경이 함께 반영된다. 수동 배포가 필요하면:
 
 ```bash
-cd ~/cookpilot && sudo docker compose -f docker-compose.prod.yml -f docker-compose.override.yml up -d
+cd ~/backend && git pull && cp docker-compose.prod.yml ~/cookpilot/
+cd ~/cookpilot && sudo docker compose -f docker-compose.prod.yml up -d
 ```
+
+**`.env` 를 바꾸면 재기동이 필요하다.** 서버에만 있는 파일이라 배포로는 반영되지 않는다(위 명령의 마지막 줄).
 
 **로그 보기**
 
@@ -118,6 +119,5 @@ ssh -i cookpilot-key.pem -L 5432:localhost:5432 ubuntu@13.209.243.235
 
 ## 알려진 이슈
 
-- **watchtower 가 아카이브됐다**(2025-12-17, 보안 패치 영구 중단). Docker 29 와 API 가 맞지 않아 `docker-compose.override.yml` 로 `DOCKER_API_VERSION` 을 고정해 둔 임시 상태다. 도커 소켓을 마운트하는 컴포넌트라 장기 방치는 위험하다 — 대체 방안(SSM 배포 등) 논의 중.
 - **서버 시간대가 UTC** 다. 로그 시각과 cron(`0 19` = KST 04:00)을 볼 때 9시간 차이를 감안한다.
 - **EBS 스냅샷은 설정하지 않았다.** DB 는 S3 백업으로 커버되고 서버 설정은 이 디렉터리로 재현 가능하다는 판단. 필요해지면 AWS Backup 을 켠다.

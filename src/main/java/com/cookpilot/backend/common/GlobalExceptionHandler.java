@@ -13,6 +13,7 @@ import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.multipart.MaxUploadSizeExceededException;
 
+import com.cookpilot.backend.auth.InvalidTokenException;
 import com.cookpilot.backend.review.PhotoUploadFailedException;
 import com.cookpilot.backend.user.MissingUserSessionException;
 import com.cookpilot.backend.user.UserNotFoundException;
@@ -41,6 +42,14 @@ public class GlobalExceptionHandler {
 		ProblemDetail problem = ProblemDetail.forStatusAndDetail(
 				HttpStatus.UNAUTHORIZED, e.getMessage());
 		problem.setProperty("code", "USER_SESSION_REQUIRED");
+		return problem;
+	}
+
+	/** 세션 토큰이 없거나 만료·위조. 클라이언트는 재로그인시켜야 한다. */
+	@ExceptionHandler(InvalidTokenException.class)
+	public ProblemDetail handleInvalidToken(InvalidTokenException e) {
+		ProblemDetail problem = ProblemDetail.forStatusAndDetail(HttpStatus.UNAUTHORIZED, e.getMessage());
+		problem.setProperty("code", "INVALID_TOKEN");
 		return problem;
 	}
 

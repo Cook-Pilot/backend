@@ -7,8 +7,8 @@
 #
 # 이후 배포:
 #   main 푸시 -> CI가 ghcr.io/cook-pilot/backend:latest 갱신
-#            -> watchtower가 폴링으로 감지, app 컨테이너만 자동 교체
-#   (수동 개입 불필요. 기존 env/볼륨/포트 설정은 그대로 유지된다.)
+#            -> CI의 deploy 잡이 SSM으로 서버에서 git pull + compose up 실행
+#   (수동 개입 불필요. 이미지뿐 아니라 이 파일의 변경도 함께 반영된다.)
 
 services:
   app:
@@ -21,6 +21,10 @@ services:
       DB_URL: jdbc:postgresql://db:5432/${POSTGRES_DB}
       DB_USERNAME: ${POSTGRES_USER}
       DB_PASSWORD: ${POSTGRES_PASSWORD}
+      # 소셜 로그인. JWT_SECRET 이 바뀌면 발급된 토큰이 전부 무효가 된다.
+      JWT_SECRET: ${JWT_SECRET:-}
+      GOOGLE_CLIENT_IDS: ${GOOGLE_CLIENT_IDS:-}
+      DEV_LOGIN_SECRET: ${DEV_LOGIN_SECRET:-}
       # 리뷰 사진 버킷. 비우면 업로드 없이 목 URL 을 돌려준다.
       # 자격증명은 넣지 않는다 — EC2 인스턴스 역할을 SDK 가 자동으로 집는다.
       PHOTOS_BUCKET: ${PHOTOS_BUCKET:-}
@@ -43,9 +47,6 @@ services:
       timeout: 5s
       retries: 3
       start_period: 60s
-    labels:
-      # watchtower가 --label-enable 로 이 컨테이너만 감시한다.
-      com.centurylinklabs.watchtower.enable: "true"
 
   db:
     image: postgres:16-alpine
@@ -65,18 +66,6 @@ services:
       # 서버 호스트의 루프백에만 바인딩한다. 인터넷에는 노출되지 않고,
       # SSH 터널(ssh -L 5432:localhost:5432)로만 IDE에서 접근한다.
       - "127.0.0.1:5432:5432"
-    # watchtower 라벨은 붙이지 않는다 — DB가 멋대로 메이저 업그레이드되면 안 된다.
-
-  watchtower:
-    image: containrrr/watchtower:latest
-    restart: unless-stopped
-    volumes:
-      - /var/run/docker.sock:/var/run/docker.sock
-      # GHCR 패키지가 private 이면 아래 주석을 풀고, VPS에서 먼저:
-      #   echo <PAT> | docker login ghcr.io -u <github-id> --password-stdin
-      # (PAT 스코프: read:packages)
-      # - ~/.docker/config.json:/config.json:ro
-    command: --label-enable --cleanup --interval ${WATCHTOWER_INTERVAL:-300}
 
 volumes:
   pgdata:
