@@ -15,6 +15,7 @@ import org.springframework.web.bind.annotation.RestController;
 import com.cookpilot.backend.favorite.FavoriteService;
 import com.cookpilot.backend.personalrecipe.PersonalRecipeService;
 import com.cookpilot.backend.personalrecipe.PersonalRecipeVersion;
+import com.cookpilot.backend.user.UserService;
 
 @RestController
 @RequestMapping("/api/v1/recipes")
@@ -23,13 +24,16 @@ public class RecipeController {
 	private final RecipeService recipeService;
 	private final PersonalRecipeService personalRecipeService;
 	private final FavoriteService favoriteService;
+	private final UserService userService;
 
 	public RecipeController(RecipeService recipeService,
 			PersonalRecipeService personalRecipeService,
-			FavoriteService favoriteService) {
+			FavoriteService favoriteService,
+			UserService userService) {
 		this.recipeService = recipeService;
 		this.personalRecipeService = personalRecipeService;
 		this.favoriteService = favoriteService;
+		this.userService = userService;
 	}
 
 	@GetMapping
@@ -57,10 +61,16 @@ public class RecipeController {
 		if (recipes.isEmpty()) {
 			return List.of();
 		}
-		Map<UUID, PersonalRecipeVersion> latestByRecipe = personalRecipeService.findLatestByRecipes(
-				recipes.stream().map(RecipeOverview::id).toList());
-		Set<UUID> favoriteRecipeIds = favoriteService.findFavoriteRecipeIds(
-				recipes.stream().map(RecipeOverview::id).toList());
+		// 목록·검색·상세는 게스트에게도 열려 있다 — 로그인 요구는 앱이 저장 시점에 한다.
+		// 세션이 없으면 개인화(내 버전·즐겨찾기)만 기본값으로 비운다.
+		boolean loggedIn = userService.currentUserIdIfPresent().isPresent();
+		List<UUID> recipeIds = recipes.stream().map(RecipeOverview::id).toList();
+		Map<UUID, PersonalRecipeVersion> latestByRecipe = loggedIn
+				? personalRecipeService.findLatestByRecipes(recipeIds)
+				: Map.of();
+		Set<UUID> favoriteRecipeIds = loggedIn
+				? favoriteService.findFavoriteRecipeIds(recipeIds)
+				: Set.of();
 		return recipes.stream()
 				.map(recipe -> {
 					PersonalRecipeVersion latest = latestByRecipe.get(recipe.id());
