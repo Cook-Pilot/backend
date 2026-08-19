@@ -20,6 +20,7 @@ import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
 
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -120,6 +121,72 @@ class UserApiTest extends PostgresApiTestBase {
 		} finally {
 			executor.shutdownNow();
 		}
+	}
+
+	@Test
+	void 프로필을_입력하면_저장되고_물어본_시각이_찍힌다() throws Exception {
+		String userId = createAnonymousUserId();
+
+		mockMvc.perform(patch("/api/v1/users/me")
+						.header(UserService.USER_ID_HEADER, userId)
+						.contentType(MediaType.APPLICATION_JSON)
+						.content("{\"gender\": \"F\", \"ageGroup\": 20}"))
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$.gender").value("F"))
+				.andExpect(jsonPath("$.ageGroup").value(20))
+				.andExpect(jsonPath("$.profileAskedAt").isNotEmpty());
+
+		mockMvc.perform(get("/api/v1/users/me")
+						.header(UserService.USER_ID_HEADER, userId))
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$.gender").value("F"))
+				.andExpect(jsonPath("$.ageGroup").value(20))
+				.andExpect(jsonPath("$.profileAskedAt").isNotEmpty());
+	}
+
+	@Test
+	void 건너뛰기는_값_없이_물어본_시각만_기록한다() throws Exception {
+		String userId = createAnonymousUserId();
+
+		mockMvc.perform(get("/api/v1/users/me")
+						.header(UserService.USER_ID_HEADER, userId))
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$.profileAskedAt").isEmpty());
+
+		mockMvc.perform(patch("/api/v1/users/me")
+						.header(UserService.USER_ID_HEADER, userId)
+						.contentType(MediaType.APPLICATION_JSON)
+						.content("{}"))
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$.gender").isEmpty())
+				.andExpect(jsonPath("$.ageGroup").isEmpty())
+				.andExpect(jsonPath("$.profileAskedAt").isNotEmpty());
+	}
+
+	@Test
+	void 허용되지_않은_프로필_값은_400을_반환한다() throws Exception {
+		String userId = createAnonymousUserId();
+
+		mockMvc.perform(patch("/api/v1/users/me")
+						.header(UserService.USER_ID_HEADER, userId)
+						.contentType(MediaType.APPLICATION_JSON)
+						.content("{\"gender\": \"X\"}"))
+				.andExpect(status().isBadRequest());
+
+		mockMvc.perform(patch("/api/v1/users/me")
+						.header(UserService.USER_ID_HEADER, userId)
+						.contentType(MediaType.APPLICATION_JSON)
+						.content("{\"ageGroup\": 25}"))
+				.andExpect(status().isBadRequest());
+	}
+
+	private String createAnonymousUserId() throws Exception {
+		String body = mockMvc.perform(post("/api/v1/users/anonymous"))
+				.andExpect(status().isCreated())
+				.andReturn()
+				.getResponse()
+				.getContentAsString();
+		return objectMapper.readTree(body).get("id").asText();
 	}
 
 	@Test

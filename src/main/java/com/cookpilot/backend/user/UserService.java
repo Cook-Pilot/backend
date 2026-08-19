@@ -1,5 +1,6 @@
 package com.cookpilot.backend.user;
 
+import java.util.Set;
 import java.util.UUID;
 
 import org.springframework.http.HttpHeaders;
@@ -25,6 +26,8 @@ public class UserService {
 
 	private static final String BEARER_PREFIX = "Bearer ";
 	public static final String IDEMPOTENCY_KEY_HEADER = "Idempotency-Key";
+
+	private static final Set<Integer> AGE_GROUPS = Set.of(10, 20, 30, 40, 50, 60);
 
 	private final UserRepository userRepository;
 	private final EntityManager entityManager;
@@ -79,6 +82,23 @@ public class UserService {
 						"사용자를 찾을 수 없습니다: " + userId));
 	}
 
+	/**
+	 * 온보딩 프로필 저장. 빈 body(건너뛰기)여도 profile_asked_at 은 찍는다 —
+	 * 이 시각이 null 인 동안만 클라이언트가 온보딩을 띄운다.
+	 */
+	@Transactional
+	public User updateProfile(UpdateProfileRequest request) {
+		if (request.ageGroup() != null && !AGE_GROUPS.contains(request.ageGroup())) {
+			throw new IllegalArgumentException("연령대 값이 올바르지 않습니다: " + request.ageGroup());
+		}
+		UUID userId = currentUserId();
+		UserEntity entity = userRepository.findById(userId)
+				.orElseThrow(() -> new UserNotFoundException(
+						"사용자를 찾을 수 없습니다: " + userId));
+		entity.applyProfile(request.gender(), request.ageGroup());
+		return toUser(entity);
+	}
+
 	@Transactional
 	public User lockCurrentUser() {
 		UUID userId = currentUserId();
@@ -130,6 +150,9 @@ public class UserService {
 				entity.getEmail(),
 				entity.getDisplayName(),
 				entity.getBetaNumber(),
-				entity.isAnonymous());
+				entity.isAnonymous(),
+				entity.getGender(),
+				entity.getAgeGroup(),
+				entity.getProfileAskedAt());
 	}
 }

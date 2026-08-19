@@ -8,6 +8,8 @@ import org.hibernate.annotations.UpdateTimestamp;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
@@ -51,6 +53,19 @@ public class UserEntity {
 	@Column(name = "anonymous_installation_id")
 	private UUID anonymousInstallationId;
 
+	/** 성별. 온보딩 선택 항목이라 null 허용. */
+	@Enumerated(EnumType.STRING)
+	@Column(name = "gender")
+	private Gender gender;
+
+	/** 연령대(10~60, 60은 60세 이상). 온보딩 선택 항목이라 null 허용. */
+	@Column(name = "age_group")
+	private Integer ageGroup;
+
+	/** 온보딩에서 물어본 시각. null 이면 아직 안 물어봤다 — 건너뛰어도 찍힌다. */
+	@Column(name = "profile_asked_at")
+	private Instant profileAskedAt;
+
 	@CreationTimestamp
 	@Column(name = "created_at", nullable = false, updatable = false)
 	private Instant createdAt;
@@ -87,6 +102,17 @@ public class UserEntity {
 		entity.provider = provider;
 		entity.providerUserId = providerUserId;
 		return entity;
+	}
+
+	/** 온보딩 결과 반영. 값이 없어도(건너뛰기) 물어봤다는 사실은 기록한다. */
+	public void applyProfile(Gender gender, Integer ageGroup) {
+		if (gender != null) {
+			this.gender = gender;
+		}
+		if (ageGroup != null) {
+			this.ageGroup = ageGroup;
+		}
+		this.profileAskedAt = Instant.now();
 	}
 
 	/**
