@@ -30,7 +30,13 @@ import com.cookpilot.backend.user.UserService;
 import software.amazon.awssdk.core.exception.SdkException;
 import software.amazon.awssdk.core.sync.RequestBody;
 import software.amazon.awssdk.services.s3.S3Client;
+import software.amazon.awssdk.services.s3.model.Delete;
+import software.amazon.awssdk.services.s3.model.DeleteObjectsRequest;
+import software.amazon.awssdk.services.s3.model.DeleteObjectsResponse;
 import software.amazon.awssdk.services.s3.model.GetObjectRequest;
+import software.amazon.awssdk.services.s3.model.ListObjectsV2Request;
+import software.amazon.awssdk.services.s3.model.ListObjectsV2Response;
+import software.amazon.awssdk.services.s3.model.ObjectIdentifier;
 import software.amazon.awssdk.services.s3.model.PutObjectRequest;
 import software.amazon.awssdk.services.s3.presigner.S3Presigner;
 import software.amazon.awssdk.services.s3.presigner.model.GetObjectPresignRequest;
@@ -128,6 +134,51 @@ public class ReviewPhotoService {
 		return storedRefs.stream()
 				.map(ref -> ref.startsWith(ownPrefix) ? presignGet(ref) : ref)
 				.toList();
+	}
+
+	/**
+	 * 탈퇴한 사용자의 사진 객체 전부 삭제(#79, 방침 제4조). #74 부터 키가
+	 * {@code review-photos/{userId}/…} 라 리뷰 행을 읽지 않고 접두사로 일괄 삭제한다.
+	 * #74 이전에 올라간 옛 공개 URL 행은 키를 역산할 수 없어 여기서 못 지운다 —
+	 * 베타 데이터 정리(#52·#71 미결)와 함께 별도 판단.
+	 *
+	 * 실패는 {@link PhotoDeletionFailedException} 으로 올린다. 호출측이 S3 → DB 순서로
+	 * 지우므로 여기서 실패하면 계정이 남아 있어 재시도가 된다. 부분 삭제 후 실패도
+	 * 재시도로 수렴한다(지워진 키는 다음 목록에 안 나온다).
+	 */
+	public void deleteAllForUser(UUID userId) {
+		if (!StringUtils.hasText(bucket)) {
+			return;
+		}
+		String prefix = KEY_PREFIX + userId + "/";
+		S3Client s3 = s3ClientProvider.getObject();
+		try {
+			String continuationToken = null;
+			do {
+				ListObjectsV2Response page = s3.listObjectsV2(ListObjectsV2Request.builder()
+						.bucket(bucket)
+						.prefix(prefix)
+						.continuationToken(continuationToken)
+						.build());
+				if (!page.contents().isEmpty()) {
+					List<ObjectIdentifier> keys = page.contents().stream()
+							.map(object -> ObjectIdentifier.builder().key(object.key()).build())
+							.toList();
+					DeleteObjectsResponse deleted = s3.deleteObjects(DeleteObjectsRequest.builder()
+							.bucket(bucket)
+							.delete(Delete.builder().objects(keys).build())
+							.build());
+					if (deleted.hasErrors()) {
+						// 일부만 지워진 채 조용히 성공하면 방침 위반이 잔존한다.
+						throw new PhotoDeletionFailedException(
+								"사진 일부를 삭제하지 못했습니다: " + deleted.errors().get(0).message(), null);
+					}
+				}
+				continuationToken = page.nextContinuationToken();
+			} while (continuationToken != null);
+		} catch (SdkException exception) {
+			throw new PhotoDeletionFailedException("사진 삭제에 실패했습니다.", exception);
+		}
 	}
 
 	private String presignGet(String key) {

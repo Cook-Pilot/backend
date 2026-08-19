@@ -24,6 +24,15 @@ public interface UserRepository extends JpaRepository<UserEntity, UUID> {
 	@Query("SELECT user FROM UserEntity user WHERE user.id = :id")
 	Optional<UserEntity> findByIdForUpdate(@Param("id") UUID id);
 
+	/**
+	 * 탈퇴 기록(tombstone). 백업 복원 후 삭제를 재적용하기 위한 목록이다(방침 제8조,
+	 * infra/README 재해 복구 절차). ON CONFLICT 는 재시도 대비.
+	 */
+	@Modifying
+	@Query(value = "INSERT INTO account_deletions (user_id) VALUES (:userId) ON CONFLICT DO NOTHING",
+			nativeQuery = true)
+	int recordDeletion(@Param("userId") UUID userId);
+
 	@Modifying
 	@Query(value = """
 			INSERT INTO users (

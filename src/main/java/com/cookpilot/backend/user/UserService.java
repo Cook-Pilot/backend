@@ -99,6 +99,19 @@ public class UserService {
 		return toUser(entity);
 	}
 
+	/**
+	 * 계정 행 삭제 + 탈퇴 기록을 한 트랜잭션으로. 기록만 남고 계정이 살아 있으면
+	 * 복원 절차가 멀쩡한 계정을 지우게 되므로 둘은 반드시 함께 커밋되어야 한다.
+	 * 연관 행(후기·개인 버전·즐겨찾기·추천 반응)은 FK CASCADE 가 지운다(V16).
+	 *
+	 * S3·카카오 등 외부 호출은 여기 넣지 않는다 — 순서 조율은 {@link AccountDeletionService}.
+	 */
+	@Transactional
+	public void deleteAccount(UUID userId) {
+		userRepository.recordDeletion(userId);
+		userRepository.deleteById(userId);
+	}
+
 	@Transactional
 	public User lockCurrentUser() {
 		UUID userId = currentUserId();

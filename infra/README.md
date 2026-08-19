@@ -66,14 +66,34 @@ aws s3 cp s3://cookpilot-backup-167403240280/db/<파일명> - \
   | sudo docker exec -i cookpilot-db-1 psql -U cookpilot -d cookpilot
 ```
 
-5. 나머지를 기동한다. Flyway 는 복원된 스키마를 보고 `No migration necessary` 로 지나간다.
+5. **탈퇴 재적용** — 방침 제8조: 복원으로 이미 탈퇴한 이용자가 되살아나면 안 된다.
+   백업 시점 이후에 탈퇴한 계정은 덤프 안에 되살아 있다. 기존 DB 가 아직 살아 있는
+   복원(데이터 오염 롤백 등)이라면 복원 **전** 탈퇴 기록을 보관했다가 **후**에 재적용한다
+   (연쇄 삭제가 후기·버전·즐겨찾기까지 정리한다):
+
+```bash
+# 복원 전 — 탈퇴 기록만 따로 보관
+sudo docker exec cookpilot-db-1 psql -U cookpilot -d cookpilot -t -A   -c "SELECT user_id FROM account_deletions;" > /tmp/deleted-users.txt
+
+# 복원 후 — 재적용 (S3 사진은 탈퇴 시점에 이미 지워졌지만 만약을 위해 접두사 삭제를 함께)
+while read id; do
+  sudo docker exec cookpilot-db-1 psql -U cookpilot -d cookpilot     -c "INSERT INTO account_deletions (user_id) VALUES ('$id') ON CONFLICT DO NOTHING; DELETE FROM users WHERE id = '$id';"
+  aws s3 rm "s3://cookpilot-photos-167403240280/review-photos/$id/" --recursive
+done < /tmp/deleted-users.txt
+```
+
+   **서버 전체 소실이라면 이 목록을 만들 원본이 없다** — 마지막 백업 이후의 탈퇴는 DB 행이
+   되살아난다(사진·카카오 연결은 탈퇴 시점에 이미 삭제/해제됨). 노출 창은 백업 주기(일 1회)다.
+   해당 기간의 탈퇴가 확인되면(카카오 unlink 로그, CS 문의 등) 위 재적용 명령으로 지운다.
+
+6. 나머지를 기동한다. Flyway 는 복원된 스키마를 보고 `No migration necessary` 로 지나간다.
 
 ```bash
 sudo docker compose -f docker-compose.prod.yml up -d
 ```
 
-6. **탄력적 IP 를 새 인스턴스로 옮긴다** — EC2 → 탄력적 IP → 연결. 이러면 앱·DNS 설정을 바꿀 필요가 없다
-7. 확인: `curl localhost:8080/actuator/health`, 그리고 **행 수가 운영과 맞는지**
+7. **탄력적 IP 를 새 인스턴스로 옮긴다** — EC2 → 탄력적 IP → 연결. 이러면 앱·DNS 설정을 바꿀 필요가 없다
+8. 확인: `curl localhost:8080/actuator/health`, 그리고 **행 수가 운영과 맞는지**
 
 ```bash
 sudo docker exec cookpilot-db-1 psql -U cookpilot -d cookpilot -t \
