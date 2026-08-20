@@ -29,10 +29,15 @@ FOODSAFETY_API_KEY=... python3 fetch_recipe_source.py
 SELECT json_agg(x) FROM (
   SELECT r.id, r.title,
          COALESCE((SELECT json_agg(i ORDER BY i.sort_order)
-                     FROM (SELECT id, name, amount, unit, sort_order, ingredient_group
-                             FROM recipe_ingredients WHERE recipe_id = r.id) i), '[]') AS ingredients
+                     FROM (SELECT ri.id, ing.name, ri.amount, ri.unit, ri.sort_order, ri.ingredient_group
+                             FROM recipe_ingredients ri
+                             JOIN ingredients ing ON ing.id = ri.ingredient_id
+                            WHERE ri.recipe_id = r.id) i), '[]') AS ingredients
     FROM recipes r ORDER BY r.title, r.id) x;
 ```
+
+V19(재료 정규화) 이후의 SQL 이다 — 이름이 `ingredients` 마스터로 옮겨져 조인이 필요하다.
+V19 가 아직 안 붙은 환경에서는 조인 없이 `recipe_ingredients.name` 을 직접 읽는다.
 
 운영 접근은 AWS CLI + SSM 이다. **SSM 명령에 `$$`·`$X$` 같은 달러 인용을 넣으면 셸이 치환해
 깨진다** — 확인 쿼리는 SQL 파일로 보낼 것.

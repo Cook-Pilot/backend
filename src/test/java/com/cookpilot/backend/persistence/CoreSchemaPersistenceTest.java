@@ -26,6 +26,8 @@ import com.cookpilot.backend.personalrecipe.PersonalRecipeVersionEntity;
 import com.cookpilot.backend.personalrecipe.PersonalRecipeVersionRepository;
 import com.cookpilot.backend.personalrecipe.PersonalStepAdjustmentEntity;
 import com.cookpilot.backend.personalrecipe.PersonalStepAdjustmentRepository;
+import com.cookpilot.backend.recipe.IngredientEntity;
+import com.cookpilot.backend.recipe.IngredientRepository;
 import com.cookpilot.backend.recipe.RecipeEntity;
 import com.cookpilot.backend.recipe.RecipeIngredientEntity;
 import com.cookpilot.backend.recipe.RecipeIngredientRepository;
@@ -71,6 +73,8 @@ class CoreSchemaPersistenceTest {
 	@Autowired
 	private RecipeIngredientRepository ingredientRepository;
 	@Autowired
+	private IngredientRepository masterIngredientRepository;
+	@Autowired
 	private RecipeStepRepository stepRepository;
 	@Autowired
 	private PersonalRecipeVersionRepository versionRepository;
@@ -92,8 +96,8 @@ class CoreSchemaPersistenceTest {
 		RecipeEntity recipe = recipeRepository.save(
 				new RecipeEntity("라면", "기본 라면", new BigDecimal("1.00")));
 
-		ingredientRepository.save(new RecipeIngredientEntity(recipe.getId(), "물", new BigDecimal("500.00"), "ml", true, 0));
-		ingredientRepository.save(new RecipeIngredientEntity(recipe.getId(), "면", null, null, true, 1));
+		ingredientRepository.save(new RecipeIngredientEntity(recipe.getId(), ingredient("물"), new BigDecimal("500.00"), "ml", true, 0));
+		ingredientRepository.save(new RecipeIngredientEntity(recipe.getId(), ingredient("면"), null, null, true, 1));
 		stepRepository.save(new RecipeStepEntity(recipe.getId(), 0, "물 500ml를 넣고 끓인다.", 180, null));
 		stepRepository.save(new RecipeStepEntity(recipe.getId(), 1, "면과 스프를 넣는다.", 180, "화상 주의"));
 		flushAndClear();
@@ -235,7 +239,7 @@ class CoreSchemaPersistenceTest {
 		UserEntity user = userRepository.save(new UserEntity("diff@test.com", "diff"));
 		RecipeEntity recipe = recipeRepository.save(new RecipeEntity("diff레시피", null, null));
 		RecipeIngredientEntity water = ingredientRepository.save(
-				new RecipeIngredientEntity(recipe.getId(), "물", new BigDecimal("500.00"), "ml", true, 0));
+				new RecipeIngredientEntity(recipe.getId(), ingredient("물"), new BigDecimal("500.00"), "ml", true, 0));
 		RecipeStepEntity boil = stepRepository.save(
 				new RecipeStepEntity(recipe.getId(), 0, "끓인다", 180, null));
 
@@ -246,7 +250,7 @@ class CoreSchemaPersistenceTest {
 				version.getId(), water.getId(), AdjustmentType.MODIFY, null, new BigDecimal("400.00"),
 				null, null, 0));
 		ingredientAdjustmentRepository.save(new PersonalIngredientAdjustmentEntity(
-				version.getId(), null, AdjustmentType.ADD, "소금", new BigDecimal("1.00"), "꼬집",
+				version.getId(), null, AdjustmentType.ADD, ingredient("소금"), new BigDecimal("1.00"), "꼬집",
 				false, 1));
 		stepAdjustmentRepository.save(new PersonalStepAdjustmentEntity(
 				version.getId(), boil.getId(), AdjustmentType.MODIFY, null, 0, "약불로 끓인다", null, null));
@@ -276,7 +280,7 @@ class CoreSchemaPersistenceTest {
 		UserEntity user = userRepository.save(new UserEntity("amount-null@test.com", "amount-null"));
 		RecipeEntity recipe = recipeRepository.save(new RecipeEntity("amount-null레시피", null, null));
 		RecipeIngredientEntity water = ingredientRepository.save(
-				new RecipeIngredientEntity(recipe.getId(), "물", new BigDecimal("500.00"), "ml", true, 0));
+				new RecipeIngredientEntity(recipe.getId(), ingredient("물"), new BigDecimal("500.00"), "ml", true, 0));
 		PersonalRecipeVersionEntity version = versionRepository.save(new PersonalRecipeVersionEntity(
 				user.getId(), recipe.getId(), 1, "amount-null버전", null, null));
 
@@ -297,14 +301,14 @@ class CoreSchemaPersistenceTest {
 		UserEntity user = userRepository.save(new UserEntity("check@test.com", "check"));
 		RecipeEntity recipe = recipeRepository.save(new RecipeEntity("check레시피", null, null));
 		RecipeIngredientEntity water = ingredientRepository.save(
-				new RecipeIngredientEntity(recipe.getId(), "물", null, null, true, 0));
+				new RecipeIngredientEntity(recipe.getId(), ingredient("물"), null, null, true, 0));
 		PersonalRecipeVersionEntity version = versionRepository.save(new PersonalRecipeVersionEntity(
 				user.getId(), recipe.getId(), 1, "check버전", null, null));
 
 		// ADD 는 원본 참조가 있으면 안 된다(DB CHECK).
 		assertThatThrownBy(() -> ingredientAdjustmentRepository.saveAndFlush(
 				new PersonalIngredientAdjustmentEntity(version.getId(), water.getId(),
-						AdjustmentType.ADD, "소금", null, null, null, 0)))
+						AdjustmentType.ADD, ingredient("소금"), null, null, null, 0)))
 				.isInstanceOf(DataIntegrityViolationException.class);
 	}
 
@@ -319,6 +323,12 @@ class CoreSchemaPersistenceTest {
 				new PersonalIngredientAdjustmentEntity(version.getId(), null,
 						AdjustmentType.MODIFY, null, new BigDecimal("1.00"), null, null, 0)))
 				.isInstanceOf(DataIntegrityViolationException.class);
+	}
+
+	/** ingredients 마스터에서 이름으로 찾거나 만든다 — 같은 클래스 내 재사용 시 UNIQUE 충돌 방지. */
+	private IngredientEntity ingredient(String name) {
+		return masterIngredientRepository.findByName(name)
+				.orElseGet(() -> masterIngredientRepository.save(new IngredientEntity(name)));
 	}
 
 	/** DB까지 강제 반영 후 영속성 컨텍스트를 비워, 다음 조회가 실제 SELECT를 타게 한다(진짜 왕복 검증). */
