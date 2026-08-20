@@ -7,7 +7,6 @@ import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.web.servlet.MockMvc;
 
 import com.cookpilot.backend.PostgresApiTestBase;
-import com.cookpilot.backend.user.UserService;
 import tools.jackson.databind.ObjectMapper;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -56,9 +55,7 @@ class AuthApiTest extends PostgresApiTestBase {
 		String token = issueDevToken();
 
 		mockMvc.perform(get("/api/v1/users/me")
-						.header("Authorization", "Bearer " + token)
-						// 구 헤더가 함께 와도 토큰이 우선한다.
-						.header(UserService.USER_ID_HEADER, ""))
+						.header("Authorization", "Bearer " + token))
 				.andExpect(status().isOk())
 				.andExpect(jsonPath("$.displayName").value("개발자"));
 	}
