@@ -225,4 +225,48 @@ class RecipeApiTest extends PostgresApiTestBase {
 		mockMvc.perform(get("/api/v1/recipes/99999999-0000-0000-0000-000000000000"))
 				.andExpect(status().isNotFound());
 	}
+
+	@Test
+	void 상세_응답에_원본_출처가_나온다() throws Exception {
+		// #85: 원본에서 끌고 온 레시피는 어디서 왔는지 API 로 바로 확인할 수 있어야 한다.
+		RecipeEntity sourced = new RecipeEntity(
+				"출처 확인용 레시피", "원본 추적 검증", BigDecimal.ONE);
+		sourced.setSourceType("COOKRCP01");
+		sourced.setSourceRef("28");
+		sourced = recipeRepository.save(sourced);
+
+		mockMvc.perform(get("/api/v1/recipes/" + sourced.getId()))
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$.sourceType").value("COOKRCP01"))
+				.andExpect(jsonPath("$.sourceRef").value("28"));
+
+		// 손으로 만든 레시피(시드)는 출처가 비어 있다.
+		mockMvc.perform(get("/api/v1/recipes/" + TestRecipeIds.RAMEN_RECIPE_ID))
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$.sourceType").isEmpty())
+				.andExpect(jsonPath("$.sourceRef").isEmpty());
+	}
+
+	@Test
+	void 출처는_쌍으로만_저장되고_같은_원본은_두_번_못_들어온다() throws Exception {
+		// 쌍 CHECK: type 만 있으면 거부
+		RecipeEntity half = new RecipeEntity("출처 반쪽", null, BigDecimal.ONE);
+		half.setSourceType("COOKRCP01");
+		org.assertj.core.api.Assertions.assertThatThrownBy(
+				() -> recipeRepository.saveAndFlush(half))
+				.isInstanceOf(org.springframework.dao.DataIntegrityViolationException.class);
+
+		// 부분 UNIQUE: 같은 (type, ref) 재적재 거부
+		RecipeEntity first = new RecipeEntity("출처 중복 1", null, BigDecimal.ONE);
+		first.setSourceType("COOKRCP01");
+		first.setSourceRef("777");
+		recipeRepository.saveAndFlush(first);
+
+		RecipeEntity second = new RecipeEntity("출처 중복 2", null, BigDecimal.ONE);
+		second.setSourceType("COOKRCP01");
+		second.setSourceRef("777");
+		org.assertj.core.api.Assertions.assertThatThrownBy(
+				() -> recipeRepository.saveAndFlush(second))
+				.isInstanceOf(org.springframework.dao.DataIntegrityViolationException.class);
+	}
 }

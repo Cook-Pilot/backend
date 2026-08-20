@@ -39,7 +39,7 @@ SELECT json_agg(x) FROM (
 
 ### 중간 산출물
 
-`rebuild.json`(이름 재구성 결과) · `group_assign.json`(그룹 매칭) · `tag_assign.json`(태그 부여) ·
+`rebuild.json`(이름 재구성 결과) · `group_assign.json`(그룹 매칭) · `tag_assign.json + source_ref.json`(태그 부여) ·
 `deferred.json`(보류 목록)은 아래 스크립트들이 만든다.
 
 ## 파이프라인
@@ -90,3 +90,11 @@ python3 test_extract_recipe_tags.py
 - **재료 `id` 의 UUIDv5 네임스페이스는 알 수 없다.** 8/17 에 재구성한 행만
   `uuid5(uuid5(URL,'https://cookpilot.app/recipe-ingredient'), '<recipe_id>:<sort_order>:<name>')`
   로 결정론적이다.
+
+
+## 출처 백필 (#85)
+
+`extract_recipe_tags.py` 는 제목 매칭의 부산물로 `source_ref.json` 도 만든다 —
+제목이 원문에서 유일한 레시피의 `(recipe_id, RCP_SEQ)` 쌍이다. `gen_recipe_tags_sql.py` 가
+같은 SQL 안에 `recipes.source_type/source_ref` 백필 섹션을 넣는다(V18 컬럼).
+이걸 한 번 반영하고 나면 다음 유지보수부터는 제목 매칭 없이 `source_ref` 로 원문을 찾는다.

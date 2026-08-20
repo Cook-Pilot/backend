@@ -15,6 +15,7 @@ ASSIGNED_BY = "IMPORT"   # 원문에서 그대로 옮긴 것. 사람 판단도 L
 
 def main():
     assignments = json.load(open("tag_assign.json"))
+    source_refs = json.load(open("source_ref.json"))
     details = json.load(open("details.json"))
 
     rows = [(a["recipe_id"], t["code"], t["axis"]) for a in assignments for t in a["tags"]]
@@ -106,10 +107,54 @@ BEGIN
   IF n <> 0 THEN RAISE EXCEPTION '배타축이 중복된 레시피가 %건 있다', n; END IF;
 END
 $verify$;
+""")
+
+    # ── 출처(RCP_SEQ) 백필 (#85) — 제목 매칭의 부산물을 저장해 다음 매칭을 없앤다 ──
+    out(f"""
+-- ── 원본 출처 백필 (#85) ──────────────────────────────────────────────────────
+-- 제목이 원문에서 유일했던 레시피만 담겨 있다({len(source_refs)}건). 겹친 제목은 비워 둔다.
+
+CREATE TEMP TABLE src_ref (recipe_id UUID, ref TEXT) ON COMMIT DROP;
+
+INSERT INTO src_ref (recipe_id, ref) VALUES
+""")
+    out(",\n".join(f"  ('{s['recipe_id']}', '{s['rcp_seq']}')" for s in source_refs) + ";\n")
+    out(f"""
+DO $source$
+DECLARE n BIGINT;
+BEGIN
+  SELECT count(*) INTO n FROM src_ref;
+  IF n <> {len(source_refs)} THEN RAISE EXCEPTION '출처가 {len(source_refs)}건이어야 하는데 %건이다', n; END IF;
+
+  SELECT count(*) INTO n FROM src_ref s
+   WHERE NOT EXISTS (SELECT 1 FROM recipes r WHERE r.id = s.recipe_id);
+  IF n <> 0 THEN RAISE EXCEPTION '대상 레시피 %건이 존재하지 않는다', n; END IF;
+
+  -- 이미 출처가 있으면 재실행이거나 다른 경로가 먼저 채운 것이다. 덮어쓰지 않고 멈춘다.
+  SELECT count(*) INTO n FROM recipes r JOIN src_ref s ON r.id = s.recipe_id
+   WHERE r.source_type IS NOT NULL;
+  IF n <> 0 THEN RAISE EXCEPTION '대상 레시피 %건에 이미 출처가 있다. 재실행인지 확인할 것', n; END IF;
+END
+$source$;
+
+UPDATE recipes r
+SET source_type = 'COOKRCP01', source_ref = s.ref
+FROM src_ref s
+WHERE r.id = s.recipe_id;
+
+DO $source_verify$
+DECLARE n BIGINT;
+BEGIN
+  SELECT count(*) INTO n FROM recipes WHERE source_type = 'COOKRCP01';
+  IF n <> {len(source_refs)} THEN
+    RAISE EXCEPTION '반영 후 COOKRCP01 출처가 {len(source_refs)}건이어야 하는데 %건이다', n;
+  END IF;
+END
+$source_verify$;
 
 COMMIT;
 """)
-    sys.stderr.write(f"부여 {len(rows)}행 / {len(assignments)}레시피\n")
+    sys.stderr.write(f"부여 {len(rows)}행 / {len(assignments)}레시피, 출처 {len(source_refs)}건\n")
     for code in codes:
         sys.stderr.write(f"  {code:<20} {per_code[code]}\n")
 
