@@ -60,7 +60,7 @@ class RecipeTagSchemaTest {
 		assertThat(jdbc.queryForObject(
 				"SELECT count(*) FROM tags WHERE axis_code = 'METHOD'", Integer.class)).isEqualTo(5);
 		assertThat(jdbc.queryForObject(
-				"SELECT count(*) FROM tags WHERE axis_code = 'OCCASION'", Integer.class)).isEqualTo(8);
+				"SELECT count(*) FROM tags WHERE axis_code = 'OCCASION'", Integer.class)).isEqualTo(11);
 	}
 
 	@Test
