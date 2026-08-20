@@ -178,7 +178,7 @@ class RecipeTagSchemaTest {
 				.isZero();
 	}
 
-	// ── V16 ─────────────────────────────────────────────────────────────────
+	// ── V17 ─────────────────────────────────────────────────────────────────
 
 	/** match_rule 이 채워진 파생 태그. 시드에는 하나도 없어서 테스트마다 만든다. */
 	private void seedDerivedTag(String code, String axisCode) {

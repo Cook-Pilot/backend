@@ -58,7 +58,7 @@ recipe_tags   recipe_id · tag_code · axis_code · assigned_by · confidence
 
 바뀔 수 있는 것은 열쇠에서 분리했다. `label_ko`("반찬" → "밑반찬")는 PK 가 아니라 언제든 고친다.
 
-자연키의 통상적 단점(개명하면 참조가 깨진다)은 **V16 의 `ON UPDATE CASCADE` 로 해소**했다.
+자연키의 통상적 단점(개명하면 참조가 깨진다)은 **V17 의 `ON UPDATE CASCADE` 로 해소**했다.
 V14 에는 그게 빠져 있어서 자연키를 쓰면서 완화 장치는 없는 상태였다.
 
 ## 벗어난 곳 ② — `axis_code` 를 중복 저장한다 (2NF 위반)
