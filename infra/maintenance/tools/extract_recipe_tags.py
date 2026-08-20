@@ -15,7 +15,7 @@
 """
 import json
 import sys
-from collections import defaultdict
+from collections import Counter, defaultdict
 
 # 원문 값 → 사전 code. 원문 표기 그대로가 열쇠다('국&찌개'는 & 이고 태그 라벨의 '국·찌개'와 다르다).
 DISH = {
@@ -41,12 +41,14 @@ def assign(source_rows, db_recipes):
     """(부여 목록, 출처 매핑, 리포트) 를 돌려준다. 파일도 DB 도 건드리지 않는 순수 함수다.
 
     출처 매핑(#85): 어차피 제목 매칭을 하므로 그 부산물로 (recipe_id, RCP_SEQ) 쌍을
-    기록한다. 제목이 원문에서 유일할 때만 — 겹치면 어느 행인지 정할 근거가 없다.
+    기록한다. 제목이 원문과 DB 양쪽에서 유일할 때만 — 원문 쪽이 겹치면 어느 행인지 정할
+    근거가 없고, DB 쪽이 겹치면 같은 번호가 두 레시피에 들어가 부분 UNIQUE 에 걸린다.
     이걸 기록해 두면 다음부터는 제목 매칭이 필요 없어진다(세 번째 삽질 방지).
     """
     by_title = defaultdict(list)
     for row in source_rows:
         by_title[row["RCP_NM"].strip()].append(row)
+    db_title_counts = Counter(r["title"].strip() for r in db_recipes)
 
     assignments = []
     source_refs = []
@@ -62,6 +64,7 @@ def assign(source_rows, db_recipes):
         "unknown_value": defaultdict(int),
         "source_ref_recorded": 0,
         "source_ref_dup_title": 0,
+        "source_ref_dup_db_title": 0,
         "source_ref_missing_seq": 0,
     }
 
@@ -73,16 +76,21 @@ def assign(source_rows, db_recipes):
             continue
         report["matched"] += 1
 
-        if len(rows) == 1:
+        if len(rows) > 1:
+            # 원문 쪽에서 제목이 겹치면 어느 행인지 확정할 수 없다 — 출처는 비워 둔다.
+            report["source_ref_dup_title"] += 1
+        elif db_title_counts[title] > 1:
+            # DB 쪽에서 제목이 겹치면 같은 RCP_SEQ 가 두 레시피에 들어가
+            # uq_recipes_source 부분 UNIQUE 에 걸린다. 여기서 보류하고 세는 편이
+            # 반영 SQL 이 '유니크 위반'으로 죽는 것보다 원인이 분명하다.
+            report["source_ref_dup_db_title"] += 1
+        else:
             seq = (rows[0].get("RCP_SEQ") or "").strip()
             if seq:
                 source_refs.append({"recipe_id": recipe["id"], "rcp_seq": seq})
                 report["source_ref_recorded"] += 1
             else:
                 report["source_ref_missing_seq"] += 1
-        else:
-            # 제목이 겹치면 어느 원문 행인지 확정할 수 없다 — 출처는 비워 둔다.
-            report["source_ref_dup_title"] += 1
 
         tags = []
         for axis, field, mapping in AXES:
@@ -129,7 +137,8 @@ def _print_report(report):
         for key, n in sorted(report["unknown_value"].items()):
             out(f"    {key} {n}\n")
     out(f"출처(RCP_SEQ) 기록 {report['source_ref_recorded']}건"
-        f" / 제목 중복으로 보류 {report['source_ref_dup_title']}"
+        f" / 원문 제목 중복 보류 {report['source_ref_dup_title']}"
+        f" / DB 제목 중복 보류 {report['source_ref_dup_db_title']}"
         f" / 원문에 번호 없음 {report['source_ref_missing_seq']}\n")
     if report["unmatched_title"]:
         out(f"제목이 원문에 없는 레시피 {len(report['unmatched_title'])}건 (앞 5개): "

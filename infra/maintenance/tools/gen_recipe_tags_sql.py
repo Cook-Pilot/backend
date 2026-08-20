@@ -19,6 +19,13 @@ def main():
     details = json.load(open("details.json"))
 
     rows = [(a["recipe_id"], t["code"], t["axis"]) for a in assignments for t in a["tags"]]
+
+    # 빈 입력이면 VALUES 절이 비어 문법부터 깨진 SQL 이 나온다.
+    # 실행 시점의 문법 오류보다 생성 시점에 원인을 말하고 죽는 편이 진단이 빠르다.
+    if not rows:
+        raise SystemExit("tag_assign.json 에 부여가 0건이다. extract 리포트와 입력 파일을 확인할 것.")
+    if not source_refs:
+        raise SystemExit("source_ref.json 이 비어 있다(출처 0건). extract 리포트를 확인할 것.")
     per_code = Counter(code for _, code, _ in rows)
     codes = sorted(per_code)
 

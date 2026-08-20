@@ -57,7 +57,7 @@ infra/maintenance/tools/
 
 ## 검증
 
-`python3 test_extract_recipe_tags.py` — 11개 확인, 전부 통과. 원문도 DB 도 필요 없다.
+`python3 test_extract_recipe_tags.py` — 17개 확인, 전부 통과. 원문도 DB 도 필요 없다.
 
 제목 중복 시 축별 판단, `기타` 미부여, `국&찌개`(원문은 `&`, 태그 라벨은 `·` 라 헷갈리기 쉽다),
 미매칭, 사전에 없는 값, 제목 앞뒤 공백을 본다.
@@ -76,8 +76,8 @@ infra/maintenance/tools/
 
 ## 순서
 
-**`V16`(PR #75) 이 먼저 머지돼야 한다.** `recipe_tags` 가 비어 있을 때 제약을 걸어야 싸고,
-백필하고 나면 약 2,000행을 놓고 제약을 추가하게 된다. 백필 SQL 자체는 V16 이전에도 돌지만
+**`V17`(PR #75) 이 먼저 머지돼야 한다.** `recipe_tags` 가 비어 있을 때 제약을 걸어야 싸고,
+백필하고 나면 약 2,000행을 놓고 제약을 추가하게 된다. 백필 SQL 자체는 V17 이전에도 돌지만
 (전제조건이 `match_rule IS NULL` 로 검사한다) 순서를 바꿀 이유가 없다.
 
 백필 다음은 `GET /recipes` 의 `tags=` 파라미터, 그리고 `web/lib/gemini.ts` 의 자유 문자열

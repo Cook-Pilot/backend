@@ -50,11 +50,11 @@ parse_recipe_parts.py          (공용 파서 모듈. 직접 실행하지 않는
 
 analyze_ingredient_names.py    source + details + rebuild      → deferred.json
 extract_ingredient_groups.py   source + details + rebuild      → group_assign.json
-extract_recipe_tags.py         source + details                → tag_assign.json
+extract_recipe_tags.py         source + details                → tag_assign.json + source_ref.json
 
 gen_ingredient_names_sql.py    details + rebuild               → 반영 SQL
 gen_ingredient_groups_sql.py   details + group_assign          → 반영 SQL
-gen_recipe_tags_sql.py         details + tag_assign            → 반영 SQL
+gen_recipe_tags_sql.py         details + tag_assign + source_ref → 반영 SQL
 ```
 
 `gen_*` 는 SQL 을 표준출력으로 뱉는다. `> ../2026-08-19-recipe-tags-backfill.sql` 처럼 받는다.

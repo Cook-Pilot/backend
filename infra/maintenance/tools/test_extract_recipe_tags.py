@@ -81,5 +81,14 @@ a, s, r = assign([{"RCP_NM": "번호 없음", "RCP_PAT2": "반찬", "RCP_WAY2": 
 ok &= check("RCP_SEQ 가 없으면 출처를 건너뛰고 센다",
             s == [] and r["source_ref_missing_seq"] == 1)
 
+# 11. DB 쪽 제목 중복 — 같은 제목의 레시피가 DB 에 둘이면 같은 RCP_SEQ 가 두 행에 들어가
+#     uq_recipes_source 부분 UNIQUE 에 걸린다. 출처만 보류하고 태그는 양쪽에 남긴다.
+a, s, r = assign([src("30", "디비 중복", "반찬", "굽기")],
+                 [db("r30", "디비 중복"), db("r31", "디비 중복")])
+ok &= check("DB 제목이 겹치면 출처를 보류한다", s == [] and r["source_ref_dup_db_title"] == 2)
+ok &= check("DB 제목이 겹쳐도 태그는 양쪽에 남는다",
+            tags_of(a, "r30") == {"DISH_SIDE", "METHOD_GRILL"}
+            and tags_of(a, "r31") == {"DISH_SIDE", "METHOD_GRILL"})
+
 print("\n전체 통과" if ok else "\n실패 있음")
 raise SystemExit(0 if ok else 1)
