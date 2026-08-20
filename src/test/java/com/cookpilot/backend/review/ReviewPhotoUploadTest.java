@@ -34,6 +34,9 @@ class ReviewPhotoUploadTest extends PostgresApiTestBase {
 	@Autowired
 	private MockMvc mockMvc;
 
+	@Autowired
+	private org.springframework.web.context.WebApplicationContext applicationContext;
+
 	/** 디코더를 통과하는 진짜 이미지. 업로드가 재인코딩으로 메타데이터를 떨어내므로 필요하다. */
 	private static byte[] imageBytes(String format) throws IOException {
 		ByteArrayOutputStream out = new ByteArrayOutputStream();
@@ -56,8 +59,12 @@ class ReviewPhotoUploadTest extends PostgresApiTestBase {
 		MockMultipartFile file = new MockMultipartFile(
 				"file", "photo.jpg", "image/jpeg", imageBytes("jpg"));
 
-		mockMvc.perform(multipart("/api/v1/reviews/photos").file(file)
-						.header(HttpHeaders.AUTHORIZATION, ""))
+		// 헤더가 '아예 없는' 요청. 기본 MockMvc 는 데모 토큰을 실어 보내므로
+		// 기본값 없는 MockMvc 를 따로 만든다. (공백 헤더는 INVALID_TOKEN 으로 별개다)
+		var guest = org.springframework.test.web.servlet.setup.MockMvcBuilders
+				.webAppContextSetup(applicationContext).build();
+
+		guest.perform(multipart("/api/v1/reviews/photos").file(file))
 				.andExpect(status().isUnauthorized())
 				.andExpect(jsonPath("$.code").value("USER_SESSION_REQUIRED"));
 	}
