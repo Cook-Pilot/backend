@@ -15,7 +15,8 @@ import os
 import sys
 import urllib.request
 
-BASE = "http://openapi.foodsafetykorea.go.kr/api"
+# 키가 URL 경로에 실리므로 반드시 TLS 로 보낸다(평문이면 키·응답이 그대로 노출된다).
+BASE = "https://openapi.foodsafetykorea.go.kr/api"
 SERVICE = "COOKRCP01"
 PAGE = 1000          # 한 번에 요청할 구간 폭
 
@@ -52,9 +53,13 @@ def main():
         raise SystemExit(
             f"전량을 못 받았다: {len(rows)}/{total}. sample 키를 쓰고 있지 않은지 확인할 것.")
 
+    # 개수 일치는 중복+누락이 상쇄된 경우를 못 잡는다. 고유번호가 겹치면
+    # 다른 행이 빠졌다는 뜻이므로 경고가 아니라 실패다 — 이 파이프라인의
+    # 검증은 '통과 아니면 정지' 둘뿐이어야 한다.
     seqs = {r.get("RCP_SEQ") for r in rows}
     if len(seqs) != len(rows):
-        sys.stderr.write(f"경고: RCP_SEQ 가 중복된다 ({len(rows) - len(seqs)}건)\n")
+        raise SystemExit(
+            f"RCP_SEQ 가 중복된다({len(rows) - len(seqs)}건) — 페이지네이션이 어긋났다. 다시 받을 것.")
 
     with open("source.json", "w") as f:
         json.dump(rows, f, ensure_ascii=False)

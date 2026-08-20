@@ -116,7 +116,16 @@ def _print_report(report):
 if __name__ == "__main__":
     source = json.load(open("source.json"))
     if isinstance(source, dict):          # API 응답을 그대로 저장한 경우
-        source = source["COOKRCP01"]["row"]
+        payload = source["COOKRCP01"]
+        source = payload["row"]
+        # fetch 를 거치지 않은 입력이라 전량 수신 검사를 여기서도 한다.
+        # sample 키 응답(5행, total_count=1156)이 이 경로로 들어오면
+        # 부분 백필이 조용히 만들어진다.
+        total = int(payload.get("total_count", len(source)))
+        if len(source) != total:
+            raise SystemExit(
+                f"source.json 이 부분 응답이다: {len(source)}/{total}행. "
+                "fetch_recipe_source.py 로 전량을 다시 받을 것.")
     details = json.load(open("details.json"))
 
     assignments, report = assign(source, details)
