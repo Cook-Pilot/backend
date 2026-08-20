@@ -532,6 +532,12 @@
             },
             "type" : "array"
           },
+          "sourceRef" : {
+            "type" : "string"
+          },
+          "sourceType" : {
+            "type" : "string"
+          },
           "steps" : {
             "items" : {
               "$ref" : "#/components/schemas/RecipeStep"

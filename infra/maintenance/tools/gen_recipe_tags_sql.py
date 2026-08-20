@@ -1,0 +1,170 @@
+"""tag_assign.json 을 운영 반영 SQL 로 만든다.
+
+8/17 데이터 복구와 같은 형태다 — Flyway 마이그레이션이 아니라 일회성 유지보수 스크립트이고,
+감사 시점과 데이터가 다르면 **일부러 실패한다**. 태그 부여는 스키마가 아니라 운영 데이터라
+새 환경에서 재실행될 대상이 아니다(새 환경은 레시피가 시드 8건뿐이다).
+
+    python3 gen_recipe_tags_sql.py > ../2026-08-19-recipe-tags-backfill.sql
+"""
+import json
+import sys
+from collections import Counter
+
+ASSIGNED_BY = "IMPORT"   # 원문에서 그대로 옮긴 것. 사람 판단도 LLM 도 아니다.
+
+
+def main():
+    assignments = json.load(open("tag_assign.json"))
+    source_refs = json.load(open("source_ref.json"))
+    details = json.load(open("details.json"))
+
+    rows = [(a["recipe_id"], t["code"], t["axis"]) for a in assignments for t in a["tags"]]
+
+    # 빈 입력이면 VALUES 절이 비어 문법부터 깨진 SQL 이 나온다.
+    # 실행 시점의 문법 오류보다 생성 시점에 원인을 말하고 죽는 편이 진단이 빠르다.
+    if not rows:
+        raise SystemExit("tag_assign.json 에 부여가 0건이다. extract 리포트와 입력 파일을 확인할 것.")
+    if not source_refs:
+        raise SystemExit("source_ref.json 이 비어 있다(출처 0건). extract 리포트를 확인할 것.")
+    per_code = Counter(code for _, code, _ in rows)
+    codes = sorted(per_code)
+
+    out = sys.stdout.write
+    out(f"""-- CookPilot 레시피 태그 원문 백필 (생성물 — gen_recipe_tags_sql.py)
+--
+-- 식품안전나라 COOKRCP01 의 RCP_PAT2(음식형태) / RCP_WAY2(조리법) 를 그대로 옮긴다.
+-- 추론이 없다. 원문에 값이 있는 것만, 제목이 정확히 일치할 때만 부여한다.
+-- '기타' 와 제목이 겹쳐 값이 갈리는 축은 미부여로 남긴다(추측하지 않는다).
+--
+-- 부여 {len(rows)}행 / {len(assignments)}레시피. assigned_by = '{ASSIGNED_BY}'.
+-- confidence 는 비운다 — 원문 값이지 확신도를 매길 추정이 아니다.
+--
+-- 일회성이다. 감사 스냅샷과 다르면 실패한다.
+
+BEGIN;
+
+LOCK TABLE recipes, tags, recipe_tags IN SHARE ROW EXCLUSIVE MODE;
+
+CREATE TEMP TABLE new_tag (recipe_id UUID, tag_code TEXT, axis_code TEXT) ON COMMIT DROP;
+
+INSERT INTO new_tag (recipe_id, tag_code, axis_code) VALUES
+""")
+    out(",\n".join(f"  ('{rid}', '{code}', '{axis}')" for rid, code, axis in rows) + ";\n")
+
+    out(f"""
+-- ── 전제조건 ─────────────────────────────────────────────────────────────────
+DO $backfill$
+DECLARE n BIGINT;
+BEGIN
+  SELECT count(*) INTO n FROM new_tag;
+  IF n <> {len(rows)} THEN RAISE EXCEPTION '부여 행이 {len(rows)}개여야 하는데 %개다', n; END IF;
+
+  SELECT count(*) INTO n FROM recipes;
+  IF n <> {len(details)} THEN
+    RAISE EXCEPTION '감사 스냅샷은 레시피 {len(details)}개인데 %개다. 카탈로그가 바뀌었으니 다시 뽑을 것', n;
+  END IF;
+
+  SELECT count(*) INTO n FROM new_tag t
+   WHERE NOT EXISTS (SELECT 1 FROM recipes r WHERE r.id = t.recipe_id);
+  IF n <> 0 THEN RAISE EXCEPTION '대상 레시피 %건이 존재하지 않는다', n; END IF;
+
+  -- 사전에 있고, 부여 가능한(파생이 아닌) 태그여야 한다.
+  SELECT count(*) INTO n FROM new_tag t
+   WHERE NOT EXISTS (
+     SELECT 1 FROM tags g
+      WHERE g.code = t.tag_code AND g.axis_code = t.axis_code AND g.match_rule IS NULL);
+  IF n <> 0 THEN
+    RAISE EXCEPTION '사전에 없거나 파생 태그인 부여가 %건 있다', n;
+  END IF;
+
+  -- 배타축은 레시피당 하나다. 이미 붙어 있으면 이 백필이 처음이 아니라는 뜻이라 멈춘다
+  -- (부분 유니크 인덱스에 걸려 어차피 실패하지만, 원인을 분명히 말하고 죽는 편이 낫다).
+  SELECT count(*) INTO n
+    FROM recipe_tags e JOIN new_tag t
+      ON e.recipe_id = t.recipe_id AND e.axis_code = t.axis_code
+   WHERE t.axis_code IN ('CUISINE', 'DISH', 'METHOD');
+  IF n <> 0 THEN
+    RAISE EXCEPTION '대상 레시피에 배타축 태그가 이미 %건 붙어 있다. 재실행인지 확인할 것', n;
+  END IF;
+END
+$backfill$;
+
+-- ── 적용 ─────────────────────────────────────────────────────────────────────
+INSERT INTO recipe_tags (recipe_id, tag_code, axis_code, assigned_by)
+SELECT recipe_id, tag_code, axis_code, '{ASSIGNED_BY}' FROM new_tag;
+
+-- ── 검증 ─────────────────────────────────────────────────────────────────────
+DO $verify$
+DECLARE n BIGINT;
+BEGIN
+  SELECT count(*) INTO n FROM recipe_tags WHERE assigned_by = '{ASSIGNED_BY}';
+  IF n <> {len(rows)} THEN RAISE EXCEPTION '반영 후 {ASSIGNED_BY} 부여가 {len(rows)}행이어야 하는데 %행이다', n; END IF;
+""")
+    for code in codes:
+        out(f"""
+  SELECT count(*) INTO n FROM recipe_tags WHERE tag_code = '{code}';
+  IF n <> {per_code[code]} THEN RAISE EXCEPTION '{code} 가 {per_code[code]}행이어야 하는데 %행이다', n; END IF;""")
+    out("""
+
+  -- 배타축 중복이 없어야 한다(인덱스가 막지만 확인은 남긴다).
+  SELECT count(*) INTO n FROM (
+    SELECT recipe_id, axis_code FROM recipe_tags
+     WHERE axis_code IN ('CUISINE', 'DISH', 'METHOD')
+     GROUP BY recipe_id, axis_code HAVING count(*) > 1) dup;
+  IF n <> 0 THEN RAISE EXCEPTION '배타축이 중복된 레시피가 %건 있다', n; END IF;
+END
+$verify$;
+""")
+
+    # ── 출처(RCP_SEQ) 백필 (#85) — 제목 매칭의 부산물을 저장해 다음 매칭을 없앤다 ──
+    out(f"""
+-- ── 원본 출처 백필 (#85) ──────────────────────────────────────────────────────
+-- 제목이 원문에서 유일했던 레시피만 담겨 있다({len(source_refs)}건). 겹친 제목은 비워 둔다.
+
+CREATE TEMP TABLE src_ref (recipe_id UUID, ref TEXT) ON COMMIT DROP;
+
+INSERT INTO src_ref (recipe_id, ref) VALUES
+""")
+    out(",\n".join(f"  ('{s['recipe_id']}', '{s['rcp_seq']}')" for s in source_refs) + ";\n")
+    out(f"""
+DO $source$
+DECLARE n BIGINT;
+BEGIN
+  SELECT count(*) INTO n FROM src_ref;
+  IF n <> {len(source_refs)} THEN RAISE EXCEPTION '출처가 {len(source_refs)}건이어야 하는데 %건이다', n; END IF;
+
+  SELECT count(*) INTO n FROM src_ref s
+   WHERE NOT EXISTS (SELECT 1 FROM recipes r WHERE r.id = s.recipe_id);
+  IF n <> 0 THEN RAISE EXCEPTION '대상 레시피 %건이 존재하지 않는다', n; END IF;
+
+  -- 이미 출처가 있으면 재실행이거나 다른 경로가 먼저 채운 것이다. 덮어쓰지 않고 멈춘다.
+  SELECT count(*) INTO n FROM recipes r JOIN src_ref s ON r.id = s.recipe_id
+   WHERE r.source_type IS NOT NULL;
+  IF n <> 0 THEN RAISE EXCEPTION '대상 레시피 %건에 이미 출처가 있다. 재실행인지 확인할 것', n; END IF;
+END
+$source$;
+
+UPDATE recipes r
+SET source_type = 'COOKRCP01', source_ref = s.ref
+FROM src_ref s
+WHERE r.id = s.recipe_id;
+
+DO $source_verify$
+DECLARE n BIGINT;
+BEGIN
+  SELECT count(*) INTO n FROM recipes WHERE source_type = 'COOKRCP01';
+  IF n <> {len(source_refs)} THEN
+    RAISE EXCEPTION '반영 후 COOKRCP01 출처가 {len(source_refs)}건이어야 하는데 %건이다', n;
+  END IF;
+END
+$source_verify$;
+
+COMMIT;
+""")
+    sys.stderr.write(f"부여 {len(rows)}행 / {len(assignments)}레시피, 출처 {len(source_refs)}건\n")
+    for code in codes:
+        sys.stderr.write(f"  {code:<20} {per_code[code]}\n")
+
+
+if __name__ == "__main__":
+    main()
