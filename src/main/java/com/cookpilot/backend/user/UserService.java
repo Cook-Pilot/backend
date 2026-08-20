@@ -90,10 +90,13 @@ public class UserService {
 	public Optional<UUID> currentUserIdIfPresent() {
 		HttpServletRequest request = currentRequest();
 		String authorization = request == null ? null : request.getHeader(HttpHeaders.AUTHORIZATION);
-		if (!StringUtils.hasText(authorization)) {
+		if (authorization == null) {
 			return Optional.empty();
 		}
-		if (!authorization.regionMatches(true, 0, BEARER_PREFIX, 0, BEARER_PREFIX.length())) {
+		// 헤더가 존재하는데 비어 있거나 Bearer 형식이 아니면 게스트로 강등하지 않는다 —
+		// 잘못 보낸 인증이 게스트 응답으로 눙쳐지면 클라이언트가 오류를 알 길이 없다.
+		if (!StringUtils.hasText(authorization)
+				|| !authorization.regionMatches(true, 0, BEARER_PREFIX, 0, BEARER_PREFIX.length())) {
 			throw new InvalidTokenException("Authorization 헤더 형식이 올바르지 않습니다.");
 		}
 		return Optional.of(jwtService.verify(authorization.substring(BEARER_PREFIX.length()).trim()));

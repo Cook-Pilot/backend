@@ -254,6 +254,17 @@ class RecipeApiTest extends PostgresApiTestBase {
 	}
 
 	@Test
+	void 비어_있는_인증_헤더는_게스트가_아니라_401이다() throws Exception {
+		// 게스트는 '헤더 없음'뿐이다. 헤더가 있는데 비었으면 클라이언트 버그이므로
+		// 조용히 게스트 데이터를 주지 않고 401 로 알린다.
+		var guest = MockMvcBuilders.webAppContextSetup(applicationContext).build();
+
+		guest.perform(get("/api/v1/recipes")
+				.header(org.springframework.http.HttpHeaders.AUTHORIZATION, " "))
+				.andExpect(status().isUnauthorized());
+	}
+
+	@Test
 	void 게스트의_쓰기_요청은_여전히_거부된다() throws Exception {
 		// 열람만 열렸다는 경계 확인 — 즐겨찾기 추가는 세션 없이는 401 이어야 한다.
 		var guest = MockMvcBuilders.webAppContextSetup(applicationContext).build();

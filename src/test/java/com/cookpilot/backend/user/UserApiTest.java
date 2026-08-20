@@ -27,6 +27,9 @@ class UserApiTest extends PostgresApiTestBase {
 	private MockMvc mockMvc;
 
 	@Autowired
+	private org.springframework.web.context.WebApplicationContext applicationContext;
+
+	@Autowired
 	private ObjectMapper objectMapper;
 
 	@Test
@@ -42,10 +45,24 @@ class UserApiTest extends PostgresApiTestBase {
 
 	@Test
 	void 세션_토큰이_없으면_개인화_요청을_거부한다() throws Exception {
+		// 헤더가 '아예 없는' 경우다. 기본 MockMvc 는 데모 토큰을 실어 보내므로
+		// 기본값 없는 MockMvc 를 따로 만든다.
+		var guest = org.springframework.test.web.servlet.setup.MockMvcBuilders
+				.webAppContextSetup(applicationContext).build();
+
+		guest.perform(get("/api/v1/users/me"))
+				.andExpect(status().isUnauthorized())
+				.andExpect(jsonPath("$.code").value("USER_SESSION_REQUIRED"));
+	}
+
+	@Test
+	void 비어_있는_인증_헤더는_세션_없음이_아니라_형식_오류다() throws Exception {
+		// 헤더가 '있는데 비어 있는' 경우는 클라이언트 버그다. 게스트나 세션 없음으로
+		// 눙치지 않고 형식 오류로 구분해 알린다.
 		mockMvc.perform(get("/api/v1/users/me")
 						.header(HttpHeaders.AUTHORIZATION, ""))
 				.andExpect(status().isUnauthorized())
-				.andExpect(jsonPath("$.code").value("USER_SESSION_REQUIRED"));
+				.andExpect(jsonPath("$.code").value("INVALID_TOKEN"));
 	}
 
 	@Test
