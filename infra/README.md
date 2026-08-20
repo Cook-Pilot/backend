@@ -11,7 +11,7 @@
 | 보안 그룹 | 22(관리자 IP만) / 80 / 443. **8080·5432 는 열지 않는다** |
 | 접속 | SSH 키 또는 **AWS 콘솔 → EC2 → 연결 → Session Manager**(키·IP 불필요) |
 | 컨테이너 | `app`(Spring) + `db`(Postgres 16) |
-| 사진 버킷 | `cookpilot-photos-167403240280` (`review-photos/*` 만 공개 읽기) |
+| 사진 버킷 | `cookpilot-photos-167403240280` (**완전 비공개** — 열람은 앱이 받는 15분 서명 URL로만) |
 | 백업 버킷 | `cookpilot-backup-167403240280` (완전 비공개) |
 | IAM 역할 | `cookpilot-ec2-ssm` (SSM + S3). **자격증명 키는 서버에 두지 않는다** |
 

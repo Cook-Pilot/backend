@@ -25,8 +25,12 @@ public record PostCookReview(
 	 * createdPersonalVersionId 는 이 리뷰에서 파생된 개인 버전이다. 리뷰 저장 시점엔 항상 null —
 	 * 버전은 수정 파이프라인이 나중에 만들고 source_review_id 로 이 리뷰를 역참조한다.
 	 * 조회 시에만 그 역참조를 따라가 채운다.
+	 *
+	 * photoUrls 는 엔티티에서 바로 읽지 않고 받아서 넣는다 — DB 에 있는 건 버킷 키라
+	 * 열람 가능한 서명 URL 로 바꾼 뒤여야 한다({@link ReviewPhotoService#presign}).
 	 */
-	static PostCookReview from(PostCookReviewEntity entity, UUID createdPersonalVersionId) {
+	static PostCookReview from(PostCookReviewEntity entity, UUID createdPersonalVersionId,
+			List<String> photoUrls) {
 		return new PostCookReview(
 				entity.getId(),
 				entity.getUserId(),
@@ -38,7 +42,7 @@ public record PostCookReview(
 				entity.getRating(),
 				entity.getComment(),
 				entity.getNextTimeNote(),
-				List.copyOf(entity.getPhotoUrls()),
+				List.copyOf(photoUrls),
 				createdPersonalVersionId,
 				entity.getCreatedAt());
 	}
