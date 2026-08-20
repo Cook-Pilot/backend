@@ -1,5 +1,6 @@
 package com.cookpilot.backend.user;
 
+import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 
@@ -75,15 +76,30 @@ public class UserService {
 	 * 누구든 그 계정으로 행세할 수 있었으므로, 소셜 로그인 전환과 함께 걷어냈다.
 	 */
 	private UUID currentUserId() {
+		return currentUserIdIfPresent()
+				.orElseThrow(() -> new MissingUserSessionException("로그인이 필요합니다."));
+	}
+
+	/**
+	 * 세션이 있으면 사용자 id, 없으면 empty. 게스트 열람이 허용된 읽기 경로에서만 쓴다.
+	 *
+	 * 헤더가 아예 없는 것만 게스트다. 토큰이 "있는데 잘못된" 경우는 게스트로 강등하지 않고
+	 * 그대로 401 을 낸다 — 만료·위조가 게스트 응답으로 눙쳐지면 클라이언트가 세션이
+	 * 끝났다는 사실을 알 길이 없다.
+	 */
+	public Optional<UUID> currentUserIdIfPresent() {
 		HttpServletRequest request = currentRequest();
 		String authorization = request == null ? null : request.getHeader(HttpHeaders.AUTHORIZATION);
-		if (!StringUtils.hasText(authorization)) {
-			throw new MissingUserSessionException("로그인이 필요합니다.");
+		if (authorization == null) {
+			return Optional.empty();
 		}
-		if (!authorization.regionMatches(true, 0, BEARER_PREFIX, 0, BEARER_PREFIX.length())) {
+		// 헤더가 존재하는데 비어 있거나 Bearer 형식이 아니면 게스트로 강등하지 않는다 —
+		// 잘못 보낸 인증이 게스트 응답으로 눙쳐지면 클라이언트가 오류를 알 길이 없다.
+		if (!StringUtils.hasText(authorization)
+				|| !authorization.regionMatches(true, 0, BEARER_PREFIX, 0, BEARER_PREFIX.length())) {
 			throw new InvalidTokenException("Authorization 헤더 형식이 올바르지 않습니다.");
 		}
-		return jwtService.verify(authorization.substring(BEARER_PREFIX.length()).trim());
+		return Optional.of(jwtService.verify(authorization.substring(BEARER_PREFIX.length()).trim()));
 	}
 
 	private HttpServletRequest currentRequest() {

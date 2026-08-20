@@ -7,6 +7,8 @@ import java.util.UUID;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.test.web.servlet.setup.MockMvcBuilders;
+import org.springframework.web.context.WebApplicationContext;
 
 import com.cookpilot.backend.PostgresApiTestBase;
 import com.cookpilot.backend.TestRecipeIds;
@@ -25,6 +27,9 @@ class RecipeApiTest extends PostgresApiTestBase {
 
 	@Autowired
 	private MockMvc mockMvc;
+
+	@Autowired
+	private WebApplicationContext applicationContext;
 
 	@Autowired
 	private RecipeRepository recipeRepository;
@@ -224,5 +229,48 @@ class RecipeApiTest extends PostgresApiTestBase {
 	void 없는_레시피는_404를_반환한다() throws Exception {
 		mockMvc.perform(get("/api/v1/recipes/99999999-0000-0000-0000-000000000000"))
 				.andExpect(status().isNotFound());
+	}
+
+	@Test
+	void 게스트도_레시피_목록_검색_상세를_볼_수_있다() throws Exception {
+		// 기본 MockMvc 는 데모 사용자 토큰을 실어 보내므로, 헤더가 아예 없는
+		// 게스트 요청은 기본값 없는 MockMvc 를 따로 만들어 보낸다.
+		var guest = MockMvcBuilders.webAppContextSetup(applicationContext).build();
+
+		guest.perform(get("/api/v1/recipes"))
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$", hasSize(greaterThanOrEqualTo(1))))
+				// 세션이 없으면 개인화 플래그는 기본값이다.
+				.andExpect(jsonPath("$[0].favorite").value(false))
+				.andExpect(jsonPath("$[0].hasPersonalVersion").value(false));
+
+		guest.perform(get("/api/v1/recipes/search")
+				.param("title", "라면"))
+				.andExpect(status().isOk())
+				.andExpect(jsonPath("$.items[0].favorite").value(false));
+
+		guest.perform(get("/api/v1/recipes/" + TestRecipeIds.RAMEN_RECIPE_ID))
+				.andExpect(status().isOk());
+	}
+
+	@Test
+	void 비어_있는_인증_헤더는_게스트가_아니라_401이다() throws Exception {
+		// 게스트는 '헤더 없음'뿐이다. 헤더가 있는데 비었으면 클라이언트 버그이므로
+		// 조용히 게스트 데이터를 주지 않고 401 로 알린다.
+		var guest = MockMvcBuilders.webAppContextSetup(applicationContext).build();
+
+		guest.perform(get("/api/v1/recipes")
+				.header(org.springframework.http.HttpHeaders.AUTHORIZATION, " "))
+				.andExpect(status().isUnauthorized());
+	}
+
+	@Test
+	void 게스트의_쓰기_요청은_여전히_거부된다() throws Exception {
+		// 열람만 열렸다는 경계 확인 — 즐겨찾기 추가는 세션 없이는 401 이어야 한다.
+		var guest = MockMvcBuilders.webAppContextSetup(applicationContext).build();
+
+		guest.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders
+				.put("/api/v1/recipes/" + TestRecipeIds.RAMEN_RECIPE_ID + "/favorite"))
+				.andExpect(status().isUnauthorized());
 	}
 }
