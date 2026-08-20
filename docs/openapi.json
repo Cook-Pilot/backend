@@ -532,6 +532,12 @@
             },
             "type" : "array"
           },
+          "sourceRef" : {
+            "type" : "string"
+          },
+          "sourceType" : {
+            "type" : "string"
+          },
           "steps" : {
             "items" : {
               "$ref" : "#/components/schemas/RecipeStep"
@@ -879,13 +885,6 @@
         "properties" : {
           "ageGroup" : {
             "format" : "int32",
-            "type" : "integer"
-          },
-          "anonymous" : {
-            "type" : "boolean"
-          },
-          "betaNumber" : {
-            "format" : "int64",
             "type" : "integer"
           },
           "displayName" : {
@@ -1519,32 +1518,6 @@
           }
         },
         "tags" : [ "personal-recipe-controller" ]
-      }
-    },
-    "/api/v1/users/anonymous" : {
-      "post" : {
-        "operationId" : "createAnonymous",
-        "parameters" : [ {
-          "in" : "header",
-          "name" : "Idempotency-Key",
-          "required" : false,
-          "schema" : {
-            "type" : "string"
-          }
-        } ],
-        "responses" : {
-          "201" : {
-            "content" : {
-              "*/*" : {
-                "schema" : {
-                  "$ref" : "#/components/schemas/User"
-                }
-              }
-            },
-            "description" : "Created"
-          }
-        },
-        "tags" : [ "user-controller" ]
       }
     },
     "/api/v1/users/me" : {

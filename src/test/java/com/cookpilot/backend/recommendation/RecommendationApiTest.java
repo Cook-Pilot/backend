@@ -7,6 +7,7 @@ import java.util.UUID;
 
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
 
@@ -24,7 +25,6 @@ import com.cookpilot.backend.review.PostCookReviewEntity;
 import com.cookpilot.backend.review.PostCookReviewRepository;
 import com.cookpilot.backend.user.UserEntity;
 import com.cookpilot.backend.user.UserRepository;
-import com.cookpilot.backend.user.UserService;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -196,7 +196,7 @@ class RecommendationApiTest extends PostgresApiTestBase {
 		JsonNode response = objectMapper.readTree(mockMvc.perform(get(
 						"/api/v1/recipes/" + TestRecipeIds.EGG_FRIED_RICE_RECIPE_ID
 								+ "/next-cook-recommendations")
-						.header(UserService.USER_ID_HEADER, otherUserId))
+						.header(HttpHeaders.AUTHORIZATION, bearerFor(otherUserId)))
 				.andExpect(status().isOk())
 				.andReturn().getResponse().getContentAsString());
 

@@ -32,7 +32,7 @@ public class UserEntity {
 	@Column(name = "email")
 	private String email;
 
-	/** 소셜 제공자(GOOGLE/KAKAO/APPLE/DEV). 익명 사용자는 null. */
+	/** 소셜 제공자(GOOGLE/KAKAO/APPLE/DEV). */
 	@Column(name = "provider")
 	private String provider;
 
@@ -43,15 +43,6 @@ public class UserEntity {
 	@Setter
 	@Column(name = "display_name")
 	private String displayName;
-
-	@Column(name = "beta_number", nullable = false, insertable = false, updatable = false)
-	private Long betaNumber;
-
-	@Column(name = "is_anonymous", nullable = false)
-	private boolean anonymous;
-
-	@Column(name = "anonymous_installation_id")
-	private UUID anonymousInstallationId;
 
 	/** 성별. 온보딩 선택 항목이라 null 허용. */
 	@Enumerated(EnumType.STRING)
@@ -78,27 +69,13 @@ public class UserEntity {
 	}
 
 	public UserEntity(String email, String displayName) {
-		this(email, displayName, false);
-	}
-
-	public UserEntity(String email, String displayName, boolean anonymous) {
-		this(email, displayName, anonymous, null);
-	}
-
-	public UserEntity(
-			String email,
-			String displayName,
-			boolean anonymous,
-			UUID anonymousInstallationId) {
 		this.email = email;
 		this.displayName = displayName;
-		this.anonymous = anonymous;
-		this.anonymousInstallationId = anonymousInstallationId;
 	}
 
 	/** 소셜 로그인으로 만들어지는 계정. */
 	public static UserEntity ofSocial(String provider, String providerUserId, String email, String displayName) {
-		UserEntity entity = new UserEntity(email, displayName, false, null);
+		UserEntity entity = new UserEntity(email, displayName);
 		entity.provider = provider;
 		entity.providerUserId = providerUserId;
 		return entity;
@@ -113,13 +90,5 @@ public class UserEntity {
 			this.ageGroup = ageGroup;
 		}
 		this.profileAskedAt = Instant.now();
-	}
-
-	/**
-	 * 시퀀스가 채우는 컬럼이라 필드는 Long 이지만 조회 시점에는 항상 값이 있다.
-	 * 기존 호출부 시그니처(long)를 유지하려고 @Getter 대신 직접 둔다.
-	 */
-	public long getBetaNumber() {
-		return betaNumber;
 	}
 }

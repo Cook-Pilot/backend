@@ -5,6 +5,7 @@ import java.util.UUID;
 
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder;
@@ -14,7 +15,6 @@ import tools.jackson.databind.ObjectMapper;
 
 import com.cookpilot.backend.PostgresApiTestBase;
 import com.cookpilot.backend.TestRecipeIds;
-import com.cookpilot.backend.user.UserService;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -279,7 +279,7 @@ class RecipeEditPipelineApiTest extends PostgresApiTestBase {
 		createVersion(reviewId, editBody("400"));
 
 		mockMvc.perform(postEdits(reviewId, editBody("400"))
-						.header(UserService.USER_ID_HEADER, createAnonymousUser()))
+						.header(HttpHeaders.AUTHORIZATION, bearerFor(createTestUser())))
 				.andExpect(status().isNotFound());
 	}
 
@@ -419,14 +419,6 @@ class RecipeEditPipelineApiTest extends PostgresApiTestBase {
 				""".formatted(STEP_BOIL));
 
 		assertThat(getDetail(version.get("id").asString()).get("stepAdjustments")).hasSize(1);
-	}
-
-	/** 소유자 스코프를 확인하려면 데모 사용자가 아닌 진짜 다른 사용자 행이 있어야 한다. */
-	private String createAnonymousUser() throws Exception {
-		String response = mockMvc.perform(post("/api/v1/users/anonymous"))
-				.andExpect(status().isCreated())
-				.andReturn().getResponse().getContentAsString(StandardCharsets.UTF_8);
-		return objectMapper.readTree(response).get("id").asString();
 	}
 
 	/** 조리 기록을 먼저 남긴다 — 그 reviewId 가 버전 생성의 멱등키이자 조리 사실의 출처다. */

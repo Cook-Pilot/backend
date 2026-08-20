@@ -105,6 +105,8 @@ public class RecipeService {
 				entity.getBaseServings().doubleValue(),
 				entity.getImageUrl(),
 				ingredients,
-				steps);
+				steps,
+				entity.getSourceType(),
+				entity.getSourceRef());
 	}
 }

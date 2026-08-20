@@ -1,13 +1,17 @@
 package com.cookpilot.backend;
 
+import java.util.UUID;
+
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.boot.webmvc.test.autoconfigure.MockMvcBuilderCustomizer;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Import;
+import org.springframework.http.HttpHeaders;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
@@ -16,7 +20,9 @@ import org.springframework.web.context.request.RequestContextHolder;
 import org.springframework.web.context.request.ServletRequestAttributes;
 import org.testcontainers.postgresql.PostgreSQLContainer;
 
-import com.cookpilot.backend.user.UserService;
+import com.cookpilot.backend.auth.JwtService;
+import com.cookpilot.backend.user.UserEntity;
+import com.cookpilot.backend.user.UserRepository;
 
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 
@@ -37,8 +43,14 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 @Import(PostgresApiTestBase.MockMvcDefaults.class)
 public abstract class PostgresApiTestBase {
 
-	private static final String DEMO_USER_ID =
-			"00000000-0000-0000-0000-000000000001";
+	protected static final UUID DEMO_USER_ID =
+			UUID.fromString("00000000-0000-0000-0000-000000000001");
+
+	@Autowired
+	private JwtService jwtService;
+
+	@Autowired
+	private UserRepository userRepository;
 
 	static final PostgreSQLContainer POSTGRES = new PostgreSQLContainer("postgres:16-alpine");
 
@@ -56,8 +68,19 @@ public abstract class PostgresApiTestBase {
 	@BeforeEach
 	void setDemoUserRequestContext() {
 		MockHttpServletRequest request = new MockHttpServletRequest();
-		request.addHeader(UserService.USER_ID_HEADER, DEMO_USER_ID);
+		request.addHeader(HttpHeaders.AUTHORIZATION, bearerFor(DEMO_USER_ID));
 		RequestContextHolder.setRequestAttributes(new ServletRequestAttributes(request));
+	}
+
+	/** 특정 사용자로 요청을 보낼 때 쓰는 Authorization 헤더 값. */
+	protected String bearerFor(UUID userId) {
+		return "Bearer " + jwtService.issue(userId).token();
+	}
+
+	/** 데모 사용자와 구분되는 별도 계정. 소유자 격리를 확인할 때 쓴다. */
+	protected UUID createTestUser() {
+		return userRepository.saveAndFlush(UserEntity.ofSocial(
+				"DEV", "test-" + UUID.randomUUID(), null, "테스트 사용자")).getId();
 	}
 
 	@AfterEach
@@ -69,9 +92,10 @@ public abstract class PostgresApiTestBase {
 	static class MockMvcDefaults {
 
 		@Bean
-		MockMvcBuilderCustomizer cookPilotUserHeader() {
+		MockMvcBuilderCustomizer cookPilotSessionToken(JwtService jwtService) {
+			String bearer = "Bearer " + jwtService.issue(DEMO_USER_ID).token();
 			return builder -> builder.defaultRequest(get("/")
-					.header(UserService.USER_ID_HEADER, DEMO_USER_ID));
+					.header(HttpHeaders.AUTHORIZATION, bearer));
 		}
 	}
 }

@@ -26,13 +26,13 @@ ADD/MODIFY)에 행마다 TEXT 로 저장되어, 같은 재료("양파")가 쓰�
 
 ## 스키마/API 변경
 
-- `V16__normalize_ingredients.sql`
+- `V19__normalize_ingredients.sql`
   - `ingredients (id UUID PK, name TEXT NOT NULL UNIQUE)` 신설
   - 두 테이블의 기존 이름을 UNION-dedup 백필
   - `recipe_ingredients`: `ingredient_id` FK 추가(NOT NULL) 후 `name` 삭제
   - `personal_ingredient_adjustments`: `ingredient_id` FK 추가 후 `name` 삭제, CHECK 교체
 - API 변경 없음 (요청/응답 모두 기존 name 문자열 그대로 — openapi.json 재생성 불필요)
-- 이슈 댓글은 "V14까지"였지만 main 이 그 사이 V14(태그)·V15(재료 그룹)를 써서 V16 이 됐다.
+- 이슈 댓글은 "V14까지"였지만 main 이 그 사이 V14(태그)~V18(출처 컬럼)을 써서 V19 가 됐다(#77 리뷰 합의 번호).
 
 ## 알려진 약점·후속
 

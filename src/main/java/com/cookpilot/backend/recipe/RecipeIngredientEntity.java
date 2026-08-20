@@ -5,6 +5,7 @@ import java.util.UUID;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
+import jakarta.persistence.FetchType;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
@@ -29,7 +30,9 @@ public class RecipeIngredientEntity {
 	@Column(name = "recipe_id", nullable = false)
 	private UUID recipeId;
 
-	@ManyToOne(optional = false)
+	// 이름은 getName() 위임을 통해 트랜잭션 안에서만 읽는다. EAGER 면 재료 행마다 마스터를
+	// 즉시 로딩해 목록 조회에서 N+1 이 된다.
+	@ManyToOne(fetch = FetchType.LAZY, optional = false)
 	@JoinColumn(name = "ingredient_id", nullable = false)
 	private IngredientEntity ingredient;
 
