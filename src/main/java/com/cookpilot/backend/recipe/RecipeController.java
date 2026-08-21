@@ -46,9 +46,11 @@ public class RecipeController {
 	public RecipeSearchResponse search(
 			@RequestParam(defaultValue = "") String title,
 			@RequestParam(defaultValue = "") String ingredient,
+			// 여러 개면 ?tags=A&tags=B. 축 안은 OR, 축 사이는 AND 로 걸린다.
+			@RequestParam(required = false) List<String> tags,
 			@RequestParam(defaultValue = "1") int page,
 			@RequestParam(defaultValue = "9") int size) {
-		Page<RecipeOverview> result = recipeService.search(title, ingredient, page, size);
+		Page<RecipeOverview> result = recipeService.search(title, ingredient, tags, page, size);
 		return new RecipeSearchResponse(
 				summarize(result.getContent()),
 				result.getNumber() + 1,
