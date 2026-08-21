@@ -868,6 +868,17 @@
         "required" : [ "clientSessionId", "rating", "recipeId" ],
         "type" : "object"
       },
+      "Tag" : {
+        "properties" : {
+          "code" : {
+            "type" : "string"
+          },
+          "label" : {
+            "type" : "string"
+          }
+        },
+        "type" : "object"
+      },
       "UpdateProfileRequest" : {
         "properties" : {
           "ageGroup" : {
@@ -1049,7 +1060,7 @@
     },
     "/api/v1/favorites" : {
       "get" : {
-        "operationId" : "list_1",
+        "operationId" : "list_2",
         "responses" : {
           "200" : {
             "content" : {
@@ -1118,7 +1129,7 @@
     },
     "/api/v1/recipes" : {
       "get" : {
-        "operationId" : "list",
+        "operationId" : "list_1",
         "responses" : {
           "200" : {
             "content" : {
@@ -1155,6 +1166,16 @@
           "schema" : {
             "default" : "",
             "type" : "string"
+          }
+        }, {
+          "in" : "query",
+          "name" : "tags",
+          "required" : false,
+          "schema" : {
+            "items" : {
+              "type" : "string"
+            },
+            "type" : "array"
           }
         }, {
           "in" : "query",
@@ -1518,6 +1539,27 @@
           }
         },
         "tags" : [ "personal-recipe-controller" ]
+      }
+    },
+    "/api/v1/tags" : {
+      "get" : {
+        "operationId" : "list",
+        "responses" : {
+          "200" : {
+            "content" : {
+              "*/*" : {
+                "schema" : {
+                  "items" : {
+                    "$ref" : "#/components/schemas/Tag"
+                  },
+                  "type" : "array"
+                }
+              }
+            },
+            "description" : "OK"
+          }
+        },
+        "tags" : [ "tag-controller" ]
       }
     },
     "/api/v1/users/me" : {
