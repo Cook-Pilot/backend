@@ -1,5 +1,6 @@
 package com.cookpilot.backend.user;
 
+import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 
@@ -13,64 +14,24 @@ import org.springframework.web.context.request.ServletRequestAttributes;
 import com.cookpilot.backend.auth.InvalidTokenException;
 import com.cookpilot.backend.auth.JwtService;
 
-import jakarta.persistence.EntityManager;
 import jakarta.servlet.http.HttpServletRequest;
 
 /**
- * 실제 인증 도입 전 폐쇄 베타용 사용자 식별을 담당한다.
+ * 요청을 보낸 사용자를 세션 토큰에서 알아낸다.
  */
 @Service
 public class UserService {
 
-	public static final String USER_ID_HEADER = "X-CookPilot-User-Id";
-
 	private static final String BEARER_PREFIX = "Bearer ";
-	public static final String IDEMPOTENCY_KEY_HEADER = "Idempotency-Key";
 
 	private static final Set<Integer> AGE_GROUPS = Set.of(10, 20, 30, 40, 50, 60);
 
 	private final UserRepository userRepository;
-	private final EntityManager entityManager;
 	private final JwtService jwtService;
 
-	public UserService(UserRepository userRepository, EntityManager entityManager, JwtService jwtService) {
+	public UserService(UserRepository userRepository, JwtService jwtService) {
 		this.userRepository = userRepository;
-		this.entityManager = entityManager;
 		this.jwtService = jwtService;
-	}
-
-	@Transactional
-	public User createAnonymousUser(String idempotencyKey) {
-		UUID installationId = parseInstallationId(idempotencyKey);
-		if (installationId != null) {
-			int inserted = userRepository.insertAnonymousIgnore(UUID.randomUUID(), installationId);
-			UserEntity entity = userRepository.findByAnonymousInstallationId(installationId)
-					.orElseThrow(() -> new IllegalStateException("익명 사용자를 조회하지 못했습니다."));
-			if (inserted == 1) {
-				entity.setDisplayName("베타 사용자 " + entity.getBetaNumber());
-			}
-			return toUser(entity);
-		}
-
-		UserEntity entity = userRepository.saveAndFlush(
-				new UserEntity(null, "베타 사용자", true, installationId));
-
-		// beta_number는 DB 시퀀스 기본값이므로 INSERT 뒤 다시 읽어 온다.
-		entityManager.refresh(entity);
-		entity.setDisplayName("베타 사용자 " + entity.getBetaNumber());
-		return toUser(entity);
-	}
-
-	private UUID parseInstallationId(String idempotencyKey) {
-		if (idempotencyKey == null || idempotencyKey.isBlank()) {
-			// 기존 데모 클라이언트와 테스트는 키 없이도 매번 새 사용자를 만들 수 있다.
-			return null;
-		}
-		try {
-			return UUID.fromString(idempotencyKey);
-		} catch (IllegalArgumentException exception) {
-			throw new IllegalArgumentException("익명 사용자 생성 키 형식이 올바르지 않습니다.");
-		}
 	}
 
 	@Transactional(readOnly = true)
@@ -102,7 +63,7 @@ public class UserService {
 	/**
 	 * 계정 행 삭제 + 탈퇴 기록을 한 트랜잭션으로. 기록만 남고 계정이 살아 있으면
 	 * 복원 절차가 멀쩡한 계정을 지우게 되므로 둘은 반드시 함께 커밋되어야 한다.
-	 * 연관 행(후기·개인 버전·즐겨찾기·추천 반응)은 FK CASCADE 가 지운다(V16).
+	 * 연관 행(후기·개인 버전·즐겨찾기·추천 반응)은 FK CASCADE 가 지운다(V22).
 	 *
 	 * S3·카카오 등 외부 호출은 여기 넣지 않는다 — 순서 조율은 {@link AccountDeletionService}.
 	 */
@@ -122,32 +83,36 @@ public class UserService {
 	}
 
 	/**
-	 * 세션 토큰(Authorization: Bearer)을 우선 본다. 없으면 익명 발급 헤더로 떨어진다 —
-	 * 프론트가 소셜 로그인으로 옮겨가는 동안 두 방식이 함께 살아 있어야 앱이 깨지지 않는다.
+	 * 신원은 세션 토큰(Authorization: Bearer)에서만 나온다.
 	 *
-	 * TODO(소셜 로그인 전환 완료 후): 헤더 폴백과 익명 발급 API 제거.
+	 * 예전에는 클라이언트가 헤더에 적어 보낸 UUID 를 그대로 믿었다. 그 UUID 를 아는 사람은
+	 * 누구든 그 계정으로 행세할 수 있었으므로, 소셜 로그인 전환과 함께 걷어냈다.
 	 */
 	private UUID currentUserId() {
-		HttpServletRequest request = currentRequest();
-		if (request != null) {
-			String authorization = request.getHeader(HttpHeaders.AUTHORIZATION);
-			if (StringUtils.hasText(authorization)) {
-				if (!authorization.regionMatches(true, 0, BEARER_PREFIX, 0, BEARER_PREFIX.length())) {
-					throw new InvalidTokenException("Authorization 헤더 형식이 올바르지 않습니다.");
-				}
-				return jwtService.verify(authorization.substring(BEARER_PREFIX.length()).trim());
-			}
-		}
+		return currentUserIdIfPresent()
+				.orElseThrow(() -> new MissingUserSessionException("로그인이 필요합니다."));
+	}
 
-		String userIdValue = request == null ? null : request.getHeader(USER_ID_HEADER);
-		if (userIdValue == null || userIdValue.isBlank()) {
-			throw new MissingUserSessionException("로그인이 필요합니다.");
+	/**
+	 * 세션이 있으면 사용자 id, 없으면 empty. 게스트 열람이 허용된 읽기 경로에서만 쓴다.
+	 *
+	 * 헤더가 아예 없는 것만 게스트다. 토큰이 "있는데 잘못된" 경우는 게스트로 강등하지 않고
+	 * 그대로 401 을 낸다 — 만료·위조가 게스트 응답으로 눙쳐지면 클라이언트가 세션이
+	 * 끝났다는 사실을 알 길이 없다.
+	 */
+	public Optional<UUID> currentUserIdIfPresent() {
+		HttpServletRequest request = currentRequest();
+		String authorization = request == null ? null : request.getHeader(HttpHeaders.AUTHORIZATION);
+		if (authorization == null) {
+			return Optional.empty();
 		}
-		try {
-			return UUID.fromString(userIdValue);
-		} catch (IllegalArgumentException exception) {
-			throw new IllegalArgumentException("사용자 ID 형식이 올바르지 않습니다.");
+		// 헤더가 존재하는데 비어 있거나 Bearer 형식이 아니면 게스트로 강등하지 않는다 —
+		// 잘못 보낸 인증이 게스트 응답으로 눙쳐지면 클라이언트가 오류를 알 길이 없다.
+		if (!StringUtils.hasText(authorization)
+				|| !authorization.regionMatches(true, 0, BEARER_PREFIX, 0, BEARER_PREFIX.length())) {
+			throw new InvalidTokenException("Authorization 헤더 형식이 올바르지 않습니다.");
 		}
+		return Optional.of(jwtService.verify(authorization.substring(BEARER_PREFIX.length()).trim()));
 	}
 
 	private HttpServletRequest currentRequest() {
@@ -162,8 +127,6 @@ public class UserService {
 				entity.getId(),
 				entity.getEmail(),
 				entity.getDisplayName(),
-				entity.getBetaNumber(),
-				entity.isAnonymous(),
 				entity.getGender(),
 				entity.getAgeGroup(),
 				entity.getProfileAskedAt());

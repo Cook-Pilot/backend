@@ -10,6 +10,8 @@ public record Recipe(
 		Double baseServings,
 		String imageUrl,
 		List<RecipeIngredient> ingredients,
-		List<RecipeStep> steps
+		List<RecipeStep> steps,
+		String sourceType,
+		String sourceRef
 ) {
 }

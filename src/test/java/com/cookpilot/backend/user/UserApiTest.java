@@ -2,14 +2,9 @@ package com.cookpilot.backend.user;
 
 import java.util.UUID;
 
-import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
-import java.util.concurrent.Future;
-import java.util.concurrent.TimeUnit;
-
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
 
@@ -32,103 +27,60 @@ class UserApiTest extends PostgresApiTestBase {
 	private MockMvc mockMvc;
 
 	@Autowired
+	private org.springframework.web.context.WebApplicationContext applicationContext;
+
+	@Autowired
 	private ObjectMapper objectMapper;
 
 	@Test
-	void 익명_사용자를_순서대로_발급하고_헤더로_다시_조회한다() throws Exception {
-		String firstBody = mockMvc.perform(post("/api/v1/users/anonymous"))
-				.andExpect(status().isCreated())
-				.andExpect(jsonPath("$.email").isEmpty())
-				.andExpect(jsonPath("$.anonymous").value(true))
-				.andReturn()
-				.getResponse()
-				.getContentAsString();
-
-		String secondBody = mockMvc.perform(post("/api/v1/users/anonymous"))
-				.andExpect(status().isCreated())
-				.andExpect(jsonPath("$.anonymous").value(true))
-				.andReturn()
-				.getResponse()
-				.getContentAsString();
-
-		JsonNode first = objectMapper.readTree(firstBody);
-		JsonNode second = objectMapper.readTree(secondBody);
-		long firstNumber = first.get("betaNumber").asLong();
-		long secondNumber = second.get("betaNumber").asLong();
-		String firstId = first.get("id").asText();
-
-		org.assertj.core.api.Assertions.assertThat(secondNumber).isGreaterThan(firstNumber);
+	void 세션_토큰의_주인을_돌려준다() throws Exception {
+		UUID userId = createTestUser();
 
 		mockMvc.perform(get("/api/v1/users/me")
-						.header(UserService.USER_ID_HEADER, firstId))
+						.header(HttpHeaders.AUTHORIZATION, bearerFor(userId)))
 				.andExpect(status().isOk())
-				.andExpect(jsonPath("$.id").value(firstId))
-				.andExpect(jsonPath("$.displayName").value("베타 사용자 " + firstNumber))
-				.andExpect(jsonPath("$.betaNumber").value(firstNumber))
-				.andExpect(jsonPath("$.anonymous").value(true));
+				.andExpect(jsonPath("$.id").value(userId.toString()))
+				.andExpect(jsonPath("$.displayName").value("테스트 사용자"));
 	}
 
 	@Test
-	void 같은_멱등성_키로_재시도하면_같은_익명_사용자를_반환한다() throws Exception {
-		String installationId = "91000000-0000-4000-8000-000000000001";
+	void 세션_토큰이_없으면_개인화_요청을_거부한다() throws Exception {
+		// 헤더가 '아예 없는' 경우다. 기본 MockMvc 는 데모 토큰을 실어 보내므로
+		// 기본값 없는 MockMvc 를 따로 만든다.
+		var guest = org.springframework.test.web.servlet.setup.MockMvcBuilders
+				.webAppContextSetup(applicationContext).build();
 
-		String firstBody = mockMvc.perform(post("/api/v1/users/anonymous")
-						.header(UserService.IDEMPOTENCY_KEY_HEADER, installationId))
-				.andExpect(status().isCreated())
-				.andReturn()
-				.getResponse()
-				.getContentAsString();
-
-		String retryBody = mockMvc.perform(post("/api/v1/users/anonymous")
-						.header(UserService.IDEMPOTENCY_KEY_HEADER, installationId))
-				.andExpect(status().isCreated())
-				.andReturn()
-				.getResponse()
-				.getContentAsString();
-
-		JsonNode first = objectMapper.readTree(firstBody);
-		JsonNode retry = objectMapper.readTree(retryBody);
-
-		org.assertj.core.api.Assertions.assertThat(retry.get("id").asText())
-				.isEqualTo(first.get("id").asText());
-		org.assertj.core.api.Assertions.assertThat(retry.get("betaNumber").asLong())
-				.isEqualTo(first.get("betaNumber").asLong());
+		guest.perform(get("/api/v1/users/me"))
+				.andExpect(status().isUnauthorized())
+				.andExpect(jsonPath("$.code").value("USER_SESSION_REQUIRED"));
 	}
 
 	@Test
-	void 같은_멱등성_키의_동시_요청도_같은_사용자를_반환한다() throws Exception {
-		String installationId = "91000000-0000-4000-8000-000000000002";
-		CountDownLatch ready = new CountDownLatch(2);
-		CountDownLatch start = new CountDownLatch(1);
-		ExecutorService executor = Executors.newFixedThreadPool(2);
+	void 비어_있는_인증_헤더는_세션_없음이_아니라_형식_오류다() throws Exception {
+		// 헤더가 '있는데 비어 있는' 경우는 클라이언트 버그다. 게스트나 세션 없음으로
+		// 눙치지 않고 형식 오류로 구분해 알린다.
+		mockMvc.perform(get("/api/v1/users/me")
+						.header(HttpHeaders.AUTHORIZATION, ""))
+				.andExpect(status().isUnauthorized())
+				.andExpect(jsonPath("$.code").value("INVALID_TOKEN"));
+	}
 
-		try {
-			Future<String> first = executor.submit(() -> createUserConcurrently(
-					installationId, ready, start));
-			Future<String> second = executor.submit(() -> createUserConcurrently(
-					installationId, ready, start));
-			org.assertj.core.api.Assertions.assertThat(
-					ready.await(5, TimeUnit.SECONDS)).isTrue();
-			start.countDown();
-
-			JsonNode firstUser = objectMapper.readTree(first.get(10, TimeUnit.SECONDS));
-			JsonNode secondUser = objectMapper.readTree(second.get(10, TimeUnit.SECONDS));
-
-			org.assertj.core.api.Assertions.assertThat(secondUser.get("id").asText())
-					.isEqualTo(firstUser.get("id").asText());
-			org.assertj.core.api.Assertions.assertThat(secondUser.get("betaNumber").asLong())
-					.isEqualTo(firstUser.get("betaNumber").asLong());
-		} finally {
-			executor.shutdownNow();
-		}
+	@Test
+	void 존재하지_않는_사용자는_구조화된_오류_코드를_반환한다() throws Exception {
+		// 서명은 멀쩡한데 그 사이 계정이 사라진 경우. 401(위조)과 구분돼야 한다.
+		mockMvc.perform(get("/api/v1/users/me")
+						.header(HttpHeaders.AUTHORIZATION, bearerFor(
+								UUID.fromString("99999999-0000-0000-0000-000000000000"))))
+				.andExpect(status().isNotFound())
+				.andExpect(jsonPath("$.code").value("USER_NOT_FOUND"));
 	}
 
 	@Test
 	void 프로필을_입력하면_저장되고_물어본_시각이_찍힌다() throws Exception {
-		String userId = createAnonymousUserId();
+		String user = bearerFor(createTestUser());
 
 		mockMvc.perform(patch("/api/v1/users/me")
-						.header(UserService.USER_ID_HEADER, userId)
+						.header(HttpHeaders.AUTHORIZATION, user)
 						.contentType(MediaType.APPLICATION_JSON)
 						.content("{\"gender\": \"F\", \"ageGroup\": 20}"))
 				.andExpect(status().isOk())
@@ -137,7 +89,7 @@ class UserApiTest extends PostgresApiTestBase {
 				.andExpect(jsonPath("$.profileAskedAt").isNotEmpty());
 
 		mockMvc.perform(get("/api/v1/users/me")
-						.header(UserService.USER_ID_HEADER, userId))
+						.header(HttpHeaders.AUTHORIZATION, user))
 				.andExpect(status().isOk())
 				.andExpect(jsonPath("$.gender").value("F"))
 				.andExpect(jsonPath("$.ageGroup").value(20))
@@ -146,15 +98,15 @@ class UserApiTest extends PostgresApiTestBase {
 
 	@Test
 	void 건너뛰기는_값_없이_물어본_시각만_기록한다() throws Exception {
-		String userId = createAnonymousUserId();
+		String user = bearerFor(createTestUser());
 
 		mockMvc.perform(get("/api/v1/users/me")
-						.header(UserService.USER_ID_HEADER, userId))
+						.header(HttpHeaders.AUTHORIZATION, user))
 				.andExpect(status().isOk())
 				.andExpect(jsonPath("$.profileAskedAt").isEmpty());
 
 		mockMvc.perform(patch("/api/v1/users/me")
-						.header(UserService.USER_ID_HEADER, userId)
+						.header(HttpHeaders.AUTHORIZATION, user)
 						.contentType(MediaType.APPLICATION_JSON)
 						.content("{}"))
 				.andExpect(status().isOk())
@@ -165,95 +117,49 @@ class UserApiTest extends PostgresApiTestBase {
 
 	@Test
 	void 허용되지_않은_프로필_값은_400을_반환한다() throws Exception {
-		String userId = createAnonymousUserId();
+		String user = bearerFor(createTestUser());
 
 		mockMvc.perform(patch("/api/v1/users/me")
-						.header(UserService.USER_ID_HEADER, userId)
+						.header(HttpHeaders.AUTHORIZATION, user)
 						.contentType(MediaType.APPLICATION_JSON)
 						.content("{\"gender\": \"X\"}"))
 				.andExpect(status().isBadRequest());
 
 		mockMvc.perform(patch("/api/v1/users/me")
-						.header(UserService.USER_ID_HEADER, userId)
+						.header(HttpHeaders.AUTHORIZATION, user)
 						.contentType(MediaType.APPLICATION_JSON)
 						.content("{\"ageGroup\": 25}"))
 				.andExpect(status().isBadRequest());
 	}
 
-	private String createAnonymousUserId() throws Exception {
-		String body = mockMvc.perform(post("/api/v1/users/anonymous"))
-				.andExpect(status().isCreated())
-				.andReturn()
-				.getResponse()
-				.getContentAsString();
-		return objectMapper.readTree(body).get("id").asText();
-	}
-
 	@Test
-	void 사용자_헤더가_비어_있으면_개인화_요청을_거부한다() throws Exception {
-		mockMvc.perform(get("/api/v1/users/me")
-						.header(UserService.USER_ID_HEADER, ""))
-				.andExpect(status().isUnauthorized())
-				.andExpect(jsonPath("$.code").value("USER_SESSION_REQUIRED"));
-	}
-
-	@Test
-	void 존재하지_않는_사용자는_구조화된_오류_코드를_반환한다() throws Exception {
-		mockMvc.perform(get("/api/v1/users/me")
-						.header(UserService.USER_ID_HEADER,
-								"99999999-0000-0000-0000-000000000000"))
-				.andExpect(status().isNotFound())
-				.andExpect(jsonPath("$.code").value("USER_NOT_FOUND"));
-	}
-
-	@Test
-	void 익명_사용자마다_즐겨찾기가_분리된다() throws Exception {
-		String firstUserBody = mockMvc.perform(post("/api/v1/users/anonymous"))
-				.andExpect(status().isCreated())
-				.andReturn()
-				.getResponse()
-				.getContentAsString();
-		String secondUserBody = mockMvc.perform(post("/api/v1/users/anonymous"))
-				.andExpect(status().isCreated())
-				.andReturn()
-				.getResponse()
-				.getContentAsString();
-		String firstUserId = objectMapper.readTree(firstUserBody).get("id").asText();
-		String secondUserId = objectMapper.readTree(secondUserBody).get("id").asText();
+	void 사용자마다_즐겨찾기가_분리된다() throws Exception {
+		String firstUser = bearerFor(createTestUser());
+		String secondUser = bearerFor(createTestUser());
 		String favoritePath =
 				"/api/v1/recipes/10000000-0000-0000-0000-000000000001/favorite";
 
 		mockMvc.perform(put(favoritePath)
-						.header(UserService.USER_ID_HEADER, firstUserId))
+						.header(HttpHeaders.AUTHORIZATION, firstUser))
 				.andExpect(status().isOk());
 
 		mockMvc.perform(get("/api/v1/favorites")
-						.header(UserService.USER_ID_HEADER, firstUserId))
+						.header(HttpHeaders.AUTHORIZATION, firstUser))
 				.andExpect(status().isOk())
 				.andExpect(jsonPath("$.length()").value(1));
 		mockMvc.perform(get("/api/v1/favorites")
-						.header(UserService.USER_ID_HEADER, secondUserId))
+						.header(HttpHeaders.AUTHORIZATION, secondUser))
 				.andExpect(status().isOk())
 				.andExpect(jsonPath("$.length()").value(0));
 	}
 
 	@Test
-	void 익명_사용자마다_후기와_개인_레시피가_분리된다() throws Exception {
-		String firstUserBody = mockMvc.perform(post("/api/v1/users/anonymous"))
-				.andExpect(status().isCreated())
-				.andReturn()
-				.getResponse()
-				.getContentAsString();
-		String secondUserBody = mockMvc.perform(post("/api/v1/users/anonymous"))
-				.andExpect(status().isCreated())
-				.andReturn()
-				.getResponse()
-				.getContentAsString();
-		String firstUserId = objectMapper.readTree(firstUserBody).get("id").asText();
-		String secondUserId = objectMapper.readTree(secondUserBody).get("id").asText();
+	void 사용자마다_후기와_개인_레시피가_분리된다() throws Exception {
+		String firstUser = bearerFor(createTestUser());
+		String secondUser = bearerFor(createTestUser());
 
 		String reviewBody = mockMvc.perform(post("/api/v1/reviews")
-						.header(UserService.USER_ID_HEADER, firstUserId)
+						.header(HttpHeaders.AUTHORIZATION, firstUser)
 						.contentType(MediaType.APPLICATION_JSON)
 						.content("""
 								{
@@ -273,47 +179,31 @@ class UserApiTest extends PostgresApiTestBase {
 
 		mockMvc.perform(get("/api/v1/recipes/"
 						+ TestRecipeIds.RAMEN_RECIPE_ID + "/reviews")
-						.header(UserService.USER_ID_HEADER, secondUserId))
+						.header(HttpHeaders.AUTHORIZATION, secondUser))
 				.andExpect(status().isOk())
 				.andExpect(jsonPath("$.length()").value(0));
 		mockMvc.perform(get("/api/v1/reviews/" + reviewId)
-						.header(UserService.USER_ID_HEADER, secondUserId))
+						.header(HttpHeaders.AUTHORIZATION, secondUser))
 				.andExpect(status().isNotFound());
 		mockMvc.perform(get("/api/v1/recipes/"
 						+ TestRecipeIds.RAMEN_RECIPE_ID + "/personal-versions")
-						.header(UserService.USER_ID_HEADER, secondUserId))
+						.header(HttpHeaders.AUTHORIZATION, secondUser))
 				.andExpect(status().isOk())
 				.andExpect(jsonPath("$.length()").value(0));
 		mockMvc.perform(get("/api/v1/home/recent-recipes")
-						.header(UserService.USER_ID_HEADER, secondUserId))
+						.header(HttpHeaders.AUTHORIZATION, secondUser))
 				.andExpect(status().isOk())
 				.andExpect(jsonPath("$.length()").value(0));
 
 		mockMvc.perform(get("/api/v1/reviews/" + reviewId)
-						.header(UserService.USER_ID_HEADER, firstUserId))
+						.header(HttpHeaders.AUTHORIZATION, firstUser))
 				.andExpect(status().isOk())
 				.andExpect(jsonPath("$.id").value(reviewId));
 		mockMvc.perform(get("/api/v1/home/recent-recipes")
-						.header(UserService.USER_ID_HEADER, firstUserId))
+						.header(HttpHeaders.AUTHORIZATION, firstUser))
 				.andExpect(status().isOk())
 				.andExpect(jsonPath("$.length()").value(1))
 				.andExpect(jsonPath("$[0].id")
 						.value(TestRecipeIds.RAMEN_RECIPE_ID.toString()));
-	}
-
-	private String createUserConcurrently(
-			String installationId,
-			CountDownLatch ready,
-			CountDownLatch start) throws Exception {
-		ready.countDown();
-		if (!start.await(5, TimeUnit.SECONDS)) {
-			throw new IllegalStateException("동시 요청 시작을 기다리지 못했습니다.");
-		}
-		return mockMvc.perform(post("/api/v1/users/anonymous")
-						.header(UserService.IDEMPOTENCY_KEY_HEADER, installationId))
-				.andExpect(status().isCreated())
-				.andReturn()
-				.getResponse()
-				.getContentAsString();
 	}
 }

@@ -4,14 +4,13 @@ import java.util.UUID;
 
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.web.servlet.MockMvc;
 
 import com.cookpilot.backend.PostgresApiTestBase;
 import com.cookpilot.backend.TestRecipeIds;
-
-import tools.jackson.databind.ObjectMapper;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
@@ -26,7 +25,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  * 약속하는 동작을 고정한다.
  *
  * DEMO_USER_ID 는 컨텍스트를 공유하는 다른 테스트 클래스들이 쓰므로 지우지 않는다 —
- * 각 테스트가 익명 사용자를 새로 발급해 그 계정으로 삭제를 돌린다.
+ * 각 테스트가 별도 계정({@link #createTestUser()})을 만들어 그 계정으로 삭제를 돌린다.
  */
 class AccountDeletionTest extends PostgresApiTestBase {
 
@@ -34,21 +33,12 @@ class AccountDeletionTest extends PostgresApiTestBase {
 	private MockMvc mockMvc;
 
 	@Autowired
-	private ObjectMapper objectMapper;
-
-	@Autowired
 	private JdbcTemplate jdbcTemplate;
-
-	private String createUser() throws Exception {
-		String body = mockMvc.perform(post("/api/v1/users/anonymous"))
-				.andExpect(status().isCreated())
-				.andReturn().getResponse().getContentAsString();
-		return objectMapper.readTree(body).get("id").asText();
-	}
 
 	@Test
 	void 삭제하면_계정과_연관_데이터가_전부_사라지고_익명_행도_남지_않는다() throws Exception {
-		String userId = createUser();
+		UUID userId = createTestUser();
+		String bearer = bearerFor(userId);
 
 		// 후기(목 사진 키 포함)와 즐겨찾기를 만들어 둔다.
 		String review = """
@@ -61,16 +51,15 @@ class AccountDeletionTest extends PostgresApiTestBase {
 				}
 				""".formatted(UUID.randomUUID(), TestRecipeIds.BRAISED_TOFU_RECIPE_ID, userId);
 		mockMvc.perform(post("/api/v1/reviews")
-						.header(UserService.USER_ID_HEADER, userId)
+						.header(HttpHeaders.AUTHORIZATION, bearer)
 						.contentType(MediaType.APPLICATION_JSON)
 						.content(review))
 				.andExpect(status().isCreated());
 		mockMvc.perform(put("/api/v1/recipes/" + TestRecipeIds.BRAISED_TOFU_RECIPE_ID + "/favorite")
-						.header(UserService.USER_ID_HEADER, userId))
+						.header(HttpHeaders.AUTHORIZATION, bearer))
 				.andExpect(status().is2xxSuccessful());
 
-		mockMvc.perform(delete("/api/v1/users/me")
-						.header(UserService.USER_ID_HEADER, userId))
+		mockMvc.perform(delete("/api/v1/users/me").header(HttpHeaders.AUTHORIZATION, bearer))
 				.andExpect(status().isNoContent());
 
 		// 계정 행이 없다.
@@ -87,29 +76,41 @@ class AccountDeletionTest extends PostgresApiTestBase {
 
 	@Test
 	void 삭제_후_재호출과_개인화_API는_404_이지_500_이_아니다() throws Exception {
-		String userId = createUser();
+		UUID userId = createTestUser();
+		String bearer = bearerFor(userId);
 
-		mockMvc.perform(delete("/api/v1/users/me").header(UserService.USER_ID_HEADER, userId))
+		mockMvc.perform(delete("/api/v1/users/me").header(HttpHeaders.AUTHORIZATION, bearer))
 				.andExpect(status().isNoContent());
 
 		// 멱등: 같은 세션으로 다시 지워도 404.
-		mockMvc.perform(delete("/api/v1/users/me").header(UserService.USER_ID_HEADER, userId))
+		mockMvc.perform(delete("/api/v1/users/me").header(HttpHeaders.AUTHORIZATION, bearer))
 				.andExpect(status().isNotFound())
 				.andExpect(jsonPath("$.code").value("USER_NOT_FOUND"));
 
 		// 아직 살아 있는 세션(삭제된 유저)의 개인화 조회도 404.
-		mockMvc.perform(get("/api/v1/users/me").header(UserService.USER_ID_HEADER, userId))
+		mockMvc.perform(get("/api/v1/users/me").header(HttpHeaders.AUTHORIZATION, bearer))
 				.andExpect(status().isNotFound())
 				.andExpect(jsonPath("$.code").value("USER_NOT_FOUND"));
 	}
 
 	@Test
-	void 소셜_연결이_없는_계정도_삭제된다() throws Exception {
-		// 익명 계정은 provider 가 null — unlink 분기가 NPE 없이 지나가는지 고정한다.
-		String userId = createUser();
-		mockMvc.perform(delete("/api/v1/users/me").header(UserService.USER_ID_HEADER, userId))
+	void 해제기가_없는_제공자의_계정도_삭제된다() throws Exception {
+		// createTestUser() 는 provider=DEV — SocialUnlinker 가 없는 제공자라 unlink 분기를
+		// 건너뛰고도 삭제가 끝나는지 고정한다(해제기는 카카오뿐이다).
+		UUID userId = createTestUser();
+		mockMvc.perform(delete("/api/v1/users/me").header(HttpHeaders.AUTHORIZATION, bearerFor(userId)))
 				.andExpect(status().isNoContent());
 		assertThat(count("SELECT count(*) FROM users WHERE id = ?::uuid", userId)).isZero();
+	}
+
+	@Test
+	void 유효한_세션_토큰_없이는_삭제되지_않는다() throws Exception {
+		// 비가역 삭제라 식별자만으로 통과되면 안 된다(리뷰 P1). 위조 토큰은 401 이고 계정은 그대로다.
+		UUID userId = createTestUser();
+		mockMvc.perform(delete("/api/v1/users/me")
+						.header(HttpHeaders.AUTHORIZATION, "Bearer not-a-real-token"))
+				.andExpect(status().isUnauthorized());
+		assertThat(count("SELECT count(*) FROM users WHERE id = ?::uuid", userId)).isOne();
 	}
 
 	private long count(String sql, Object... args) {

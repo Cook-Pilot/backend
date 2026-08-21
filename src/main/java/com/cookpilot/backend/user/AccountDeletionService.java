@@ -1,11 +1,14 @@
 package com.cookpilot.backend.user;
 
+import java.util.List;
+import java.util.Map;
 import java.util.UUID;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 
 import org.springframework.stereotype.Service;
 
-import com.cookpilot.backend.auth.AuthProvider;
-import com.cookpilot.backend.auth.KakaoUnlinker;
+import com.cookpilot.backend.auth.SocialUnlinker;
 import com.cookpilot.backend.review.ReviewPhotoService;
 
 /**
@@ -17,9 +20,9 @@ import com.cookpilot.backend.review.ReviewPhotoService;
  * 2. DB 행 삭제 + 탈퇴 기록 (한 트랜잭션, {@link UserService#deleteAccount}) — 실패해도
  *    사진만 먼저 사라진 상태라 재시도가 된다. 반대 순서(DB 먼저)면 실패 시점에 계정이
  *    이미 없어 재호출이 404 로 막히고, 사진이 영영 남는다.
- * 3. 카카오 unlink — best-effort. 외부 장애가 우리 삭제를 막으면 안 된다.
+ * 3. 소셜 연결 해제({@link SocialUnlinker}) — best-effort. 외부 장애가 우리 삭제를 막으면 안 된다.
  *
- * 트랜잭션을 이 클래스에 걸지 않는 이유: 외부 호출(S3·카카오)을 DB 트랜잭션 안에 두면
+ * 트랜잭션을 이 클래스에 걸지 않는 이유: 외부 호출(S3·제공자)을 DB 트랜잭션 안에 두면
  * 외부가 느릴 때 커넥션 풀이 마른다(AuthService 의 제공자 호출과 같은 원칙).
  *
  * 삭제 뒤에도 살아 있는 JWT(무상태, 최대 14일)는 getCurrentUser() 의 DB 조회가
@@ -31,17 +34,20 @@ public class AccountDeletionService {
 	private final UserService userService;
 	private final UserRepository userRepository;
 	private final ReviewPhotoService reviewPhotoService;
-	private final KakaoUnlinker kakaoUnlinker;
+	/** provider 이름(users.provider 에 저장되는 {@code AuthProvider.name()}) → 해제기. */
+	private final Map<String, SocialUnlinker> unlinkers;
 
 	public AccountDeletionService(
 			UserService userService,
 			UserRepository userRepository,
 			ReviewPhotoService reviewPhotoService,
-			KakaoUnlinker kakaoUnlinker) {
+			List<SocialUnlinker> unlinkers) {
 		this.userService = userService;
 		this.userRepository = userRepository;
 		this.reviewPhotoService = reviewPhotoService;
-		this.kakaoUnlinker = kakaoUnlinker;
+		this.unlinkers = unlinkers.stream()
+				.collect(Collectors.toUnmodifiableMap(
+						unlinker -> unlinker.provider().name(), Function.identity()));
 	}
 
 	public void deleteCurrentAccount() {
@@ -55,8 +61,10 @@ public class AccountDeletionService {
 		reviewPhotoService.deleteAllForUser(userId);
 		userService.deleteAccount(userId);
 
-		if (AuthProvider.KAKAO.name().equals(provider)) {
-			kakaoUnlinker.unlink(providerUserId);
+		// 해제기가 없는 제공자(GOOGLE·DEV)는 건너뛴다.
+		SocialUnlinker unlinker = provider == null ? null : unlinkers.get(provider);
+		if (unlinker != null) {
+			unlinker.unlink(providerUserId);
 		}
 	}
 }

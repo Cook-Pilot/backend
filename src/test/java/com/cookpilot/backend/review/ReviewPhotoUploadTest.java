@@ -8,12 +8,12 @@ import javax.imageio.ImageIO;
 
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.HttpHeaders;
 import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.web.servlet.MockMvc;
 
 import com.cookpilot.backend.PostgresApiTestBase;
-import com.cookpilot.backend.user.UserService;
 
 import static org.hamcrest.Matchers.endsWith;
 import static org.hamcrest.Matchers.startsWith;
@@ -22,8 +22,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 /**
- * POST /api/v1/reviews/photos 계약 테스트. 업로드가 베타 사용자 세션을 요구하므로
- * 다른 API 테스트와 동일하게 {@link PostgresApiTestBase}(db 프로파일 + 데모 사용자 헤더)를 쓴다.
+ * POST /api/v1/reviews/photos 계약 테스트. 업로드가 로그인 세션을 요구하므로
+ * 다른 API 테스트와 동일하게 {@link PostgresApiTestBase}(db 프로파일 + 데모 사용자 토큰)를 쓴다.
  *
  * 버킷을 빈 값으로 고정해 목 모드를 강제한다 — 개발자 환경에 PHOTOS_BUCKET 이 설정돼 있어도
  * 테스트가 실제 S3 로 새지 않는다.
@@ -33,6 +33,9 @@ class ReviewPhotoUploadTest extends PostgresApiTestBase {
 
 	@Autowired
 	private MockMvc mockMvc;
+
+	@Autowired
+	private org.springframework.web.context.WebApplicationContext applicationContext;
 
 	/** 디코더를 통과하는 진짜 이미지. 업로드가 재인코딩으로 메타데이터를 떨어내므로 필요하다. */
 	private static byte[] imageBytes(String format) throws IOException {
@@ -52,12 +55,16 @@ class ReviewPhotoUploadTest extends PostgresApiTestBase {
 	}
 
 	@Test
-	void 사용자_헤더가_비어_있으면_401() throws Exception {
+	void 세션_토큰이_없으면_401() throws Exception {
 		MockMultipartFile file = new MockMultipartFile(
 				"file", "photo.jpg", "image/jpeg", imageBytes("jpg"));
 
-		mockMvc.perform(multipart("/api/v1/reviews/photos").file(file)
-						.header(UserService.USER_ID_HEADER, ""))
+		// 헤더가 '아예 없는' 요청. 기본 MockMvc 는 데모 토큰을 실어 보내므로
+		// 기본값 없는 MockMvc 를 따로 만든다. (공백 헤더는 INVALID_TOKEN 으로 별개다)
+		var guest = org.springframework.test.web.servlet.setup.MockMvcBuilders
+				.webAppContextSetup(applicationContext).build();
+
+		guest.perform(multipart("/api/v1/reviews/photos").file(file))
 				.andExpect(status().isUnauthorized())
 				.andExpect(jsonPath("$.code").value("USER_SESSION_REQUIRED"));
 	}

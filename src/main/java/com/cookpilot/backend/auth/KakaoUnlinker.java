@@ -23,7 +23,7 @@ import org.springframework.web.client.RestClient;
  * admin key 가 설정되지 않으면 호출 없이 건너뛴다 — 로컬·CI 는 카카오 없이 돌아야 한다.
  */
 @Component
-public class KakaoUnlinker {
+public class KakaoUnlinker implements SocialUnlinker {
 
 	private static final Logger log = LoggerFactory.getLogger(KakaoUnlinker.class);
 
@@ -41,6 +41,12 @@ public class KakaoUnlinker {
 		this.adminKey = adminKey;
 	}
 
+	@Override
+	public AuthProvider provider() {
+		return AuthProvider.KAKAO;
+	}
+
+	@Override
 	public void unlink(String providerUserId) {
 		if (!StringUtils.hasText(adminKey)) {
 			log.warn("카카오 admin key 미설정 — unlink 건너뜀: providerUserId={}", providerUserId);

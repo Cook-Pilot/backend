@@ -7,8 +7,6 @@ public record User(
 		UUID id,
 		String email,
 		String displayName,
-		long betaNumber,
-		boolean anonymous,
 		Gender gender,
 		Integer ageGroup,
 		Instant profileAskedAt

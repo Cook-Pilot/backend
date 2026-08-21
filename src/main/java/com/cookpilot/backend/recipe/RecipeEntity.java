@@ -50,6 +50,16 @@ public class RecipeEntity {
 	@Column(name = "image_url")
 	private String imageUrl;
 
+	/** 원본 출처 종류(COOKRCP01, YOUTUBE …). 손으로 만든 레시피는 NULL (#85). */
+	@Setter
+	@Column(name = "source_type")
+	private String sourceType;
+
+	/** 그 출처 세계에서의 고유번호(RCP_SEQ, 영상 ID …). source_type 과 쌍으로만 존재한다. */
+	@Setter
+	@Column(name = "source_ref")
+	private String sourceRef;
+
 	@CreationTimestamp
 	@Column(name = "created_at", nullable = false, updatable = false)
 	private Instant createdAt;

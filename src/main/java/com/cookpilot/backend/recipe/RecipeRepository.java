@@ -19,10 +19,16 @@ public interface RecipeRepository extends JpaRepository<RecipeEntity, UUID> {
 			WHERE recipe.status = :status
 			  AND (:title = '' OR LOWER(recipe.title) LIKE LOWER(CONCAT('%', :title, '%')) ESCAPE '\\')
 			  AND (:ingredient = '' OR EXISTS (
-				SELECT ingredient.id
-				FROM RecipeIngredientEntity ingredient
-				WHERE ingredient.recipeId = recipe.id
-				  AND LOWER(ingredient.name) LIKE LOWER(CONCAT('%', :ingredient, '%')) ESCAPE '\\'
+				SELECT recipeIngredient.id
+				FROM RecipeIngredientEntity recipeIngredient
+				WHERE recipeIngredient.recipeId = recipe.id
+				  AND LOWER(recipeIngredient.ingredient.name) LIKE LOWER(CONCAT('%', :ingredient, '%')) ESCAPE '\\'
+			  ))
+			  AND (:tagAxisCount = 0 OR :tagAxisCount = (
+				SELECT COUNT(DISTINCT recipeTag.axisCode)
+				FROM RecipeTagEntity recipeTag
+				WHERE recipeTag.recipeId = recipe.id
+				  AND recipeTag.tagCode IN :tagCodes
 			  ))
 			ORDER BY recipe.title ASC, recipe.id ASC
 			""", countQuery = """
@@ -31,15 +37,23 @@ public interface RecipeRepository extends JpaRepository<RecipeEntity, UUID> {
 			WHERE recipe.status = :status
 			  AND (:title = '' OR LOWER(recipe.title) LIKE LOWER(CONCAT('%', :title, '%')) ESCAPE '\\')
 			  AND (:ingredient = '' OR EXISTS (
-				SELECT ingredient.id
-				FROM RecipeIngredientEntity ingredient
-				WHERE ingredient.recipeId = recipe.id
-				  AND LOWER(ingredient.name) LIKE LOWER(CONCAT('%', :ingredient, '%')) ESCAPE '\\'
+				SELECT recipeIngredient.id
+				FROM RecipeIngredientEntity recipeIngredient
+				WHERE recipeIngredient.recipeId = recipe.id
+				  AND LOWER(recipeIngredient.ingredient.name) LIKE LOWER(CONCAT('%', :ingredient, '%')) ESCAPE '\\'
+			  ))
+			  AND (:tagAxisCount = 0 OR :tagAxisCount = (
+				SELECT COUNT(DISTINCT recipeTag.axisCode)
+				FROM RecipeTagEntity recipeTag
+				WHERE recipeTag.recipeId = recipe.id
+				  AND recipeTag.tagCode IN :tagCodes
 			  ))
 			""")
 	Page<RecipeEntity> search(
 			@Param("status") String status,
 			@Param("title") String title,
 			@Param("ingredient") String ingredient,
+			@Param("tagCodes") java.util.Collection<String> tagCodes,
+			@Param("tagAxisCount") long tagAxisCount,
 			Pageable pageable);
 }

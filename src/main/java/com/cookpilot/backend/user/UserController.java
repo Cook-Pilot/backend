@@ -1,12 +1,10 @@
 package com.cookpilot.backend.user;
 
+import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.PatchMapping;
-import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
@@ -38,18 +36,13 @@ public class UserController {
 	/**
 	 * 계정 삭제(회원 탈퇴). 후기·사진·개인 버전·즐겨찾기·추천 반응이 모두 함께 삭제된다.
 	 * 재호출은 404 (이미 삭제됨) — 멱등. 상세는 {@link AccountDeletionService}.
+	 *
+	 * 신원은 세션 토큰(Authorization: Bearer)에서만 나온다 — 비가역 삭제라 식별자 헤더만으로
+	 * 통과되면 안 된다. 토큰이 없거나 잘못되면 {@link UserService} 가 401 을 낸다.
 	 */
 	@DeleteMapping("/me")
 	@ResponseStatus(HttpStatus.NO_CONTENT)
 	public void deleteMe() {
 		accountDeletionService.deleteCurrentAccount();
-	}
-
-	@PostMapping("/anonymous")
-	@ResponseStatus(HttpStatus.CREATED)
-	public User createAnonymous(
-			@RequestHeader(value = UserService.IDEMPOTENCY_KEY_HEADER, required = false)
-			String idempotencyKey) {
-		return userService.createAnonymousUser(idempotencyKey);
 	}
 }
