@@ -57,6 +57,9 @@ analyze_ingredient_names.py    source + details + rebuild      → deferred.json
 extract_ingredient_groups.py   source + details + rebuild      → group_assign.json
 extract_recipe_tags.py         source + details                → tag_assign.json + source_ref.json
 
+fetch_recipe_details.py        (공개 API)                       → full.json
+classify_recipe_cuisine_occasion.py   full                      → assign.json
+
 gen_ingredient_names_sql.py    details + rebuild               → 반영 SQL
 gen_ingredient_groups_sql.py   details + group_assign          → 반영 SQL
 gen_recipe_tags_sql.py         details + tag_assign + source_ref → 반영 SQL
@@ -103,3 +106,50 @@ python3 test_extract_recipe_tags.py
 제목이 원문에서 유일한 레시피의 `(recipe_id, RCP_SEQ)` 쌍이다. `gen_recipe_tags_sql.py` 가
 같은 SQL 안에 `recipes.source_type/source_ref` 백필 섹션을 넣는다(V18 컬럼).
 이걸 한 번 반영하고 나면 다음 유지보수부터는 제목 매칭 없이 `source_ref` 로 원문을 찾는다.
+
+
+## 문화권·용도 분류 (2026-08-21 적용 완료)
+
+`classify_recipe_cuisine_occasion.py` 는 앞의 도구들과 입력이 다르다. **운영 DB 덤프도
+원문 API 키도 쓰지 않고 공개 API 만 쓴다**(`fetch_recipe_details.py`). 이 두 축은 제목·
+요리종류·열량만 보므로 재료의 양·단위가 필요 없고, 목록·상세 API 는 게스트에 열려 있다(#76).
+
+원문에서 유도할 수 있는 음식형태·조리법과 달리 **문화권·용도는 원문에도 DB 에도 값이 없다.**
+그래서 규칙으로 판단하고, 확신이 서지 않으면 비운다 — 문화권은 1,150건 중 533건을 일부러
+비워 뒀다. 잘못 붙은 태그는 없는 것보다 나쁘다(누르면 엉뚱한 목록이 나온다).
+
+### 적용 결과
+
+| 축 | 부여 | 내역 |
+| --- | --- | --- |
+| CUISINE | 617 | 한식 395 · 양식 169 · 퓨전 22 · 중식 15 · 일식 10 · 아시안 6 |
+| OCCASION | 531 | 다이어트 214 · 간식 172 · 안주 49 · 야식 28 · 손님상 21 · 도시락 18 · 명절 17 · 해장 12 |
+
+`assigned_by='RULE'` 로 남겼다. V21 이 넣은 `IMPORT` 와 구분되므로 **이 부여만 정확히
+지울 수 있다** — 실제로 적용 중 실수로 지웠다가 그대로 복구했다.
+
+```sql
+DELETE FROM recipe_tags WHERE assigned_by = 'RULE';
+```
+
+### 표본 검증에서 잡은 것
+
+규칙을 처음 돌린 결과를 그냥 믿었으면 그대로 들어갔을 오류들이다. **부분 문자열 매칭**이
+공통 원인이다.
+
+- `밀라노 스타일 포크 커틀렛` → 안주 (`포`(육포)가 **포**크에 걸림)
+- `가지 탕수육` → 손님상 (`수육`이 탕**수육**에 걸림)
+- `불고기덮밥` → 손님상 (`불고기`는 일상 반찬에도 흔해 잔치 신호가 못 됨)
+
+짧은 단어마다 "이 문자열 안에 있으면 매칭이 아니다"라는 예외(`TRAPS`)를 함께 둔다.
+
+### 아직 비어 있는 태그
+
+`아이반찬`·`초스피드`·`혼밥` 은 0건이다.
+
+- **아이반찬** — 제목에 '아이'가 든 6건만 잡혀 뺐다. 순한 반찬을 가르는 규칙을 못 만들었다.
+- **초스피드** — 1,150건 중 1,036건이 6단계이고 단계 타이머는 **전량 0** 이다. 빠른 요리를 가릴 신호가 없다.
+- **혼밥** — 규칙을 못 만들었다.
+
+화면에 칩으로 내보내려면 `is_active=false` 로 내려야 한다. 눌렀을 때 빈 목록이 나오는 것은
+V14 가 미리 적어 둔 실패 방식이다.
