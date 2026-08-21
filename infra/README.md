@@ -8,9 +8,11 @@
 | --- | --- |
 | EC2 | 서울(ap-northeast-2) t3.small, Ubuntu, EBS 30GB gp3 |
 | 주소 | 탄력적 IP `13.209.243.235` (재부팅해도 유지) |
-| 보안 그룹 | 22(관리자 IP만) / 80 / 443. **8080·5432 는 열지 않는다** |
+| 보안 그룹 | 22(관리자 IP만) / 80 / 443. **8080·8081·5432 는 열지 않는다** |
+| 도메인 | `cooklog.kr`, `www.cooklog.kr` → 탄력적 IP (가비아 DNS). 2026-08-20 연결 |
+| 진입 | **80/443 은 web 스택의 Caddy**(`/home/ubuntu/cookpilot-web-preview`, [Cook-Pilot/web](https://github.com/Cook-Pilot/web))가 받는다. `/api/v1/*` → 호스트 nginx **8081** → Spring 8080. 옛 APK 의 `http://13.209.243.235` 직접 호출도 Caddy 가 받아 같은 길로 보낸다 |
 | 접속 | SSH 키 또는 **AWS 콘솔 → EC2 → 연결 → Session Manager**(키·IP 불필요) |
-| 컨테이너 | `app`(Spring) + `db`(Postgres 16) |
+| 컨테이너 | `app`(Spring) + `db`(Postgres 16). web 스택(`caddy`·`web`)은 별도 compose 프로젝트 |
 | 사진 버킷 | `cookpilot-photos-167403240280` (**완전 비공개** — 열람은 앱이 받는 15분 서명 URL로만) |
 | 백업 버킷 | `cookpilot-backup-167403240280` (완전 비공개) |
 | IAM 역할 | `cookpilot-ec2-ssm` (SSM + S3). **자격증명 키는 서버에 두지 않는다** |
@@ -23,8 +25,8 @@ infra/
 ├── backup.sh                    DB 백업(pg_dump → gzip → S3, 최근 14개 유지)
 ├── docker/daemon.json           도커 로그 로테이션(10MB × 3)
 └── nginx/
-    ├── cookpilot.conf           80 → 8080 리버스 프록시
-    └── ratelimit.conf           업로드·익명발급 rate limit zone
+    ├── cookpilot.conf           8081 → 8080 리버스 프록시 (Caddy 뒤, real_ip 복원)
+    └── ratelimit.conf           업로드·로그인 rate limit zone + X-Forwarded-Proto 전달 map
 ```
 
 ## 새 서버 구축
@@ -108,10 +110,15 @@ sudo docker exec cookpilot-db-1 psql -U cookpilot -d cookpilot -t \
 **설정을 바꿀 때는 이 디렉터리를 고치고 서버에 반영한다.** 서버에서 직접 고치면 다음 재구축 때 사라진다.
 
 ```bash
-# 서버에 반영
+# 서버에 반영 (두 파일이 한 쌍이다 — cookpilot.conf 가 ratelimit.conf 의 zone·map 을 참조한다)
+cd ~/backend && git pull
+sudo install -m 644 infra/nginx/ratelimit.conf /etc/nginx/conf.d/ratelimit.conf
 sudo install -m 644 infra/nginx/cookpilot.conf /etc/nginx/sites-available/default
 sudo nginx -t && sudo systemctl reload nginx
 ```
+
+> 2026-08-21 기준 서버에는 이 디렉터리보다 앞서 손으로 넣은 8081 전환 설정이 있고, 그 과정에서
+> 로그인 rate limit(#73)이 빠져 있었다. 위 명령으로 덮어쓰면 둘이 다시 같아진다.
 
 **배포는 main 머지로 한다.** CI 의 `deploy` 잡이 SSM 으로 서버에서 `git pull` + `compose up` 을 실행하므로, 이미지와 `docker-compose.prod.yml` 변경이 함께 반영된다. 수동 배포가 필요하면:
 
