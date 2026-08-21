@@ -1563,6 +1563,15 @@
       }
     },
     "/api/v1/users/me" : {
+      "delete" : {
+        "operationId" : "deleteMe",
+        "responses" : {
+          "204" : {
+            "description" : "No Content"
+          }
+        },
+        "tags" : [ "user-controller" ]
+      },
       "get" : {
         "operationId" : "me",
         "responses" : {

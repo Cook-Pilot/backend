@@ -16,6 +16,7 @@ import org.springframework.web.multipart.MaxUploadSizeExceededException;
 
 import com.cookpilot.backend.auth.InvalidTokenException;
 import com.cookpilot.backend.auth.ProviderNotConfiguredException;
+import com.cookpilot.backend.review.PhotoDeletionFailedException;
 import com.cookpilot.backend.review.PhotoUploadFailedException;
 import com.cookpilot.backend.user.MissingUserSessionException;
 import com.cookpilot.backend.user.UserNotFoundException;
@@ -99,6 +100,14 @@ public class GlobalExceptionHandler {
 		log.error("로그인 제공자 설정 누락", e);
 		return ProblemDetail.forStatusAndDetail(
 				HttpStatus.INTERNAL_SERVER_ERROR, "로그인을 처리하지 못했습니다. 잠시 후 다시 시도해 주세요.");
+	}
+
+	/** 탈퇴 중 사진 삭제 실패. 계정은 아직 남아 있으므로 재시도하면 된다. */
+	@ExceptionHandler(PhotoDeletionFailedException.class)
+	public ProblemDetail handlePhotoDeletionFailed(PhotoDeletionFailedException e) {
+		log.error("탈퇴 사진 삭제 실패", e);
+		return ProblemDetail.forStatusAndDetail(
+				HttpStatus.INTERNAL_SERVER_ERROR, "계정 삭제를 완료하지 못했습니다. 잠시 후 다시 시도해 주세요.");
 	}
 
 	/** 저장소 장애. 클라이언트가 고칠 수 없으니 재시도 안내만 하고 원인은 로그로 남긴다. */
