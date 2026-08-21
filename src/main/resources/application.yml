@@ -62,6 +62,9 @@ cookpilot:
     # 안드로이드·iOS·웹이 서로 다른 클라이언트 ID 를 쓴다. 쉼표로 나열한다.
     google:
       client-ids: ${GOOGLE_CLIENT_IDS:}
+    # 애플: iOS 네이티브는 번들 ID, 안드로이드·웹은 Services ID 가 aud 다. 쉼표로 나열한다.
+    apple:
+      client-ids: ${APPLE_CLIENT_IDS:}
     # 비우면 개발자 로그인이 꺼진다.
     dev-login-secret: ${DEV_LOGIN_SECRET:}
     # 탈퇴 시 카카오 연결 해제(카카오 개발자 정책 요구). 비우면 unlink 를 건너뛴다(로그만 남김).

@@ -37,7 +37,7 @@
 
 | 엔드포인트 | 설명 |
 | --- | --- |
-| `POST /api/v1/auth/{provider}` | `provider` = `google` / `kakao`. body `{"token": "..."}` → `{token, expiresAt, userId, displayName}` |
+| `POST /api/v1/auth/{provider}` | `provider` = `google` / `kakao` / `apple`. body `{"token": "...", "displayName": "선택"}` → `{token, expiresAt, userId, displayName}`. `displayName` 은 토큰에 이름이 없는 제공자(애플)용, 계정 생성 시 1회만 반영 |
 | `POST /api/v1/auth/dev` | body `{"secret": "..."}`. 서버에 시크릿이 설정된 경우에만 |
 
 인증 실패는 401 + `code: INVALID_TOKEN`.
@@ -57,6 +57,7 @@
 | --- | --- |
 | `JWT_SECRET` | 서명 키. `openssl rand -base64 48`. **바뀌면 발급된 토큰이 전부 무효** |
 | `GOOGLE_CLIENT_IDS` | 쉼표 구분. 비우면 구글 로그인이 거부된다 |
+| `APPLE_CLIENT_IDS` | 쉼표 구분. iOS 는 번들 ID, 안드로이드·웹은 Services ID. 비우면 애플 로그인이 거부된다 (`docs/feat-apple-login.md`) |
 | `DEV_LOGIN_SECRET` | 비우면 개발자 로그인 비활성 |
 | `JWT_VALIDITY` | 기본 `P14D` |
 
@@ -72,7 +73,7 @@
 ## 알려진 약점·후속
 
 - **HTTPS 가 아직 없다.** 평문 HTTP 로 토큰이 오가면 탈취될 수 있다. 도메인·인증서가 준비되면 즉시 전환해야 하며, **그 전까지 실사용자 로그인을 열면 안 된다.**
-- **애플 로그인 미포함.** Developer 계정 결제 후 `SocialVerifier` 구현 하나를 추가하면 된다(구글과 같은 JWKS 방식). iOS 앱이 다른 소셜 로그인을 제공하면 애플 로그인도 **심사 요건**이다.
+- ~~애플 로그인 미포함.~~ `AppleVerifier` 로 추가됨 — `docs/feat-apple-login.md`. 탈퇴 시 토큰 revoke 는 아직 없다.
 - **리프레시 토큰이 없다.** 14일 뒤 재로그인해야 한다. 베타에서는 수용 가능하다고 보고 단순하게 갔다.
 - **로그아웃이 서버에서 즉시 반영되지 않는다**(무상태 JWT). 클라이언트가 토큰을 버리는 것으로 처리한다. 강제 만료가 필요해지면 블랙리스트나 서버 세션으로 바꿔야 한다.
 - **계정 통합 없음.** 같은 사람이 카카오·구글로 각각 로그인하면 별개 계정이 된다.

@@ -44,7 +44,11 @@ public class AuthService {
 		this.devLoginSecret = devLoginSecret.getBytes(StandardCharsets.UTF_8);
 	}
 
-	public AuthResponse login(AuthProvider provider, String token) {
+	/**
+	 * @param displayName 클라이언트가 넘긴 표시 이름(선택). 제공자 토큰에 이름이 없을 때(애플)만,
+	 *                    그것도 계정을 처음 만들 때만 쓴다. 토큰에 이름이 있으면 무시한다.
+	 */
+	public AuthResponse login(AuthProvider provider, String token, String displayName) {
 		SocialVerifier verifier = verifiers.get(provider);
 		if (verifier == null) {
 			throw new IllegalArgumentException("지원하지 않는 로그인 제공자입니다: " + provider);
@@ -54,7 +58,12 @@ public class AuthService {
 		}
 		// 제공자 호출은 트랜잭션 밖에서 한다 — 외부 응답을 기다리는 동안 DB 커넥션을 잡고 있으면
 		// 제공자가 느릴 때 커넥션 풀이 마른다.
-		return loginAs(verifier.verify(token));
+		SocialIdentity identity = verifier.verify(token);
+		if (!StringUtils.hasText(identity.displayName()) && StringUtils.hasText(displayName)) {
+			identity = new SocialIdentity(
+					identity.provider(), identity.providerUserId(), identity.email(), displayName.strip());
+		}
+		return loginAs(identity);
 	}
 
 	/**

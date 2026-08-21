@@ -104,6 +104,24 @@ class AuthApiTest extends PostgresApiTestBase {
 	}
 
 	@Test
+	void 애플_설정이_없으면_500이고_설정_내용을_노출하지_않는다() throws Exception {
+		mockMvc.perform(post("/api/v1/auth/apple")
+						.contentType(MediaType.APPLICATION_JSON)
+						.content("{\"token\":\"whatever\",\"displayName\":\"홍길동\"}"))
+				.andExpect(status().isInternalServerError())
+				.andExpect(jsonPath("$.detail").value(org.hamcrest.Matchers.not(
+						org.hamcrest.Matchers.containsString("APPLE_CLIENT_IDS"))));
+	}
+
+	@Test
+	void 표시_이름이_너무_길면_400() throws Exception {
+		mockMvc.perform(post("/api/v1/auth/apple")
+						.contentType(MediaType.APPLICATION_JSON)
+						.content("{\"token\":\"whatever\",\"displayName\":\"" + "가".repeat(51) + "\"}"))
+				.andExpect(status().isBadRequest());
+	}
+
+	@Test
 	void 제공자_이름은_대소문자를_가리지_않는다() throws Exception {
 		// 경로 변수는 ASCII 식별자라 Locale.ROOT 로 해석한다. 검증기가 없는 DEV 는
 		// 소셜 경로로 들어오면 400 이어야 한다(개발자 로그인은 /auth/dev 전용).

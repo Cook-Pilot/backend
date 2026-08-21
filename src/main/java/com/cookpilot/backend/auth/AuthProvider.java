@@ -4,13 +4,12 @@ import java.util.Locale;
 
 /**
  * 로그인 제공자. DB 에는 {@link #name()} 문자열로 저장한다(users.provider).
- *
- * APPLE 은 Developer 계정 준비 후 {@link SocialVerifier} 구현과 함께 추가한다.
  */
 public enum AuthProvider {
 
 	GOOGLE,
 	KAKAO,
+	APPLE,
 	/** 개발자 로그인. 외부 검증이 없으므로 SocialVerifier 가 없다. */
 	DEV;
 

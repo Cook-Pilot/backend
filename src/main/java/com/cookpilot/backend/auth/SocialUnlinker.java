@@ -8,7 +8,8 @@ package com.cookpilot.backend.auth;
  * 예외를 밖으로 던지지 말고 로그만 남긴다.
  *
  * 지금은 {@link KakaoUnlinker} 뿐이다(카카오 개발자 정책이 unlink 를 요구). 구글은 정책 요구가
- * 없어 구현하지 않았고, APPLE 은 계정 준비 후 revoke 구현과 함께 추가한다.
+ * 없어 구현하지 않았다. APPLE 은 심사 요건상 revoke 가 필요하지만 Developer 키(.p8)로 만든
+ * client_secret 과 로그인 시 받은 authorization code 교환이 있어야 해서 아직 없다 — 후속 과제.
  */
 public interface SocialUnlinker {
 
