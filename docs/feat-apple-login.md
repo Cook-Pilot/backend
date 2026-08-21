@@ -23,7 +23,8 @@ iOS 앱: Sign in with Apple → identity token(JWT) + (최초 1회) 이름
    구글과 글자 하나 빼고 같았다. 두 번째 구현이 생기는 시점이라 공통 추상 클래스로 올리고,
    `GoogleVerifier`·`AppleVerifier` 는 상수(JWKS 주소·iss)와 이름 클레임 해석만 가진다.
    구글 동작은 바뀌지 않는다 — 오류 문구의 제공자 이름만 파라미터가 됐다.
-2. **aud 는 `APPLE_CLIENT_IDS` 로 나열.** iOS 네이티브 로그인이면 앱 번들 ID(`com.cookpilot.cookpilot`),
+2. **aud 는 `APPLE_CLIENT_IDS` 로 나열.** iOS 네이티브 로그인이면 앱 번들 ID(`kr.cooklog.app` — 프론트 PR #68 에서
+   Flutter 기본값 `com.cookpilot.cookpilot` 을 콘솔에 등록된 이 값으로 맞췄다),
    안드로이드·웹(리다이렉트 방식)이면 Services ID 가 aud 로 찍힌다. 구글과 같은 이유로 여러 개를 허용한다.
    비어 있으면 `ProviderNotConfiguredException` → 500 (설정 누락은 서버 잘못이지 클라이언트 잘못이 아니다).
 3. **이름은 요청 본문 `displayName` 으로 받는다.** 애플은 이름을 토큰에 싣지 않고 최초 로그인 1회만
@@ -51,9 +52,8 @@ iOS 앱: Sign in with Apple → identity token(JWT) + (최초 1회) 이름
 | --- | --- |
 | `APPLE_CLIENT_IDS` | 쉼표 구분. iOS 는 번들 ID, 안드로이드·웹은 Services ID. 비우면 애플 로그인이 거부된다 |
 
-`docker-compose.prod.yml`·`.env.example` 에 추가했다. **운영 `.env` 에는 아직 넣지 않았다** — Apple Developer
-계정이 없어 번들 ID 가 Sign in with Apple 로 등록돼 있지 않고, 등록 전에는 어차피 토큰이 발급되지 않는다.
-계정이 생기면 `APPLE_CLIENT_IDS=com.cookpilot.cookpilot` 한 줄 넣고 `docker compose up -d` 면 된다.
+`docker-compose.prod.yml`·`.env.example` 에 추가했다. 운영 `.env` 에는 `APPLE_CLIENT_IDS=kr.cooklog.app` 을 넣었다
+(2026-08-21, Apple Developer 콘솔 Team `Y9VWJ3KA86` 의 App ID `kr.cooklog.app` 에 Sign In with Apple 활성화 완료).
 
 ## 검증
 
