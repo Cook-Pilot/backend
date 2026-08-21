@@ -17,7 +17,7 @@
 ## 인증 흐름
 
 ```
-앱: 카카오/구글 SDK 로그인 → 제공자 토큰 획득
+앱: 카카오/구글/네이버 SDK 로그인 → 제공자 토큰 획득
   → POST /api/v1/auth/{provider}  { "token": "..." }
 서버: 제공자에게 토큰 검증 → (provider, providerUserId) 로 계정 조회/생성 → 우리 JWT 발급
 앱: 이후 모든 요청에 Authorization: Bearer <jwt>
@@ -25,7 +25,7 @@
 
 ## 핵심 설계 결정
 
-1. **검증은 서버에서 한다.** 클라이언트가 "내 이메일은 X"라고 주장한 값을 믿으면 아무나 남의 계정으로 로그인할 수 있다. 구글·애플은 ID 토큰(JWT)을 공개키(JWKS)로 검증하고, 카카오는 액세스 토큰으로 카카오 API 를 호출해 확인한다.
+1. **검증은 서버에서 한다.** 클라이언트가 "내 이메일은 X"라고 주장한 값을 믿으면 아무나 남의 계정으로 로그인할 수 있다. 구글·애플은 ID 토큰(JWT)을 공개키(JWKS)로 검증하고, 카카오·네이버는 액세스 토큰으로 제공자 API 를 호출해 확인한다.
 2. **구글은 `aud`(대상) 검사가 필수.** 이게 없으면 *다른 앱용으로 발급된 정상 토큰*까지 통과해서, 아무 구글 앱에서 받은 토큰으로 우리 계정에 들어올 수 있다. 안드로이드·iOS·웹이 클라이언트 ID 가 달라 여러 개를 허용한다.
 3. **계정 식별은 `(provider, providerUserId)` 로만.** 이메일로 찾지 않는다 — 이메일은 바뀌고, 카카오는 제공이 선택 동의라 없을 수 있고, 무엇보다 "같은 이메일이면 같은 사람"이라는 가정은 계정 탈취 경로다. 이 때문에 `users.email` 의 UNIQUE 제약을 푼다(같은 사람이 카카오·구글로 각각 가입하면 이메일이 겹친다).
 4. **JWT(무상태), HS256, 기본 14일.** 서버가 한 대라 대칭키로 충분하다(비대칭키는 검증 주체가 여럿일 때 값어치가 있다). 무상태라 즉시 로그아웃이 안 되므로 유효기간을 짧게 두고 재로그인시킨다. 서명 키가 32바이트 미만이면 **기동 시점에 실패**시킨다 — 운영에서 터지는 것보다 낫다.
@@ -37,7 +37,7 @@
 
 | 엔드포인트 | 설명 |
 | --- | --- |
-| `POST /api/v1/auth/{provider}` | `provider` = `google` / `kakao`. body `{"token": "..."}` → `{token, expiresAt, userId, displayName}` |
+| `POST /api/v1/auth/{provider}` | `provider` = `google` / `kakao` / `naver`(네이버는 [feat-naver-login](feat-naver-login.md)). body `{"token": "..."}` → `{token, expiresAt, userId, displayName}` |
 | `POST /api/v1/auth/dev` | body `{"secret": "..."}`. 서버에 시크릿이 설정된 경우에만 |
 
 인증 실패는 401 + `code: INVALID_TOKEN`.

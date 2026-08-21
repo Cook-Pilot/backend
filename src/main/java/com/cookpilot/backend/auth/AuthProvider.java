@@ -11,6 +11,8 @@ public enum AuthProvider {
 
 	GOOGLE,
 	KAKAO,
+	/** 네이버. 카카오와 같은 액세스 토큰 방식({@link NaverVerifier}). */
+	NAVER,
 	/** 개발자 로그인. 외부 검증이 없으므로 SocialVerifier 가 없다. */
 	DEV;
 

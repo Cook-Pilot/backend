@@ -19,7 +19,7 @@ public class AuthController {
 	}
 
 	/**
-	 * 소셜 로그인. {@code provider} 는 google / kakao (애플은 계정 준비 후 추가).
+	 * 소셜 로그인. {@code provider} 는 google / kakao / naver (애플은 계정 준비 후 추가).
 	 * 계정이 없으면 이 시점에 만들어진다 — 별도 회원가입 단계가 없다.
 	 */
 	@PostMapping("/{provider}")
