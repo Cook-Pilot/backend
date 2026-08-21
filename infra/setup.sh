@@ -48,14 +48,16 @@ fi
 echo 'vm.swappiness=10' | sudo tee /etc/sysctl.d/99-swappiness.conf > /dev/null
 sudo sysctl -q -w vm.swappiness=10
 
-echo "== 4/6 nginx (리버스 프록시 + rate limit) =="
+echo "== 4/6 nginx (Caddy 뒤 rate limit 관문, 8081) =="
+# 80/443 은 web 스택(cookpilot-web 의 Caddy 컨테이너)이 받는다. nginx 는 8081 에서 Caddy 가 넘긴
+# /api/v1/* 만 받아 rate limit 을 걸고 8080 으로 보낸다. 80 으로 설치하면 Caddy 와 충돌한다.
 sudo apt-get install -y -qq nginx
 sudo install -m 644 "$REPO_DIR/infra/nginx/ratelimit.conf" /etc/nginx/conf.d/ratelimit.conf
 sudo install -m 644 "$REPO_DIR/infra/nginx/cookpilot.conf" /etc/nginx/sites-available/default
 sudo nginx -t
 sudo systemctl enable --now nginx > /dev/null
 sudo systemctl reload nginx
-echo "   80 -> 8080 프록시, 업로드/익명발급 rate limit 적용"
+echo "   8081 -> 8080 프록시, 업로드/로그인 rate limit 적용 (80/443 은 web 스택의 Caddy)"
 
 echo "== 5/6 AWS CLI (DB 백업 업로드용) =="
 if ! command -v aws > /dev/null; then
