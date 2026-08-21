@@ -19,12 +19,12 @@ public class AuthController {
 	}
 
 	/**
-	 * 소셜 로그인. {@code provider} 는 google / kakao (애플은 계정 준비 후 추가).
+	 * 소셜 로그인. {@code provider} 는 google / kakao / apple.
 	 * 계정이 없으면 이 시점에 만들어진다 — 별도 회원가입 단계가 없다.
 	 */
 	@PostMapping("/{provider}")
 	public AuthResponse login(@PathVariable String provider, @Valid @RequestBody SocialLoginRequest request) {
-		return authService.login(AuthProvider.from(provider), request.token());
+		return authService.login(AuthProvider.from(provider), request.token(), request.displayName());
 	}
 
 	/** 개발자 로그인. 서버에 시크릿이 설정돼 있을 때만 동작한다. */
