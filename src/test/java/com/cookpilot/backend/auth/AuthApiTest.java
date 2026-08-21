@@ -85,7 +85,7 @@ class AuthApiTest extends PostgresApiTestBase {
 
 	@Test
 	void 지원하지_않는_제공자는_400() throws Exception {
-		mockMvc.perform(post("/api/v1/auth/naver")
+		mockMvc.perform(post("/api/v1/auth/apple")
 						.contentType(MediaType.APPLICATION_JSON)
 						.content("{\"token\":\"whatever\"}"))
 				.andExpect(status().isBadRequest());
