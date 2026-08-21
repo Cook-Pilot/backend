@@ -6,6 +6,7 @@ import java.text.ParseException;
 import java.time.Instant;
 import java.util.Date;
 import java.util.List;
+import java.util.Objects;
 import java.util.Set;
 
 import org.springframework.util.StringUtils;
@@ -73,11 +74,14 @@ abstract class IdTokenVerifier implements SocialVerifier {
 			throw new InvalidTokenException(label + " 토큰을 검증하지 못했습니다.");
 		}
 
-		if (!issuers.contains(claims.getIssuer())) {
+		// Set.copyOf 가 만든 불변 집합은 contains(null) 에 NPE 를 던진다 — 클레임 누락은 401 이어야 한다.
+		String issuer = claims.getIssuer();
+		if (issuer == null || !issuers.contains(issuer)) {
 			throw new InvalidTokenException(label + " 토큰의 발급자가 올바르지 않습니다.");
 		}
 		List<String> audiences = claims.getAudience();
-		if (audiences == null || audiences.stream().noneMatch(allowedAudiences::contains)) {
+		if (audiences == null
+				|| audiences.stream().filter(Objects::nonNull).noneMatch(allowedAudiences::contains)) {
 			throw new InvalidTokenException("이 앱을 위해 발급된 " + label + " 토큰이 아닙니다.");
 		}
 		Date expiration = claims.getExpirationTime();

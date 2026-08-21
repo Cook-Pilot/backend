@@ -124,6 +124,25 @@ class IdTokenVerifierTest {
 	}
 
 	@Test
+	void 발급자_클레임이_없으면_NPE가_아니라_거부다() throws Exception {
+		// Set.copyOf 불변 집합의 contains(null) 은 NPE 다 — 500 이 아니라 401 로 내려가야 한다.
+		AppleVerifier verifier = new AppleVerifier(APPLE_AUD, jwksUrl);
+		String token = sign(signingKey, appleClaims(builder -> builder.issuer(null)));
+
+		assertThatThrownBy(() -> verifier.verify(token))
+				.isInstanceOf(InvalidTokenException.class)
+				.hasMessageContaining("발급자");
+	}
+
+	@Test
+	void 대상_클레임이_없으면_거부한다() throws Exception {
+		AppleVerifier verifier = new AppleVerifier(APPLE_AUD, jwksUrl);
+		String token = sign(signingKey, appleClaims(builder -> builder.audience((String) null)));
+
+		assertThatThrownBy(() -> verifier.verify(token)).isInstanceOf(InvalidTokenException.class);
+	}
+
+	@Test
 	void 만료된_토큰은_거부한다() throws Exception {
 		AppleVerifier verifier = new AppleVerifier(APPLE_AUD, jwksUrl);
 		String token = sign(signingKey, appleClaims(builder ->
